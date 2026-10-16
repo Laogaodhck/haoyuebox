@@ -40,7 +40,7 @@ window.Brush = (function () {
     var pointerCount = 0;
     /* 拖动期间缓存画布矩形与坐标比例，避免每次 pointermove 强制重排（卡顿主因） */
     var rectCache = null;
-    var sx = 1, sy = 1, ox = 0, oy = 0, sizeWork = 2, cssPerWork = 0.1;
+    var sx = 1, sy = 1, ox = 0, oy = 0, sizeWork = 2;
     /* 笔画平滑状态：last=上一个原始点，lastMid=上一段中点（二次贝塞尔平滑用） */
     var last = null, lastMid = null;
     /* 数位板压感：pointerType === 'pen' 时线宽随 e.pressure 变化 */
@@ -193,12 +193,10 @@ window.Brush = (function () {
         sy = kc / tf.scale;
         ox = -tf.tx / tf.scale;
         oy = -tf.ty / tf.scale;
-        cssPerWork = tf.scale / (kc || 1);
       } else {
         sx = st.workCanvas.width / (rectCache.width || 1);
         sy = st.workCanvas.height / (rectCache.height || 1);
         ox = 0; oy = 0;
-        cssPerWork = 1 / (sx || 1);
       }
       sizeWork = Math.max(2, st.brushSize * sx);
       if (hooks && hooks.onStrokeStart) hooks.onStrokeStart(snapMask(st));

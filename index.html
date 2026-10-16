@@ -1156,6 +1156,9 @@
       <button id="pm-add" class="primary">＋ 添加打印机</button>
       <button id="pm-import" class="ghost" title="把系统已检测到、但尚未加入工作台的打印机一键导入">从系统导入</button>
       <button id="pm-check-all" class="ghost" title="逐台检测可用性：系统类比对系统列表，网络/共享类测试 TCP 连通">检测全部</button>
+      <button id="pm-export" class="ghost" title="把当前台账导出为 JSON 备份文件">导出台账</button>
+      <button id="pm-restore" class="ghost" title="从 JSON 备份文件恢复台账（覆盖当前台账）">导入台账</button>
+      <input type="file" id="pm-restore-file" accept="application/json,.json" hidden>
       <div class="pm-filters">
         <input type="search" id="pm-search" class="input" placeholder="搜索名称 / 地址 / 位置 / 备注" aria-label="搜索打印机">
         <select id="pm-filter-status" class="select" aria-label="按状态筛选">
@@ -1198,6 +1201,17 @@
 
 <!-- 轻提示 -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<!-- 通用确认对话框（App.ui.confirm，替代原生 window.confirm） -->
+<div id="confirm-dlg" class="pm-dlg" hidden>
+  <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="confirm-msg">
+    <div id="confirm-msg" class="confirm-msg"></div>
+    <div class="confirm-actions">
+      <button id="confirm-cancel" class="ghost" type="button">取消</button>
+      <button id="confirm-ok" class="primary" type="button">确定</button>
+    </div>
+  </div>
+</div>
 
   <div id="thumb-lightbox" hidden><img id="thumb-lightbox-img" alt="预览大图"></div>
 

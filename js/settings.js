@@ -32,7 +32,7 @@
       if (s.fmt === 'png' || s.fmt === 'jpeg') State.fmt = s.fmt;
       if (typeof s.quality === 'number') State.quality = Math.min(1, Math.max(0.5, s.quality));
       if (fromLegacy) save(); // 旧品牌设置迁移到新存储键
-    } catch (e) { }
+    } catch (e) { /* 设置损坏或不可读时按默认值继续 */ }
   }
 
   function applyToUI() {

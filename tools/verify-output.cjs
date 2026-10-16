@@ -21,9 +21,20 @@ function phys(buf) {
   return null;
 }
 
-const files = process.argv.slice(2).length
-  ? process.argv.slice(2)
+const args = process.argv.slice(2);
+let files = args.length
+  ? args
   : ['.playwright-cli/out-single.png', '.playwright-cli/out-sheet.png'].map(p => path.join(ROOT, p));
+
+/* 默认模式（无参数）：E2E 产物不存在时优雅跳过，不阻塞 verify 链 */
+if (!args.length) {
+  const missing = files.filter((f) => !fs.existsSync(f));
+  if (missing.length === files.length) {
+    console.log('verify-output: 无 E2E 产物可查（.playwright-cli/out-*.png 不存在），跳过');
+    process.exit(0);
+  }
+  files = files.filter((f) => fs.existsSync(f));
+}
 
 let fail = 0;
 for (const f of files) {

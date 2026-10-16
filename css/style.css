@@ -1078,6 +1078,16 @@ body[data-module="print"] #sheet-steps-nav { display: none; }
   font-size: 13px; color: var(--text); cursor: pointer;
 }
 .pm-dlg-err { font-size: 12px; color: var(--danger); min-height: 16px; }
+
+/* 通用确认对话框（App.ui.confirm） */
+.confirm-box {
+  width: min(400px, calc(100vw - 32px));
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  padding: 20px;
+}
+.confirm-msg { font-size: 14px; line-height: 1.7; white-space: pre-line; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .pm-dlg-foot {
   display: flex; justify-content: flex-end; gap: 10px;
   padding: 14px 18px; border-top: 1px solid var(--border);

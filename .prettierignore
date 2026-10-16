@@ -1,0 +1,10 @@
+node_modules/
+vendor/
+release/
+release-build/
+output/
+.playwright-cli/
+.ci-repro/
+package-lock.json
+*.min.*
+*.md

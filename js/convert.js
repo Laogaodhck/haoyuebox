@@ -14,7 +14,7 @@
   var items = [];      // [{file, name, w, h, url, outName}]
   var running = false;
 
-  function $(id) { return document.getElementById(id); }
+  var $ = window.App.ui.$;
   function toast(msg, isErr) { window.App.ui.toast(msg, isErr); }
 
   /* ================= 纯逻辑（可单测） ================= */

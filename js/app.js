@@ -65,6 +65,36 @@ window.App = (function () {
     t._timer = setTimeout(function () { t.className = 'toast'; }, 2600);
   }
 
+  /* 通用确认对话框：Promise 化，替代原生 window.confirm（风格与应用一致）。
+     返回 true（确定）/ false（取消或 Esc）。支持多行文案（\n 渲染为换行）。 */
+  function confirm(message) {
+    return new Promise(function (resolve) {
+      var dlg = $('confirm-dlg');
+      var msg = $('confirm-msg');
+      var okBtn = $('confirm-ok');
+      var cancelBtn = $('confirm-cancel');
+      msg.textContent = message;
+      dlg.hidden = false;
+      function done(val) {
+        dlg.hidden = true;
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        document.removeEventListener('keydown', onKey);
+        resolve(val);
+      }
+      function onOk() { done(true); }
+      function onCancel() { done(false); }
+      function onKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); done(false); }
+        else if (e.key === 'Enter') { e.preventDefault(); done(true); }
+      }
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+      document.addEventListener('keydown', onKey);
+      okBtn.focus();
+    });
+  }
+
   function download(blob, filename) {
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -272,12 +302,11 @@ window.App = (function () {
     });
 
     // 画布自由缩放/平移：滚轮锚点缩放、双指捏合、空格/中键拖动平移
-    var panMode = false;
     matteViewApi = window.MatteView.attach($('matte-view'), State, {
       onChange: scheduleMatteRender,
       onZoom: function (pct) { $('mv-zoom-label').textContent = pct + '%'; },
       isActive: function () { return $('step-matte').classList.contains('active'); },
-      onPanMode: function (on) { panMode = on; }
+      onPanMode: function () { /* 平移状态由 MatteView 内部管理，此钩子预留给 UI 联动 */ }
     });
     $('mv-zoom-in').addEventListener('click', function () { matteViewApi.zoomStep(1.25); });
     $('mv-zoom-out').addEventListener('click', function () { matteViewApi.zoomStep(1 / 1.25); });
@@ -616,39 +645,62 @@ window.App = (function () {
     $('photo-compose').hidden = name !== 'compose';
   }
 
+  /* ============ 入口注册表（声明式） ============
+     新增首页卡片/子功能入口只需在此各加一行，无需再改 initModules 与绑定代码。 */
+  var MODULE_CARDS = [
+    { card: 'home-photo',    module: 'photo' },
+    { card: 'home-sheet',    module: 'sheet' },
+    { card: 'home-batch',    module: 'batch' },
+    { card: 'home-archive',  module: 'archive' },
+    { card: 'home-print',    module: 'print' }
+  ];
+  var SUB_ENTRIES = [
+    { card: 'photo-open-idphoto',    run: function () { showPhotoSub('idphoto'); } },
+    { card: 'photo-open-convert',    run: function () { window.App.convert.enter(); showPhotoSub('convert'); } },
+    { card: 'photo-open-compose',    run: function () { window.App.compose.enter(); showPhotoSub('compose'); } },
+    { card: 'batch-open-watermark',  run: function () { window.App.batchWatermark.enter(); } },
+    { card: 'batch-open-format',     run: function () { window.App.batchFormat.enter(); } },
+    { card: 'print-open-batch',      run: function () { window.App.printBatch.showOnly('print-batch'); } },
+    { card: 'print-open-manager',    run: function () { window.App.printerManager.enter(); } }
+  ];
+  /* boot 时逐个调用的模块 init 列表（与 window.App 键名一致） */
+  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'print', 'printBatch', 'printerManager'];
+
   function initModules() {
     document.querySelectorAll('.module-tab').forEach(function (t) {
       t.addEventListener('click', function () { showModule(t.dataset.module); });
     });
-    $('home-photo').addEventListener('click', function () { showModule('photo'); });
-    $('home-sheet').addEventListener('click', function () { showModule('sheet'); });
-    $('home-batch').addEventListener('click', function () { showModule('batch'); });
-    $('home-archive').addEventListener('click', function () { showModule('archive'); });
-    $('home-print').addEventListener('click', function () { showModule('print'); });
-    // 照片工具子功能入口
-    $('photo-open-idphoto').addEventListener('click', function () { showPhotoSub('idphoto'); });
-    $('photo-open-convert').addEventListener('click', function () { window.App.convert.enter(); showPhotoSub('convert'); });
-    $('photo-open-compose').addEventListener('click', function () { window.App.compose.enter(); showPhotoSub('compose'); });
-    // 批量工具子功能入口（面板切换由各模块 enter 负责）
-    $('batch-open-watermark').addEventListener('click', function () { window.App.batchWatermark.enter(); });
-    $('batch-open-format').addEventListener('click', function () { window.App.batchFormat.enter(); });
-    // 打印工具子功能入口
-    $('print-open-batch').addEventListener('click', function () { window.App.printBatch.showOnly('print-batch'); });
-    $('print-open-manager').addEventListener('click', function () { window.App.printerManager.enter(); });
+    MODULE_CARDS.forEach(function (e) {
+      $(e.card).addEventListener('click', function () { showModule(e.module); });
+    });
+    SUB_ENTRIES.forEach(function (e) {
+      $(e.card).addEventListener('click', e.run);
+    });
   }
 
   /* ================= 启动 ================= */
+  /* 渲染层异常上报（桌面版经 zunhongDiag 桥接落盘，浏览器版静默跳过） */
+  function reportError(kind, msg) {
+    try {
+      if (window.zunhongDiag && window.zunhongDiag.logError) {
+        window.zunhongDiag.logError('[' + kind + '] ' + msg);
+      }
+    } catch (e) { /* 桥接不可用时静默 */ }
+  }
+
   function boot() {
     // 全局兜底：任何未捕获错误都必须关掉加载遮罩并提示，避免“永久转圈”
     window.addEventListener('unhandledrejection', function (e) {
       hideLoading();
       var msg = e && e.reason && (e.reason.message || String(e.reason)) || '未知错误';
       console.error(e && e.reason || msg);
+      reportError('unhandledrejection', msg);
       toast('处理失败：' + msg, true);
     });
     window.addEventListener('error', function (e) {
       if (e && e.message && !/favicon/.test(e.message)) {
         hideLoading();
+        reportError('script-error', e.message);
         toast('脚本错误：' + e.message, true);
       }
     });
@@ -664,16 +716,7 @@ window.App = (function () {
     initMatte();
     initSpec();
     initExport();
-    window.App.sheet.init();
-    window.App.batch.init();
-    window.App.batchFormat.init();
-    window.App.batchWatermark.init();
-    window.App.archive.init();
-    window.App.convert.init();
-    window.App.compose.init();
-    window.App.print.init();
-    window.App.printBatch.init();
-    window.App.printerManager.init();
+    MODULE_INITS.forEach(function (name) { window.App[name].init(); });
     window.App.settings.applyToUI();
     showModule('home'); // 启动进入首页
   }
@@ -682,7 +725,7 @@ window.App = (function () {
     State: State,
     showModule: showModule,
     ui: {
-      $: $, toast: toast, showLoading: showLoading, hideLoading: hideLoading, download: download
+      $: $, toast: toast, confirm: confirm, showLoading: showLoading, hideLoading: hideLoading, download: download
     },
     photo: {
       showStep: showStep,

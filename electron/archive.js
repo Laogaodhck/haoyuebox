@@ -175,7 +175,7 @@ async function extract(getWin, payload) {
   if (!items.length) return { ok: false, error: '未选择压缩包' };
   const win = getWin();
   const results = [];
-  for (let i = 0; i < items.length; i++) { // eslint-disable-line no-await-in-loop
+  for (let i = 0; i < items.length; i++) {  
     const src = items[i];
     const base = path.basename(src).replace(/\.[^.]+$/, '') || '解压结果';
     const dir = path.dirname(src);

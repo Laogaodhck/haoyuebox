@@ -30,4 +30,10 @@ contextBridge.exposeInMainWorld('zunhongArchive', {
   }
 });
 
+/* 诊断桥接：渲染层脚本错误上报（仅文本，主进程落盘 userData/logs） */
+contextBridge.exposeInMainWorld('zunhongDiag', {
+  isDesktop: true,
+  logError: (msg) => ipcRenderer.send('app:logError', String(msg))
+});
+
 console.log('[zunhong] 打印桥接已就绪');

@@ -88,7 +88,7 @@ window.MatteView = (function () {
         panning = true;
         panLast = canvasPt(e);
         setPanMode(true);
-        if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (err) { } }
+        if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* 指针已释放等场景捕获失败，可忽略 */ } }
         e.preventDefault();
         return;
       }

@@ -19,7 +19,7 @@
   var items = [];        // [{name, handle, file, w, h, url, outName}]
   var running = false;
 
-  function $(id) { return document.getElementById(id); }
+  var $ = window.App.ui.$;
   function toast(msg, isErr) { window.App.ui.toast(msg, isErr); }
 
   /* ================= 纯逻辑（可单测） ================= */
@@ -148,7 +148,7 @@
   async function scanFolder() {
     var candidates = [];
     var total = 0;
-    for await (var it of dirHandle.values()) { // eslint-disable-line no-await-in-loop
+    for await (var it of dirHandle.values()) {  
       if (it.kind !== 'file') continue;
       total++;
       if (!IMG_EXTS[extOf(it.name)]) continue;
@@ -158,7 +158,7 @@
 
     var list = [];
     var skipped = 0;
-    for (var i = 0; i < candidates.length; i++) { // eslint-disable-line no-await-in-loop
+    for (var i = 0; i < candidates.length; i++) {  
       var c = candidates[i];
       try {
         var file = await c.handle.getFile();
@@ -345,7 +345,7 @@
       if (conf.pdf && pdfMerge === 'merge') {
         // 合并模式：逐张生成 JPEG 页，最后写单个 PDF
         var pages = [];
-        for (var i = 0; i < items.length; i++) { // eslint-disable-line no-await-in-loop
+        for (var i = 0; i < items.length; i++) {  
           var it = items[i];
           window.App.ui.showLoading('正在转换 ' + (i + 1) + '/' + items.length + ' …');
           try {
@@ -360,7 +360,7 @@
           ok = pages.length;
         }
       } else {
-        for (i = 0; i < items.length; i++) { // eslint-disable-line no-await-in-loop, no-redeclare
+        for (i = 0; i < items.length; i++) {  
           it = items[i];
           window.App.ui.showLoading('正在转换 ' + (i + 1) + '/' + items.length + ' …');
           try {

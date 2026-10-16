@@ -2,7 +2,7 @@
  * verify-printers.cjs — 打印机管理真机验证（Playwright + 真实页面链路）
  * stub window.zunhongPrint（listPrinters / probePrinter），走真实页面：
  * 导航 → 添加（对话框校验）→ 可用性检测（通/断两路）→ 检索筛选 →
- * 系统导入 → 编辑 → 删除（confirm accept）→ 持久化 → 返回菜单。
+ * 系统导入 → 编辑 → 删除（App.ui.confirm 模态点击确定）→ 持久化 → 返回菜单。
  * ============================================================ */
 'use strict';
 
@@ -41,7 +41,7 @@ const STUB = {
       const page = await ctx.newPage();
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
-      page.on('dialog', (d) => d.accept());   // 删除确认框自动接受
+      page.on('dialog', (d) => d.accept());   // 兜底：原生对话框自动接受（确认已改走 App.ui.confirm 模态）
 
       const rowCount = () => page.locator('#pm-table tbody tr').count();
       const firstRowText = () => page.locator('#pm-table tbody tr').first().textContent();
@@ -158,8 +158,9 @@ const STUB = {
       await page.click('#pm-dlg-save');
       assert((await firstRowText()).indexOf('前台网络打印机（改）') >= 0, '编辑后名称更新');
 
-      /* ---------- 8. 删除（confirm 已自动 accept） ---------- */
+      /* ---------- 8. 删除（App.ui.confirm 模态 → 点击确定） ---------- */
       await page.locator('#pm-table tbody tr .pm-op').nth(2).click();    // 第一行：删除
+      await page.click('#confirm-ok');
       await page.waitForFunction(() => document.querySelectorAll('#pm-table tbody tr').length === 2,
         null, { timeout: 5000 });
       assert(true, '删除后台账剩 2 行');

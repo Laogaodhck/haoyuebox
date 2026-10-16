@@ -227,7 +227,7 @@ window.Matting = (function () {
     var tmp = new Float32Array(N);
     var out = new Float32Array(N);
     var pre = new Float64Array(Math.max(w, h) + 1);
-    var x, y, i;
+    var x, y;
     // 水平
     for (y = 0; y < h; y++) {
       var row = y * w;

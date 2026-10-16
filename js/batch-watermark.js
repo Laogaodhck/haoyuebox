@@ -16,7 +16,7 @@
   var drag = null;        // 当前拖拽中的选区
   var running = false;
 
-  function $(id) { return document.getElementById(id); }
+  var $ = window.App.ui.$;
   function toast(msg, isErr) { window.App.ui.toast(msg, isErr); }
 
   /* ================= 纯逻辑（可单测） ================= */
@@ -180,7 +180,7 @@
   async function scanFolder() {
     var candidates = [];
     var total = 0;
-    for await (var it of dirHandle.values()) { // eslint-disable-line no-await-in-loop
+    for await (var it of dirHandle.values()) {  
       if (it.kind !== 'file') continue;
       total++;
       if (!IMG_EXTS[extOf(it.name)]) continue;
@@ -190,7 +190,7 @@
 
     var list = [];
     var skipped = 0;
-    for (var i = 0; i < candidates.length; i++) { // eslint-disable-line no-await-in-loop
+    for (var i = 0; i < candidates.length; i++) {  
       var c = candidates[i];
       try {
         var file = await c.handle.getFile();
@@ -228,8 +228,8 @@
     window.App.ui.hideLoading();
     releaseUrls();
     items = res.list;
-    $('bw-folder').textContent = dirHandle.name + '（共 ' + res.total + ' 个文件）';
     var extra = res.skipped ? ' · 跳过 ' + res.skipped + ' 个（无法解码）' : '';
+    $('bw-folder').textContent = dirHandle.name + '（共 ' + res.total + ' 个文件' + extra + '）';
     if (!items.length) {
       toast('该文件夹中没有可处理的图片', true);
       resetPreview();
@@ -371,7 +371,7 @@
     var ok = 0;
     var failed = [];
     try {
-      for (var i = 0; i < items.length; i++) { // eslint-disable-line no-await-in-loop
+      for (var i = 0; i < items.length; i++) {  
         var it = items[i];
         window.App.ui.showLoading('正在处理 ' + (i + 1) + '/' + items.length + ' …');
         try {

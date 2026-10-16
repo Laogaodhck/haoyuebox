@@ -12,7 +12,7 @@
 window.App = window.App || {};
 window.App.printBatch = (function () {
 
-  var $ = function (id) { return document.getElementById(id); };
+  var $ = window.App.ui.$;
   var toast = window.App.ui ? window.App.ui.toast : function () {};
   var printApi = window.zunhongPrint || null;
 
@@ -476,8 +476,8 @@ window.App.printBatch = (function () {
     }
     var pdf = await pdfjs.getDocument({ data: toPdfData(data) }).promise;
     var urls = [];
-    for (var i = 1; i <= pdf.numPages; i++) {  // eslint-disable-line no-await-in-loop
-      var page = await pdf.getPage(i);          // eslint-disable-line no-await-in-loop
+    for (var i = 1; i <= pdf.numPages; i++) {   
+      var page = await pdf.getPage(i);           
       var v1 = page.getViewport({ scale: 1 });
       var scale = Math.min(PDF_SCALE, PDF_MAX_W / v1.width);
       var vp = page.getViewport({ scale: scale });
@@ -487,7 +487,7 @@ window.App.printBatch = (function () {
       var ctx = c.getContext('2d');
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, c.width, c.height);
-      await page.render({ canvasContext: ctx, viewport: vp }).promise;  // eslint-disable-line no-await-in-loop
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;   
       var url = c.toDataURL('image/jpeg', 0.92);
       urls.push(url);
       if (onPage) onPage(i, pdf.numPages);
@@ -555,14 +555,12 @@ window.App.printBatch = (function () {
   function addDocs(list) {
     var seen = {};
     docs.forEach(function (d) { seen[d.path] = 1; });
-    var added = 0;
     list.forEach(function (m) {
       if (!m || !m.path || seen[m.path]) return;
       var type = docTypeOf(m.name);
       if (!type) return;   /* 非文档扩展名自动过滤 */
       seen[m.path] = 1;
       docs.push({ path: m.path, name: m.name, size: m.size, type: type, pages: null, checked: true, status: 'pending', error: '' });
-      added++;
     });
     renderDocList();
     /* 逐个预解析页数（异步，不阻塞选择） */
@@ -737,23 +735,23 @@ window.App.printBatch = (function () {
 
     try {
       if (mode === 'queue') {
-        for (var i = 0; i < ready.length; i++) {  // eslint-disable-line no-await-in-loop
+        for (var i = 0; i < ready.length; i++) {   
           var d = ready[i];
           status.textContent = '正在打印（' + (i + 1) + '/' + ready.length + '）：' + d.name;
-          var r = await renderDoc(d, function (pi, total) {   // eslint-disable-line no-await-in-loop
+          var r = await renderDoc(d, function (pi, total) {    
             status.textContent = '正在渲染（' + (i + 1) + '/' + ready.length + '）：' + d.name + ' — ' + pi + '/' + total;
           });
-          var res = await sendPrint(Object.assign({ dataUrls: r.dataUrls }, base));  // eslint-disable-line no-await-in-loop
+          var res = await sendPrint(Object.assign({ dataUrls: r.dataUrls }, base));   
           if (res && res.ok) { okTasks++; sentPages += r.pages; }
           else if (!failMsg) failMsg = (res && res.error) || '未知错误';
         }
       } else {
         status.textContent = '正在渲染全部文档…';
         var all = [];
-        for (var k = 0; k < ready.length; k++) {  // eslint-disable-line no-await-in-loop
+        for (var k = 0; k < ready.length; k++) {   
           var dd = ready[k];
           status.textContent = '正在渲染（' + (k + 1) + '/' + ready.length + '）：' + dd.name;
-          var rr = await renderDoc(dd, function (pi, total) {  // eslint-disable-line no-await-in-loop
+          var rr = await renderDoc(dd, function (pi, total) {   
             status.textContent = '正在渲染（' + (k + 1) + '/' + ready.length + '）：' + dd.name + ' — ' + pi + '/' + total;
           });
           all = all.concat(rr.dataUrls);

@@ -19,7 +19,7 @@
   var running = false; /* 是否有压缩/解压任务进行中 */
   var bridge = null;   /* window.zunhongArchive */
 
-  function $(id) { return document.getElementById(id); }
+  var $ = window.App.ui.$;
   function toast(msg, isErr) { window.App.ui.toast(msg, isErr); }
 
   /* ================= 纯逻辑（可单测） ================= */

@@ -7,6 +7,8 @@
 
   var PHOTO_EXTS = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'tif', 'tiff', 'heic'];
   var DOC_EXTS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv', 'wps', 'et', 'dps'];
+  /* 文件名非法字符（含控制字符 \u0000-\u001f，Windows 命名规范禁用） */
+  // eslint-disable-next-line no-control-regex
   var INVALID_CHARS = /[<>:"/\\|?*\u0000-\u001f]/;
   var RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 
@@ -19,7 +21,7 @@
   var refreshTimer = null;
   var planTimer = null;
 
-  function $(id) { return document.getElementById(id); }
+  var $ = window.App.ui.$;
 
   /* ================= 纯逻辑（可单测） ================= */
 
@@ -127,7 +129,7 @@
 
     var jobs = [];
     var allNames = [];
-    for await (var it of dirHandle.values()) { // eslint-disable-line no-await-in-loop
+    for await (var it of dirHandle.values()) {  
       if (it.kind !== 'file') continue;
       allNames.push(it.name);
       var ext = it.name.slice(it.name.lastIndexOf('.') + 1).toLowerCase();
@@ -363,7 +365,14 @@
   function onExecute() {
     var todo = plan.filter(function (r) { return r.status === 'ok'; });
     if (!todo.length) return;
-    if (!window.confirm('确定将 ' + todo.length + ' 个文件按预览重命名吗？此操作不可自动撤销。')) return;
+    window.App.ui.confirm('确定将 ' + todo.length + ' 个文件按预览重命名吗？此操作不可自动撤销。')
+      .then(function (ok) {
+        if (!ok) return;
+        executeRename(todo);
+      });
+  }
+
+  function executeRename(todo) {
     var done = 0, failed = [];
     var chain = Promise.resolve();
     todo.forEach(function (row) {

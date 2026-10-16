@@ -126,7 +126,6 @@
   }
 
   function renderLaySheet() {
-    var tip = $('sheet-empty-tip');
     var canvas = $('laysheet-preview');
     var info = $('sheet-info');
 

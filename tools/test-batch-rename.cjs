@@ -68,7 +68,6 @@ withServer(PORT, async () => {
     pretendToBeVisual: true,
     beforeParse(window) {
       window.showDirectoryPicker = async () => dirRef.current;
-      window.confirm = async () => true;
       // 缩略图/放大预览测试桩：File + data URI 形式的 objectURL（jsdom 无 blob 支持）
       try {
         fakeFile.current = new window.File([new Uint8Array([1, 2, 3])], 'f.jpg', { type: 'image/jpeg' });
@@ -84,6 +83,8 @@ withServer(PORT, async () => {
   const checker = createChecker();
   const assert = checker.assert;
   const T = App.batch._test;
+  /* 确认对话框桩：批量改名确认统一走 App.ui.confirm（Promise 化模态） */
+  App.ui.confirm = async () => true;
 
   /* ---------- 1. 纯逻辑单测 ---------- */
   assert(T.validateBase('照片').ok === true, '基础名称「照片」合法');

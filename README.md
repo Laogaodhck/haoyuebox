@@ -208,7 +208,7 @@ photo/
 - **撤销快照**：单通道 `Uint8Array`（1 字节/像素，较 RGBA ImageData 降至 1/4），
   按蒙版像素数动态限制层数（16MB 预算，最少 3 层、最多 12 层）。
 
-### 桌面版（Electron 33）
+### 桌面版（Electron 44）
 
 - 主进程禁用 GPU（`disable-gpu` / `disable-gpu-compositing` / `in-process-gpu`），规避部分集显驱动下
   WebGL/WASM 推理黑屏；单实例锁防止重复打开。
@@ -244,17 +244,22 @@ photo/
 ## 开发与测试
 
 ```bash
-npm test          # 纯算法 + 静态服务 + jsdom 冒烟（16 项，无需浏览器；test-archive 含真实 7z 冒烟）
-npm run verify    # Playwright 端到端：人像细节 / 换底导出 / 缩放撤销 / 排版打印 / 压缩 / 批量打印
+npm test          # 纯算法 + 静态服务 + jsdom 冒烟（17 项，无需浏览器；test-archive 含真实 7z 冒烟）
+npm run verify    # Playwright 端到端：人像细节 / 换底导出 / 缩放撤销 / 笔刷 / 排版打印 / 压缩 / 批量打印
+npm run lint      # ESLint 静态检查（js/ electron/ 严格，tools/ 放宽）
+npm run format    # Prettier 格式化（按需，未对历史代码全量重排）
 npm run icons     # 重新生成图标（加 -- --out <dir> 可避免覆盖成品图标）
 ```
+
+版本变更见 [CHANGELOG.md](CHANGELOG.md)；发版流程：递增 `package.json` 的
+`version` → 打 `v<version>` 标签推送，Actions 自动出安装包（安装新版即完成更新）。
 
 `npm run verify` 需要两项本地资源，均不入库：
 
 - 测试照片：`fixtures/photo.jpg`（或环境变量 `ZUNHONG_PHOTO=<路径>`）——仅分割相关验证项
-  （verify-hair / verify-matteview）需要；仓库不收录真人照片，请自行放置一张正面单人照。
+  （verify-hair / verify-matteview / verify-brush）需要；仓库不收录真人照片，请自行放置一张正面单人照。
   压缩 / 批量工具 / 批量打印验证（verify-archive / verify-batch / verify-print-batch）
-  使用桥接 stub 与 OPFS 沙箱文件系统，无需样片。
+  使用桥接 stub 与 OPFS 沙箱文件系统，无需样片；verify-output 无 E2E 产物时自动跳过。
 - Chromium：项目内 playwright 若未下载浏览器，先执行 `npx playwright install chromium`；
   也可用 `ZUNHONG_CHROMIUM=<chrome.exe 路径>` 指向本机已有的浏览器。
 

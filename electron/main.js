@@ -20,6 +20,35 @@ let serverPort = 0;
    规避 Chromium data: URL 2MB 上限（ERR_INVALID_URL -300）与临时文件清理 */
 const printPages = new Map();
 
+/* ---------- 诊断日志：异常落盘（离线软件无远程上报，日志是排障最后手段） ----------
+   写入 <userData>/logs/app-YYYY-MM-DD.log，按天分文件，自动轮转保留最近 LOG_KEEP 份。
+   覆盖：主进程未捕获异常 / Promise 拒绝 / 渲染进程与子进程异常退出 / 渲染层上报。 */
+const LOG_KEEP = 10;
+function appendDiag(kind, detail) {
+  try {
+    const dir = path.join(app.getPath('userData'), 'logs');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'app-' + new Date().toISOString().slice(0, 10) + '.log');
+    fs.appendFileSync(file, new Date().toISOString() + ' [' + kind + '] ' + String(detail).slice(0, 4000) + '\n');
+    const files = fs.readdirSync(dir)
+      .filter((f) => /^app-\d{4}-\d{2}-\d{2}\.log$/.test(f))
+      .sort();
+    while (files.length > LOG_KEEP) {
+      try { fs.unlinkSync(path.join(dir, files.shift())); } catch (e) { break; }
+    }
+  } catch (e) { /* 日志写入失败（如磁盘只读）只能静默 */ }
+}
+process.on('uncaughtException', (err) => {
+  appendDiag('uncaughtException', (err && err.stack) || String(err));
+  console.error('[zunhong] uncaughtException:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  appendDiag('unhandledRejection', (reason && (reason.stack || reason.message)) || String(reason));
+});
+app.on('child-process-gone', (_e, details) => appendDiag('child-process-gone', JSON.stringify(details)));
+app.on('render-process-gone', (_e, _wc, details) => appendDiag('render-process-gone', JSON.stringify(details)));
+ipcMain.on('app:logError', (_e, msg) => appendDiag('renderer', msg));
+
 /* ---------- 打印 IPC：读取本地打印机 + 静默打印图片 ---------- */
 
 /* Windows 默认打印机名（Electron 36+ 移除了 PrinterInfo.isDefault，无替代 API；
@@ -163,7 +192,8 @@ app.on('second-instance', () => {
 
 async function createWindow() {
   const root = app.getAppPath(); // 打包后指向 app.asar
-  const { port, close } = await createStaticServer(root, printPages);
+  /* 静态服务随应用存活，close 无需保存 */
+  const { port } = await createStaticServer(root, printPages);
   serverPort = port;
 
   mainWindow = new BrowserWindow({

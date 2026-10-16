@@ -27,7 +27,7 @@
 window.App = window.App || {};
 window.App.printerManager = (function () {
 
-  var $ = function (id) { return document.getElementById(id); };
+  var $ = window.App.ui.$;
   var toast = window.App.ui ? window.App.ui.toast : function () {};
   var printApi = window.zunhongPrint || null;
 
@@ -248,16 +248,7 @@ window.App.printerManager = (function () {
     try {
       var raw = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
       var list = Array.isArray(raw) ? raw : [];
-      printers = list.map(sanitizePrinter).filter(Boolean);
-      /* 默认唯一性兜底：多条默认只保留第一条 */
-      var seenDefault = false;
-      printers = printers.map(function (p) {
-        if (p.isDefault) {
-          if (seenDefault) return Object.assign({}, p, { isDefault: false });
-          seenDefault = true;
-        }
-        return p;
-      });
+      printers = ensureSingleDefault(list.map(sanitizePrinter).filter(Boolean));
     } catch (e) {
       printers = [];
     }
@@ -267,6 +258,68 @@ window.App.printerManager = (function () {
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(printers));
     } catch (e) { /* 存储不可用时静默忽略 */ }
+  }
+
+  /* ================= 台账备份：导出 / 导入 JSON =================
+     localStorage 会因重装、便携版迁移而丢失；备份文件即恢复手段。 */
+
+  function exportBackup() {
+    if (!printers.length) { toast('台账为空，无需导出', true); return; }
+    var payload = {
+      app: 'zunhong-toolbox',
+      kind: 'printer-ledger',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      count: printers.length,
+      printers: printers
+    };
+    var stamp = new Date().toISOString().slice(0, 10);
+    window.App.ui.download(
+      new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
+      '打印机台账备份_' + stamp + '.json'
+    );
+    toast('已导出 ' + printers.length + ' 台打印机台账');
+  }
+
+  /* 与 load() 相同的默认唯一性兜底：多条默认只保留第一条 */
+  function ensureSingleDefault(list) {
+    var seenDefault = false;
+    return list.map(function (p) {
+      if (p.isDefault) {
+        if (seenDefault) return Object.assign({}, p, { isDefault: false });
+        seenDefault = true;
+      }
+      return p;
+    });
+  }
+
+  function importBackup(file) {
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var data;
+      try {
+        data = JSON.parse(String(reader.result));
+      } catch (e) {
+        toast('备份文件解析失败：' + e.message, true);
+        return;
+      }
+      /* 兼容两种格式：纯数组，或 { printers: [...] } 备份包 */
+      var list = Array.isArray(data) ? data : (data && Array.isArray(data.printers) ? data.printers : null);
+      if (!list) { toast('备份文件格式不正确（未找到打印机数组）', true); return; }
+      var cleaned = list.map(sanitizePrinter).filter(Boolean);
+      if (!cleaned.length) { toast('备份文件中没有有效的打印机记录', true); return; }
+      window.App.ui.confirm('导入将覆盖当前台账（现有 ' + printers.length + ' 台，导入 ' + cleaned.length + ' 台），继续吗？')
+        .then(function (ok) {
+          if (!ok) return;
+          printers = ensureSingleDefault(cleaned);
+          save();
+          render();
+          toast('已导入 ' + printers.length + ' 台打印机台账');
+        });
+    };
+    reader.onerror = function () { toast('备份文件读取失败', true); };
+    reader.readAsText(file, 'utf-8');
   }
 
   /* ================= 系统打印机 / 可用性检测 ================= */
@@ -381,8 +434,8 @@ window.App.printerManager = (function () {
     }
     reevaluateSystem();
     var targets = printers.filter(function (p) { return p && p.type !== 'system'; });
-    for (var i = 0; i < targets.length; i++) {   // eslint-disable-line no-await-in-loop
-      await checkOne(targets[i]);                // eslint-disable-line no-await-in-loop
+    for (var i = 0; i < targets.length; i++) {    
+      await checkOne(targets[i]);                 
     }
     var c = countByStatus(printers);
     toast('检测完成：在线 ' + c.online + ' 台 · 离线 ' + c.offline + ' 台 · 未检测 ' + c.unknown + ' 台');
@@ -636,10 +689,10 @@ window.App.printerManager = (function () {
     }
   }
 
-  function deletePrinter(id) {
+  async function deletePrinter(id) {
     var p = printers.find(function (x) { return x && x.id === id; });
     if (!p) return;
-    var ok = window.confirm('确定删除打印机「' + p.name + '」？\n删除后可在需要时重新添加。');
+    var ok = await window.App.ui.confirm('确定删除打印机「' + p.name + '」？\n删除后可在需要时重新添加。');
     if (!ok) return;
     var wasDefault = p.isDefault;
     printers = removePrinter(printers, id);
@@ -679,6 +732,13 @@ window.App.printerManager = (function () {
     $('pm-import').addEventListener('click', importSystem);
     $('pm-check-all').addEventListener('click', checkAll);
     $('pm-back').addEventListener('click', back);
+    $('pm-export').addEventListener('click', exportBackup);
+    $('pm-restore').addEventListener('click', function () { $('pm-restore-file').click(); });
+    $('pm-restore-file').addEventListener('change', function () {
+      var f = this.files && this.files[0];
+      this.value = '';
+      importBackup(f);
+    });
 
     $('pm-search').addEventListener('input', function () {
       filters.keyword = this.value;
