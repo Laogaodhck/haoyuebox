@@ -664,11 +664,10 @@ window.App = (function () {
     { card: 'batch-open-format',     run: function () { window.App.batchFormat.enter(); } },
     /* 批量体积优化复用照片工具的压缩子功能 */
     { card: 'batch-open-optimize',   run: function () { showModule('photo'); window.App.compress.enter(); showPhotoSub('compress'); } },
-    { card: 'print-open-batch',      run: function () { window.App.printBatch.showOnly('print-batch'); } },
-    { card: 'print-open-manager',    run: function () { window.App.printerManager.enter(); } }
+    { card: 'print-open-batch',      run: function () { window.App.printBatch.showOnly('print-batch'); } }
   ];
   /* boot 时逐个调用的模块 init 列表（与 window.App 键名一致） */
-  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch', 'printerManager'];
+  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch'];
 
   function initModules() {
     document.querySelectorAll('.module-tab').forEach(function (t) {

@@ -10,7 +10,6 @@ const fs = require('fs');
 const { createStaticServer } = require('./static-server');
 const { buildPrintDoc } = require('./print-doc');
 const { registerArchiveIpc } = require('./archive');
-const { probePrinter } = require('./printer-probe');
 
 const APP_TITLE = '尊泓工具箱';
 let mainWindow = null;
@@ -78,14 +77,7 @@ function registerPrintIpc() {
     }));
   });
 
-  /* 打印机可用性检测（打印机管理）：网络/共享打印机 TCP 连通测试 */
-  ipcMain.handle('print:probePrinter', async (e, payload) => {
-    try {
-      return await probePrinter(payload);
-    } catch (err) {
-      return { ok: false, error: '检测失败：' + (err && err.message || '未知错误') };
-    }
-  });
+
 
   /* 打开所选打印机的系统属性对话框（Windows: printui.dll） */
   ipcMain.handle('print:showProperties', async (e, printerName) => {

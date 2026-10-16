@@ -169,7 +169,7 @@
   /* ================= 渲染 ================= */
 
   function renderThumbs() {
-    var wrap = $('cmp-thumbs');
+    var wrap = $('co-thumbs');
     wrap.textContent = '';
     items.forEach(function (it, i) {
       var box = document.createElement('div');
@@ -197,19 +197,19 @@
       box.appendChild(ops);
       wrap.appendChild(box);
     });
-    $('cmp-count').textContent = items.length
+    $('co-count').textContent = items.length
       ? '已选择 ' + items.length + ' 张图片（按预览下方顺序拼合）'
       : '未选择图片';
-    $('cmp-run').disabled = items.length === 0 || composing;
-    $('cmp-empty').hidden = items.length > 0;
-    $('cmp-preview').hidden = items.length === 0;
+    $('co-run').disabled = items.length === 0 || composing;
+    $('co-empty').hidden = items.length > 0;
+    $('co-preview').hidden = items.length === 0;
   }
 
   // 按当前布局把所有图绘制到 canvas（预览与成品共用）
   async function renderTo(canvas) {
     var dims = items.map(function (it) { return { w: it.w, h: it.h }; });
-    var gap = +$('cmp-gap').value || 0;
-    var cols = +$('cmp-cols').value || 3;
+    var gap = +$('co-gap').value || 0;
+    var cols = +$('co-cols').value || 3;
     var layout = computeLayout(dims, mode, cols, gap);
     if (!layout) return null;
     if (layout.W > MAX_EDGE || layout.H > MAX_EDGE) {
@@ -218,7 +218,7 @@
     canvas.width = layout.W;
     canvas.height = layout.H;
     var ctx = canvas.getContext('2d');
-    ctx.fillStyle = $('cmp-bg').value;
+    ctx.fillStyle = $('co-bg').value;
     ctx.fillRect(0, 0, layout.W, layout.H);
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
@@ -231,13 +231,13 @@
 
   function updateInfo(layout) {
     var names = { horizontal: '横向拼接', vertical: '纵向拼接', grid: '网格拼图' };
-    $('cmp-info').textContent = layout
+    $('co-info').textContent = layout
       ? names[mode] + ' · ' + layout.W + '×' + layout.H + ' px · ' + items.length + ' 张'
       : '';
   }
 
   async function renderPreview() {
-    var canvas = $('cmp-preview');
+    var canvas = $('co-preview');
     if (!items.length) {
       canvas.width = 0;
       canvas.height = 0;
@@ -263,7 +263,7 @@
   async function run() {
     if (!items.length || composing) return;
     composing = true;
-    $('cmp-run').disabled = true;
+    $('co-run').disabled = true;
     window.App.ui.showLoading('正在合成…');
     try {
       var off = document.createElement('canvas');
@@ -279,7 +279,7 @@
     }
     window.App.ui.hideLoading();
     composing = false;
-    $('cmp-run').disabled = items.length === 0;
+    $('co-run').disabled = items.length === 0;
   }
 
   /* ================= 事件绑定 ================= */
@@ -318,33 +318,33 @@
   }
 
   function init() {
-    $('cmp-pick').addEventListener('click', function () { $('cmp-file').click(); });
-    $('cmp-file').addEventListener('change', function () {
+    $('co-pick').addEventListener('click', function () { $('co-file').click(); });
+    $('co-file').addEventListener('change', function () {
       if (this.files && this.files.length) addFiles(this.files);
       this.value = '';
     });
-    bindEmptyPick('cmp-empty', 'cmp-file');
+    bindEmptyPick('co-empty', 'co-file');
 
-    var modeBtns = $('cmp-mode').querySelectorAll('button');
+    var modeBtns = $('co-mode').querySelectorAll('button');
     modeBtns.forEach(function (b) {
       b.addEventListener('click', function () {
         mode = b.dataset.mode;
         modeBtns.forEach(function (x) { x.classList.toggle('active', x === b); });
-        $('cmp-cols-row').hidden = mode !== 'grid';
+        $('co-cols-row').hidden = mode !== 'grid';
         scheduleRender();
       });
     });
 
-    $('cmp-cols').addEventListener('change', scheduleRender);
-    $('cmp-gap').addEventListener('input', function () {
-      $('cmp-gap-val').textContent = this.value + 'px';
+    $('co-cols').addEventListener('change', scheduleRender);
+    $('co-gap').addEventListener('input', function () {
+      $('co-gap-val').textContent = this.value + 'px';
       scheduleRender();
     });
-    $('cmp-bg').addEventListener('input', scheduleRender);
+    $('co-bg').addEventListener('input', scheduleRender);
 
-    $('cmp-clear').addEventListener('click', clearAll);
-    $('cmp-run').addEventListener('click', run);
-    $('cmp-back').addEventListener('click', function () { window.App.photo.showPhotoSub('menu'); });
+    $('co-clear').addEventListener('click', clearAll);
+    $('co-run').addEventListener('click', run);
+    $('co-back').addEventListener('click', function () { window.App.photo.showPhotoSub('menu'); });
     bindDrop('photo-compose');
   }
 

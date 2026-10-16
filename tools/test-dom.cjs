@@ -106,7 +106,7 @@ withServer(PORT, async () => {
     '输出格式下拉含 7z / ZIP');
   assert(doc.querySelector('#ac-level option[value="normal"]') && doc.querySelector('#ax-out option[value="sub"]'),
     '压缩等级 / 解压位置选项齐备');
-  assert(doc.querySelectorAll('#print-menu .home-card').length === 3, '打印工具菜单 3 张卡片（1 可用 + 2 敬请期待）');
+  assert(doc.querySelectorAll('#print-menu .home-card').length === 2, '打印工具菜单 2 张卡片（1 可用 + 1 敬请期待）');
   assert(!!doc.getElementById('print-open-batch'), '批量打印入口存在');
   assert(!!doc.getElementById('print-batch') && !!doc.getElementById('pb-img') && !!doc.getElementById('pd-doc'),
     '批量打印面板与 图片/文档 两子面板存在');
