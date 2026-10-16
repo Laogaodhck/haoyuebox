@@ -45,9 +45,11 @@ withServer(PORT, async () => {
   await new Promise((r) => setTimeout(r, 1500)); // 等外链脚本执行完
   const doc = win.document;
 
-  assert(!!win.__mpVision, 'MediaPipe IIFE 已挂载 window.__mpVision');
-  assert(win.__mpVision && !!win.__mpVision.FilesetResolver, 'FilesetResolver 已导出');
-  assert(win.__mpVision && !!win.__mpVision.ImageSegmenter, 'ImageSegmenter 已导出');
+  /* tasks-vision 1.x 的 IIFE 构建挂 window.Vision（旧版 0.10.x 为 __mpVision） */
+  const mp = win.Vision || win.__mpVision;
+  assert(!!mp, 'MediaPipe IIFE 已挂载 window.Vision');
+  assert(mp && !!mp.FilesetResolver, 'FilesetResolver 已导出');
+  assert(mp && !!mp.ImageSegmenter, 'ImageSegmenter 已导出');
   assert(Array.isArray(win.SPECS) && win.SPECS.length === 8, 'SPECS 8 个规格');
   assert(typeof win.DpiUtil.setPngDpi === 'function', 'DpiUtil 就绪');
   assert(typeof win.Matting.segment === 'function', 'Matting 就绪');
@@ -119,7 +121,7 @@ withServer(PORT, async () => {
     && doc.querySelector('#pb-duplex option[value="shortEdge"]'), '单双面三档选项齐备（图片面板）');
   assert(doc.querySelector('#pd-mode option[value="queue"]') && doc.querySelector('#pd-mode option[value="merge"]'),
     '文档打印两种模式选项齐备');
-  assert(doc.querySelector('script[src="vendor/print/pdf.min.js"]')
+  assert(doc.querySelector('script[src="vendor/print/pdf-adapter.mjs"]')
     && doc.querySelector('script[src="vendor/print/mammoth.browser.min.js"]')
     && doc.querySelector('script[src="js/print-batch.js"]'), 'pdf.js / mammoth / print-batch 脚本已引入');
   assert(doc.querySelectorAll('#sheet-steps-nav .step').length === 4, '排版模块步骤指示器 4 个');

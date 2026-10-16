@@ -11,10 +11,12 @@ window.Matting = (function () {
   var TILED_MIN = 800;     // 长边超过该值才启用分块精修
 
   function vision() {
-    if (!window.__mpVision) {
+    /* tasks-vision 1.x 的 IIFE 构建挂全局 Vision；保留 __mpVision 兼容旧版 */
+    var v = window.Vision || window.__mpVision;
+    if (!v) {
       throw new Error('MediaPipe 运行时未加载');
     }
-    return window.__mpVision;
+    return v;
   }
 
   function createSegmenter(modelPath) {

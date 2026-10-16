@@ -278,10 +278,10 @@ npm run icons     # 重新生成图标（加 -- --out <dir> 可避免覆盖成�
 
 - 本工具源码以 MIT 许可发布（`package.json` 中 `license: MIT`），作者：老高 · QQ 846193。
 - 人像分割能力来自 [Google MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter)：
-  `vendor/mediapipe/vision_bundle.iife.js`（MediaPipe Tasks Vision JS/WASM 运行时）与
+  `vendor/mediapipe/vision_bundle.js`（MediaPipe Tasks Vision JS/WASM 运行时）与
   `selfie_multiclass_256x256.tflite`、`selfie_segmenter.tflite` 模型均由 Google 提供，
   遵循 **Apache License 2.0**；模型与运行时随本仓库本地化分发以满足离线运行要求，
-  著作权归 Google 所有。
+  著作权归 Google 所有。第三方库版本登记见 `VENDOR.md`。
 - 压缩能力来自 [7-Zip](https://www.7-zip.org/)：内置的 `electron/bin/7z.exe` 与 `7z.dll`
   遵循 **GNU LGPL**（含少量 BSD 组件），随安装包分发以满足离线压缩/解压需求；
   7-Zip 著作权归 Igor Pavlov 所有。

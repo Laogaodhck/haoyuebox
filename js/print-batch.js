@@ -460,11 +460,21 @@ window.App.printBatch = (function () {
     return Math.round(docPageMm().w * PX_PER_MM) - 2 * m;
   }
 
+  /* pdf.js 6.x 的 getDocument 只接受 TypedArray（内部直接转移 buffer 给 worker），
+     而 IPC/读文件路径拿到的是 ArrayBuffer，统一归一化（3.x 两者皆收，6.x 不收 ArrayBuffer） */
+  function toPdfData(buf) {
+    return buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  }
+
   /* PDF → dataUrls（pdf.js 每页渲染） */
   async function renderPdf(data, onPage) {
     var pdfjs = window.pdfjsLib;
     if (!pdfjs) throw new Error('PDF 渲染库未加载');
-    var pdf = await pdfjs.getDocument({ data: data }).promise;
+    /* worker 指向本地（CSP 同源）；适配器已配置，此处兜底防呆 */
+    if (pdfjs.GlobalWorkerOptions && !pdfjs.GlobalWorkerOptions.workerSrc) {
+      pdfjs.GlobalWorkerOptions.workerSrc = 'vendor/print/pdf.worker.min.mjs';
+    }
+    var pdf = await pdfjs.getDocument({ data: toPdfData(data) }).promise;
     var urls = [];
     for (var i = 1; i <= pdf.numPages; i++) {  // eslint-disable-line no-await-in-loop
       var page = await pdf.getPage(i);          // eslint-disable-line no-await-in-loop
@@ -482,7 +492,7 @@ window.App.printBatch = (function () {
       urls.push(url);
       if (onPage) onPage(i, pdf.numPages);
     }
-    pdf.destroy();
+    pdf.cleanup();   /* pdf.js 6.x：PDFDocumentProxy.destroy 已移除，改用 cleanup */
     return { pages: urls.length, dataUrls: urls };
   }
 
@@ -567,9 +577,9 @@ window.App.printBatch = (function () {
         var pdfjs = window.pdfjsLib;
         if (!pdfjs) throw new Error('PDF 渲染库未加载');
         var data = await readDocBytes(d.path);
-        var pdf = await pdfjs.getDocument({ data: data }).promise;
+        var pdf = await pdfjs.getDocument({ data: toPdfData(data) }).promise;
         d.pages = pdf.numPages;
-        pdf.destroy();
+        pdf.cleanup();   /* pdf.js 6.x：destroy 已移除，改用 cleanup */
       } else {
         var buf = await readDocBytes(d.path);
         var text = '';
@@ -815,11 +825,6 @@ window.App.printBatch = (function () {
   }
 
   function init() {
-    /* pdf.js worker 指向本地（CSP 同源） */
-    if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/print/pdf.worker.min.js';
-    }
-
     $('pb-pick').addEventListener('click', pickImages);
     $('pb-clear').addEventListener('click', clearImages);
     $('pb-run').addEventListener('click', runImages);

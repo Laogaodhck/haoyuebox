@@ -21,14 +21,31 @@ let serverPort = 0;
 const printPages = new Map();
 
 /* ---------- 打印 IPC：读取本地打印机 + 静默打印图片 ---------- */
+
+/* Windows 默认打印机名（Electron 36+ 移除了 PrinterInfo.isDefault，无替代 API；
+   Windows 上经 CIM 查询补回，失败/非 Windows 返回空串 = 无默认标记） */
+function windowsDefaultPrinter() {
+  if (process.platform !== 'win32') return Promise.resolve('');
+  const { execFile } = require('child_process');
+  return new Promise((resolve) => {
+    execFile('powershell', [
+      '-NoProfile', '-Command',
+      '(Get-CimInstance Win32_Printer | Where-Object { $_.Default -eq $true } | Select-Object -First 1).Name'
+    ], { windowsHide: true, timeout: 5000 }, (err, stdout) => {
+      resolve(err ? '' : String(stdout || '').trim());
+    });
+  });
+}
+
 function registerPrintIpc() {
   ipcMain.handle('print:listPrinters', async () => {
     const printers = await mainWindow.webContents.getPrintersAsync();
+    let def = '';
+    try { def = await windowsDefaultPrinter(); } catch (e) { /* 降级：无默认标记 */ }
     return printers.map((p) => ({
       name: p.name,
       displayName: p.displayName || p.name,
-      isDefault: !!p.isDefault,
-      status: p.status || ''
+      isDefault: !!def && p.name === def
     }));
   });
 
@@ -184,14 +201,14 @@ async function createWindow() {
     return { action: 'deny' };
   });
 
-  // 显式 CSP：允许本地资源 + WASM 编译（MediaPipe 必需），阻止远程内容
+  // 显式 CSP（与 index.html meta 策略逐字一致）：允许本地资源 + WASM 编译
+  // （MediaPipe 必需）+ data:/blob: 图片，阻止远程内容、内联脚本与框架嵌套
+  const CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'";
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'self' http://127.0.0.1:*; script-src 'self' http://127.0.0.1:* 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' http://127.0.0.1:* 'unsafe-inline'; img-src 'self' http://127.0.0.1:* data: blob:; worker-src 'self' http://127.0.0.1:* blob:"
-        ]
+        'Content-Security-Policy': [CSP]
       }
     });
   });

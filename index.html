@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 内容安全策略：仅放行本机同源资源 + WASM 编译（MediaPipe 必需）+ data:/blob: 图片；
+     禁止远程内容、内联脚本、插件与框架嵌套。与 electron/main.js 响应头注入的策略保持一致。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <title>尊泓工具箱 · 老高 QQ 846193</title>
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="css/style.css">
@@ -1258,7 +1261,7 @@
   </div>
 </div>
 
-<script src="vendor/mediapipe/vision_bundle.iife.js"></script>
+<script src="vendor/mediapipe/vision_bundle.js"></script>
 <script src="js/specs.js"></script>
 <script src="js/dpi.js"></script>
 <script src="js/zip.js"></script>
@@ -1277,7 +1280,7 @@
 <script src="js/settings.js"></script>
 <script src="js/sheet.js"></script>
 <script src="js/print.js"></script>
-<script src="vendor/print/pdf.min.js"></script>
+<script type="module" src="vendor/print/pdf-adapter.mjs"></script>
 <script src="vendor/print/mammoth.browser.min.js"></script>
 <script src="js/print-batch.js"></script>
 <script src="js/printer-manager.js"></script>

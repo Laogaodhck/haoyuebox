@@ -20,7 +20,7 @@
     printers.forEach(function (p) {
       var opt = document.createElement('option');
       opt.value = p.name;
-      opt.textContent = (p.isDefault ? '★ ' : '') + p.displayName + (p.status ? '（' + p.status + '）' : '');
+      opt.textContent = (p.isDefault ? '★ ' : '') + p.displayName;
       if (p.isDefault) opt.selected = true;
       sel.appendChild(opt);
     });
