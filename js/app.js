@@ -643,6 +643,7 @@ window.App = (function () {
     $('photo-flow').hidden = name !== 'idphoto';
     $('photo-convert').hidden = name !== 'convert';
     $('photo-compose').hidden = name !== 'compose';
+    $('photo-compress').hidden = name !== 'compress';
   }
 
   /* ============ 入口注册表（声明式） ============
@@ -658,13 +659,16 @@ window.App = (function () {
     { card: 'photo-open-idphoto',    run: function () { showPhotoSub('idphoto'); } },
     { card: 'photo-open-convert',    run: function () { window.App.convert.enter(); showPhotoSub('convert'); } },
     { card: 'photo-open-compose',    run: function () { window.App.compose.enter(); showPhotoSub('compose'); } },
+    { card: 'photo-open-compress',   run: function () { window.App.compress.enter(); showPhotoSub('compress'); } },
     { card: 'batch-open-watermark',  run: function () { window.App.batchWatermark.enter(); } },
     { card: 'batch-open-format',     run: function () { window.App.batchFormat.enter(); } },
+    /* 批量体积优化复用照片工具的压缩子功能 */
+    { card: 'batch-open-optimize',   run: function () { showModule('photo'); window.App.compress.enter(); showPhotoSub('compress'); } },
     { card: 'print-open-batch',      run: function () { window.App.printBatch.showOnly('print-batch'); } },
     { card: 'print-open-manager',    run: function () { window.App.printerManager.enter(); } }
   ];
   /* boot 时逐个调用的模块 init 列表（与 window.App 键名一致） */
-  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'print', 'printBatch', 'printerManager'];
+  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch', 'printerManager'];
 
   function initModules() {
     document.querySelectorAll('.module-tab').forEach(function (t) {

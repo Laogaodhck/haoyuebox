@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 以经典脚本方式加载 batch-format.js（模拟 window，不触发 DOM 初始化）
-global.window = {};
+global.window = { App: { ui: { $: () => null, toast: () => {}, showLoading: () => {}, hideLoading: () => {} } } };
 eval(fs.readFileSync(path.join(__dirname, '..', 'js', 'batch-format.js'), 'utf8'));
 const T = global.window.App.batchFormat._test;
 

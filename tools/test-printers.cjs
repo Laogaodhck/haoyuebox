@@ -13,7 +13,7 @@ const { createChecker } = require('./_lib.cjs');
 
 const t = createChecker();
 
-global.window = { App: {} };
+global.window = { App: { ui: { $: () => null, toast: () => {}, showLoading: () => {}, hideLoading: () => {} } } };
 require(path.join(__dirname, '..', 'js', 'printer-manager.js'));
 const T = global.window.App.printerManager._test;
 

@@ -46,13 +46,16 @@ function exitCodeText(code) {
 
 /* 构建压缩命令参数
  * opts: { fmt:'7z'|'zip', level:'store'|'fast'|'normal'|'max',
- *         pass:string, encNames:boolean, inputs:string[], outPath:string }
+ *         volumeMB:number, pass:string, encNames:boolean, inputs:string[], outPath:string }
  * 返回参数数组（不经 shell，无注入风险） */
 function buildCompressArgs(opts) {
   const fmt = COMPRESS_FMTS[opts.fmt] ? opts.fmt : '7z';
   const mx = COMPRESS_LEVELS[opts.level] !== undefined ? COMPRESS_LEVELS[opts.level] : 5;
   const pass = String(opts.pass || '');
   const args = ['a', '-t' + fmt, '-mx' + mx];
+  /* 分卷：仅 7z 格式支持，-v{N}m（N 为正整数 MB） */
+  const vol = Math.round(+opts.volumeMB || 0);
+  if (fmt === '7z' && vol > 0) args.push('-v' + vol + 'm');
   if (pass) {
     args.push('-p' + pass);
     if (fmt === 'zip') args.push('-mem=AES256'); // ZIP 用 AES-256 加密内容
@@ -92,6 +95,41 @@ function tailError(text) {
   return lines[lines.length - 1] || '';
 }
 
+/* 构建内容浏览命令参数：-slt 技术列表（机器可解析），-ba 省略表头，
+ * -sccUTF-8 强制输出 UTF-8（否则按控制台代码页 GBK 输出，中文条目会乱码）
+ * opts: { archive:string, pass:string } */
+function buildListArgs(opts) {
+  const args = ['l', '-ba', '-slt', '-sccUTF-8'];
+  const pass = String(opts.pass || '');
+  if (pass) args.push('-p' + pass);
+  args.push('--', opts.archive);
+  return args;
+}
+
+/* 解析 `l -slt` 技术列表输出 → [{path, size, mtime, isDir}]
+ * 每个条目为空行分隔的字段块：Path = / Size = / Modified = / Attributes = D… */
+function parseListOutput(text) {
+  const entries = [];
+  let cur = null;
+  const flush = () => {
+    if (cur && cur.path) entries.push(cur);
+    cur = null;
+  };
+  String(text || '').split(/[\r\n]+/).forEach((line) => {
+    const m = /^(.*?)\s*=\s*(.*)$/.exec(line);
+    if (!m) { flush(); return; }
+    const key = m[1].trim();
+    const val = m[2].trim();
+    if (key === 'Path') { flush(); cur = { path: val, size: 0, mtime: '', isDir: false }; }
+    else if (!cur) { /* 表头或无 Path 前的字段，忽略 */ }
+    else if (key === 'Size') { cur.size = parseInt(val, 10) || 0; }
+    else if (key === 'Modified') { cur.mtime = val; }
+    else if (key === 'Attributes') { cur.isDir = /\bD/.test(val); }
+  });
+  flush();
+  return entries;
+}
+
 module.exports = {
   ARCHIVE_EXTS,
   COMPRESS_FMTS,
@@ -102,6 +140,8 @@ module.exports = {
   exitCodeText,
   buildCompressArgs,
   buildExtractArgs,
+  buildListArgs,
+  parseListOutput,
   parseProgress,
   tailError
 };

@@ -197,11 +197,14 @@
     $('ax-empty').hidden = !!archives.length;
     $('ax-count').textContent = countText(archives);
     $('ax-run').disabled = !archives.length || running || !bridgeOk();
+    $('ax-browse').disabled = !archives.length || running || !bridgeOk();
   }
 
   function renderEncNamesRow() {
-    /* 仅 7z 支持加密文件名（-mhe） */
-    $('ac-encnames-row').hidden = $('ac-fmt').value !== '7z';
+    /* 仅 7z 支持加密文件名（-mhe）与分卷（-v） */
+    var is7z = $('ac-fmt').value === '7z';
+    $('ac-encnames-row').hidden = !is7z;
+    $('ac-volume-row').hidden = !is7z;
   }
 
   /* ================= 桌面桥接 ================= */
@@ -265,13 +268,15 @@
         items: chosen.map(function (it) { return it.path; }),
         fmt: fmt,
         level: $('ac-level').value,
+        volumeMB: fmt === '7z' ? (Math.round(+$('ac-volume').value || 0)) : 0,
         pass: $('ac-pass').value,
         encNames: fmt === '7z' && $('ac-encnames').checked,
         outPath: outPath
       }).then(function (res) {
         var prog = $('ac-progress');
         if (res && res.ok) {
-          prog.textContent = '压缩完成 ✓ ' + outPath + '（' + fmtSize(res.size) + '）';
+          var volNote = res.parts > 1 ? '，分 ' + res.parts + ' 卷' : '';
+          prog.textContent = '压缩完成 ✓ ' + outPath + '（' + fmtSize(res.size) + volNote + '）';
           toast('压缩完成');
         } else {
           prog.textContent = '压缩失败：' + ((res && res.error) || '未知错误');
@@ -338,6 +343,68 @@
     toast(line, res.failCount > 0);
   }
 
+  /* ================= 内容浏览 ================= */
+
+  /* 列表摘要（纯函数）：文件数 / 目录数 / 总大小文案 */
+  function browseMeta(entries) {
+    var files = 0, dirs = 0, total = 0;
+    (entries || []).forEach(function (e) {
+      if (e.isDir) dirs++;
+      else { files++; total += (typeof e.size === 'number' && isFinite(e.size)) ? e.size : 0; }
+    });
+    var parts = [];
+    if (files) parts.push(files + ' 个文件');
+    if (dirs) parts.push(dirs + ' 个文件夹');
+    return { files: files, dirs: dirs, totalSize: total, text: parts.join(' · ') + (files ? ' · 共 ' + fmtSize(total) : '') };
+  }
+
+  /* 单个条目的修改时间显示（空值占位 —） */
+  function mtimeText(e) { return (e && e.mtime) || '—'; }
+
+  function browseArchive() {
+    if (!bridgeOk()) { toast('内容浏览需要在桌面版中使用', true); return; }
+    var first = archives[0];
+    if (!first) return;
+    var dlg = $('ax-browse-dlg');
+    $('ax-browse-title').textContent = first.name || '';
+    $('ax-browse-meta').textContent = '正在读取内容…';
+    var body = $('ax-browse-body');
+    body.textContent = '';
+    dlg.hidden = false;
+    bridge.list({ archive: first.path, pass: $('ax-pass').value }).then(function (res) {
+      if (!res || !res.ok) {
+        $('ax-browse-meta').textContent = '读取失败：' + ((res && res.error) || '未知错误');
+        $('ax-browse-meta').className = 'hint-text st-bad';
+        return;
+      }
+      $('ax-browse-meta').className = 'hint-text';
+      var meta = browseMeta(res.entries || []);
+      $('ax-browse-meta').textContent = meta.text || '空压缩包';
+      body.textContent = '';
+      (res.entries || []).forEach(function (e, i) {
+        var tr = document.createElement('tr');
+        var td0 = document.createElement('td');
+        td0.textContent = String(i + 1);
+        var td1 = document.createElement('td');
+        td1.textContent = e.path || '';
+        if (e.isDir) td1.className = 'st-dim';
+        var td2 = document.createElement('td');
+        td2.className = 'st-dim';
+        td2.textContent = e.isDir ? '—' : fmtSize(e.size);
+        var td3 = document.createElement('td');
+        td3.className = 'st-dim';
+        td3.textContent = mtimeText(e);
+        tr.appendChild(td0); tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+        body.appendChild(tr);
+      });
+    }).catch(function (e) {
+      $('ax-browse-meta').textContent = '读取失败：' + (e.message || e);
+      $('ax-browse-meta').className = 'hint-text st-bad';
+    });
+  }
+
+  function closeBrowse() { $('ax-browse-dlg').hidden = true; }
+
   /* ================= 模块入口 ================= */
 
   function showMenu() {
@@ -397,6 +464,9 @@
 
     /* 解压面板 */
     $('ax-pick').addEventListener('click', pickArchives);
+    $('ax-browse').addEventListener('click', browseArchive);
+    $('ax-browse-close').addEventListener('click', closeBrowse);
+    $('ax-browse-dlg').addEventListener('click', function (e) { if (e.target === this) closeBrowse(); });
     $('ax-clear').addEventListener('click', function () {
       if (running) return;
       archives = [];
@@ -441,6 +511,8 @@
       extractTargetText: extractTargetText,
       compressProgressText: compressProgressText,
       extractProgressText: extractProgressText,
+      browseMeta: browseMeta,
+      mtimeText: mtimeText,
       ARCHIVE_EXTS: ARCHIVE_EXTS
     }
   };

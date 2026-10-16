@@ -66,6 +66,51 @@ const args7z = require(path.join(ROOT, 'electron', '7z-args.js'));
   a = args7z.buildCompressArgs({ fmt: 'zip', level: 'fast', inputs: ins, outPath: out });
   t.assert(!a.some(s => /^-p|-mem/.test(s)), 'ZIP 无密码：无 -p / -mem');
 
+  /* 分卷参数 */
+  a = args7z.buildCompressArgs({ fmt: '7z', level: 'normal', volumeMB: 10, inputs: ins, outPath: out });
+  t.assert(a.includes('-v10m'), '7z 分卷：-v10m');
+  a = args7z.buildCompressArgs({ fmt: '7z', level: 'normal', volumeMB: 0, inputs: ins, outPath: out });
+  t.assert(!a.some(s => /^-v/.test(s)), '7z 不分卷：无 -v 参数');
+  a = args7z.buildCompressArgs({ fmt: 'zip', level: 'fast', volumeMB: 10, inputs: ins, outPath: out });
+  t.assert(!a.some(s => /^-v/.test(s)), 'ZIP 忽略分卷：无 -v 参数');
+  a = args7z.buildCompressArgs({ fmt: '7z', level: 'normal', volumeMB: -5, inputs: ins, outPath: out });
+  t.assert(!a.some(s => /^-v/.test(s)), '非法分卷大小（负数）忽略');
+  a = args7z.buildCompressArgs({ fmt: '7z', level: 'normal', volumeMB: 1.4, inputs: ins, outPath: out });
+  t.assert(a.includes('-v1m'), '分卷小数四舍五入为整数 MB');
+
+  /* 内容浏览参数与列表解析 */
+  let la = args7z.buildListArgs({ archive: 'C:\\x\\a.7z', pass: '' });
+  t.assert(la[0] === 'l' && la.includes('-ba') && la.includes('-slt') && la.includes('-sccUTF-8')
+    && la[la.length - 1] === 'C:\\x\\a.7z', '浏览参数：l -ba -slt -sccUTF-8 -- archive');
+  la = args7z.buildListArgs({ archive: 'C:\\x\\a.7z', pass: 'p@ss' });
+  t.assert(la.includes('-pp@ss'), '浏览参数：密码原样单参数');
+  const sampleList = [
+    '',
+    'Path = docs/',
+    'Folder = 1',
+    'Attributes = D_ drwxrwxrwx',
+    'Modified = 2026-10-17 08:30:00',
+    '',
+    'Path = docs/说明.txt',
+    'Size = 2048',
+    'Attributes = A_ -rw-rw-rw-',
+    'Modified = 2026-10-17 09:00:00',
+    '',
+    'Path = 图 片.png',
+    'Size = 0',
+    'Attributes = A_ -rw-rw-rw-',
+    ''
+  ].join('\r\n');
+  const parsed = args7z.parseListOutput(sampleList);
+  t.assert(parsed.length === 3, 'parseListOutput 解析 3 个条目');
+  t.assert(parsed[0].path === 'docs/' && parsed[0].isDir === true && parsed[0].size === 0,
+    '目录条目：路径与 D 属性识别');
+  t.assert(parsed[1].path === 'docs/说明.txt' && parsed[1].size === 2048 && parsed[1].isDir === false
+    && parsed[1].mtime === '2026-10-17 09:00:00', '文件条目：大小与修改时间');
+  t.assert(parsed[2].path === '图 片.png', '含空格中文路径原样保留');
+  t.assert(args7z.parseListOutput('').length === 0 && args7z.parseListOutput(null).length === 0,
+    'parseListOutput 空输入返回空数组');
+
   /* 解压参数 */
   let e = args7z.buildExtractArgs({ archive: 'C:\\x\\a.7z', outDir: 'C:\\x\\out', pass: '' });
   t.assert(e[0] === 'x' && e[1] === '-oC:\\x\\out' && e[2] === '-y', '解压参数：x -o<dir> -y（自动覆盖防挂起）');
@@ -85,7 +130,7 @@ const args7z = require(path.join(ROOT, 'electron', '7z-args.js'));
 })();
 
 /* ---------- 2. js/archive.js 渲染层纯函数 ---------- */
-global.window = { App: {} };
+global.window = { App: { ui: { $: () => null, toast: () => {} } } };
 require(path.join(ROOT, 'js', 'archive.js'));
 const at = global.window.App.archive;
 
@@ -153,6 +198,18 @@ const at = global.window.App.archive;
   t.assert(T.compressProgressText(45) === '压缩中… 45%', 'compressProgressText');
   t.assert(T.extractProgressText({ index: 1, total: 5, name: 'x.zip', pct: 30 }) === '解压中（2/5）：x.zip — 30%',
     'extractProgressText 带序号与文件名');
+
+  /* 内容浏览摘要与时间显示 */
+  const bm = T.browseMeta([
+    { path: 'a/', isDir: true, size: 0 },
+    { path: 'a/b.txt', isDir: false, size: 2048 },
+    { path: 'c.jpg', isDir: false, size: 1024 * 1024 }
+  ]);
+  t.assert(bm.files === 2 && bm.dirs === 1 && bm.totalSize === 2048 + 1024 * 1024, 'browseMeta 文件/目录计数与总大小');
+  t.assert(/2 个文件 · 1 个文件夹/.test(bm.text) && /1 MB/.test(bm.text), 'browseMeta 摘要文案');
+  t.assert(T.browseMeta([]).text === '' && T.browseMeta(null).files === 0, 'browseMeta 空列表兜底');
+  t.assert(T.mtimeText({ mtime: '2026-10-17 09:00:00' }) === '2026-10-17 09:00:00' && T.mtimeText({}) === '—'
+    && T.mtimeText(null) === '—', 'mtimeText 空值占位');
 
   /* 「压缩到」输出路径解析 */
   t.assert(T.parentDir('C:\\f\\照片1.jpg') === 'C:\\f', 'parentDir 文件 → 父目录');
@@ -238,6 +295,26 @@ function run7z(args) {
     t.assert(args7z.isOkExitCode(r.code)
       && fs.readFileSync(path.join(exGz, '你好.txt'), 'utf8') === '尊泓工具箱 7z 冒烟测试 ✓',
       '真实 GZ：gzip 解压且内容一致');
+
+    /* 内容浏览：普通包 l -slt 列表解析 */
+    r = await run7z(args7z.buildListArgs({ archive: arc7z, pass: '' }));
+    t.assert(args7z.isOkExitCode(r.code), '真实 7z：l -slt 内容列表成功');
+    const listed = args7z.parseListOutput(r.out);
+    t.assert(listed.some(e => e.path === '你好.txt' && !e.isDir && e.size === Buffer.byteLength('尊泓工具箱 7z 冒烟测试 ✓', 'utf8')),
+      '真实 7z：列表解析含中文文件名与正确大小');
+
+    /* 分卷压缩：2.5MB 数据按 1MB 分卷 → 产出多卷 → 任选一卷可列表 */
+    const big = path.join(tmp, 'big.dat');
+    fs.writeFileSync(big, Buffer.alloc(Math.round(2.5 * 1024 * 1024), 7));
+    const arcVol = path.join(tmp, '分卷.7z');
+    r = await run7z(args7z.buildCompressArgs({ fmt: '7z', level: 'store', volumeMB: 1, inputs: [big], outPath: arcVol }));
+    t.assert(args7z.isOkExitCode(r.code), '真实 7z：分卷压缩成功');
+    const volParts = fs.readdirSync(tmp)
+      .filter(f => f.startsWith('分卷.7z.') && /^\.\d{3}$/.test(f.slice('分卷.7z'.length)));
+    t.assert(volParts.length >= 3, '真实 7z：2.5MB/1MB 分出 ≥3 卷（' + volParts.join(' ') + '）');
+    r = await run7z(args7z.buildListArgs({ archive: arcVol + '.001', pass: '' }));
+    t.assert(args7z.isOkExitCode(r.code) && args7z.parseListOutput(r.out).some(e => e.path === 'big.dat'),
+      '真实 7z：首个分卷即可浏览内容');
   } finally {
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* 忽略 */ }
   }

@@ -1079,6 +1079,19 @@ body[data-module="print"] #sheet-steps-nav { display: none; }
 }
 .pm-dlg-err { font-size: 12px; color: var(--danger); min-height: 16px; }
 
+/* 压缩包内容浏览对话框 */
+.browse-box {
+  width: min(820px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+  display: flex; flex-direction: column;
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  padding: 14px 18px;
+}
+.browse-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.browse-title { font-size: 14px; font-weight: 600; word-break: break-all; }
+.browse-scroll { overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); min-height: 120px; }
+.browse-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+
 /* 通用确认对话框（App.ui.confirm） */
 .confirm-box {
   width: min(400px, calc(100vw - 32px));

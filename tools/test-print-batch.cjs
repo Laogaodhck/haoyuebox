@@ -10,7 +10,7 @@ const { createChecker } = require('./_lib.cjs');
 
 const t = createChecker();
 
-global.window = { App: {} };
+global.window = { App: { ui: { $: () => null, toast: () => {}, showLoading: () => {}, hideLoading: () => {} } } };
 global.URL = URL;
 global.Blob = class {};   // 占位（不触发路径）
 require(path.join(__dirname, '..', 'js', 'print-batch.js'));

@@ -134,12 +134,13 @@
       </span>
       <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
-    <button class="home-card disabled" type="button" disabled>
-      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg></span>
+    <button class="home-card" id="photo-open-compress" type="button">
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
       <span class="hc-body">
-        <span class="hc-title">更多功能</span>
-        <span class="hc-desc">图片压缩 / 尺寸调整 · 敬请期待</span>
+        <span class="hc-title">图片压缩 <span class="hc-badge">可用</span></span>
+        <span class="hc-desc">质量与尺寸调整 · 最长边限制 · 批量压缩输出 ZIP</span>
       </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
   </div>
 
@@ -342,6 +343,66 @@
           </table>
         </div>
         <div id="conv-empty" class="empty-state" role="button" tabindex="0" aria-label="选择要转换的图片">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="10" cy="12" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+          <div class="es-title">还没有选择图片</div>
+          <div class="es-hint">点击此处选择，或直接拖入窗口<br>支持 JPG / PNG / WebP 等常见格式 · 可多选</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 子功能：图片压缩 / 尺寸调整 ========== -->
+  <section id="photo-compress" class="subpage" hidden>
+    <aside class="panel">
+      <h3>选择图片</h3>
+      <div class="btn-col">
+        <button id="cmp-pick" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="10" cy="12" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> 选择图片…（可多选）</button>
+        <input type="file" id="cmp-file" accept="image/*" multiple hidden>
+      </div>
+      <div id="cmp-count" class="hint-text">未选择图片</div>
+
+      <h3>压缩设置</h3>
+      <div class="field">
+        <label>输出格式</label>
+        <select id="cmp-fmt" class="select">
+          <option value="keep" selected>保持原格式（JPG/PNG/WebP）</option>
+          <option value="jpeg">统一转 JPG（体积小）</option>
+          <option value="webp">统一转 WebP（体积最小）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>质量 <span id="cmp-quality-val">80%</span></label>
+        <input type="range" id="cmp-quality" min="50" max="100" value="80">
+      </div>
+      <div class="field">
+        <label>最长边限制</label>
+        <select id="cmp-maxedge" class="select">
+          <option value="0" selected>不限制（保持原尺寸）</option>
+          <option value="3840">4K（3840px）</option>
+          <option value="2560">2K（2560px）</option>
+          <option value="1920">1080P（1920px）</option>
+          <option value="1280">720P（1280px）</option>
+        </select>
+      </div>
+      <div class="hint-text">PNG 保持透明通道；缩放仅在超限时等比缩小、绝不放大。多张结果打包为 ZIP 保存，可直观对比压缩前后体积。</div>
+
+      <div class="btn-row bottom">
+        <button id="cmp-clear" class="ghost">清空</button>
+        <button id="cmp-run" class="primary" disabled>开始压缩</button>
+      </div>
+      <button id="cmp-back" class="ghost batch-back">← 返回照片工具</button>
+    </aside>
+
+    <div class="stage">
+      <div class="canvas-wrap batch-table-wrap">
+        <div class="preview-title">待压缩图片</div>
+        <div class="batch-scroll" id="cmp-list" hidden>
+          <table id="cmp-table" class="batch-table">
+            <thead><tr><th>序号</th><th>预览</th><th>文件名</th><th>原尺寸</th><th>输出尺寸</th><th>原大小</th><th>压缩后</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="cmp-empty" class="empty-state" role="button" tabindex="0" aria-label="选择要压缩的图片">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="10" cy="12" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
           <div class="es-title">还没有选择图片</div>
           <div class="es-hint">点击此处选择，或直接拖入窗口<br>支持 JPG / PNG / WebP 等常见格式 · 可多选</div>
@@ -603,12 +664,13 @@
       </span>
       <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
-    <button class="home-card disabled" type="button" disabled>
+    <button class="home-card" id="batch-open-optimize" type="button">
       <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
       <span class="hc-body">
-        <span class="hc-title">批量压缩</span>
-        <span class="hc-desc">图片 / 文档体积优化 · 敬请期待</span>
+        <span class="hc-title">体积优化（图片） <span class="hc-badge">可用</span></span>
+        <span class="hc-desc">批量压缩图片 · 质量与最长边调整 · 压缩前后大小对比</span>
       </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
   </div>
 
@@ -892,10 +954,21 @@
         <label>密码（可选）</label>
         <input type="password" id="ac-pass" class="num-input" placeholder="留空则不加密" autocomplete="new-password">
       </div>
+      <div class="field" id="ac-volume-row">
+        <label>分卷大小</label>
+        <select id="ac-volume" class="select">
+          <option value="0" selected>不分卷（单个压缩包）</option>
+          <option value="1">1 MB（消息发送友好）</option>
+          <option value="5">5 MB</option>
+          <option value="10">10 MB</option>
+          <option value="50">50 MB</option>
+          <option value="100">100 MB</option>
+        </select>
+      </div>
       <div class="field" id="ac-encnames-row">
         <label>加密文件名 <input type="checkbox" id="ac-encnames"></label>
       </div>
-      <div id="ac-note" class="hint-text">7z 格式可用 AES-256 加密内容与文件名；ZIP 仅加密内容（文件名可见）</div>
+      <div id="ac-note" class="hint-text">7z 格式可用 AES-256 加密内容与文件名；ZIP 仅加密内容（文件名可见）。分卷仅 7z 支持，输出为 压缩包.7z.001、.002… 系列，解压时任选其一即可</div>
 
       <div class="btn-row bottom">
         <button id="ac-clear" class="ghost">清空</button>
@@ -944,6 +1017,7 @@
       <div class="hint-text">支持 7z / ZIP / RAR / TAR / GZ / XZ / BZ2 / CAB / ISO 等常见格式；多选时逐个自动解压</div>
 
       <div class="btn-row bottom">
+        <button id="ax-browse" class="ghost" disabled title="查看第一个所选压缩包的内部文件列表">浏览内容</button>
         <button id="ax-clear" class="ghost">清空</button>
         <button id="ax-run" class="primary" disabled>开始解压</button>
       </div>
@@ -1213,6 +1287,25 @@
   </div>
 </div>
 
+<!-- 压缩工具 · 内容浏览对话框 -->
+<div id="ax-browse-dlg" class="pm-dlg" hidden>
+  <div class="browse-box" role="dialog" aria-modal="true" aria-label="压缩包内容浏览">
+    <div class="browse-head">
+      <span id="ax-browse-title" class="browse-title"></span>
+      <span id="ax-browse-meta" class="hint-text"></span>
+    </div>
+    <div class="browse-scroll">
+      <table class="batch-table">
+        <thead><tr><th>#</th><th>路径</th><th>大小</th><th>修改时间</th></tr></thead>
+        <tbody id="ax-browse-body"></tbody>
+      </table>
+    </div>
+    <div class="browse-actions">
+      <button id="ax-browse-close" class="primary" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
   <div id="thumb-lightbox" hidden><img id="thumb-lightbox-img" alt="预览大图"></div>
 
 <!-- 打印机管理 · 添加 / 编辑对话框 -->
@@ -1289,8 +1382,9 @@
 <script src="js/batch-format.js"></script>
 <script src="js/batch-watermark.js"></script>
 <script src="js/archive.js"></script>
-<script src="js/convert.js"></script>
-<script src="js/compose.js"></script>
+  <script src="js/convert.js"></script>
+  <script src="js/compose.js"></script>
+  <script src="js/compress.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/sheet.js"></script>
 <script src="js/print.js"></script>

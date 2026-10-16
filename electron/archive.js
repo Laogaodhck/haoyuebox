@@ -137,18 +137,30 @@ function run7z(exe, args, onProgress) {
   });
 }
 
-/* 压缩：payload { items:[path], fmt, level, pass, encNames, outPath } */
+/* 压缩：payload { items:[path], fmt, level, volumeMB, pass, encNames, outPath } */
 async function compress(getWin, payload) {
   const exe = resolve7zPath();
   if (!exe) return { ok: false, error: '未找到 7z 引擎' };
   const items = (payload.items || []).filter(p => typeof p === 'string' && p);
   if (!items.length) return { ok: false, error: '未选择要压缩的文件' };
   if (!payload.outPath) return { ok: false, error: '未指定输出路径' };
-  /* 输出已存在则删除重建：7z a 的更新模式会在包内残留旧条目 */
-  try { if (fs.existsSync(payload.outPath)) fs.rmSync(payload.outPath); } catch (e) { /* 删除失败由 7z 报错 */ }
+  const volumeMB = Math.round(+payload.volumeMB || 0);
+  /* 输出已存在则删除重建：7z a 的更新模式会在包内残留旧条目
+   * 分卷输出为 out.7z.001/002…，也要一并清理 */
+  try {
+    if (fs.existsSync(payload.outPath)) fs.rmSync(payload.outPath);
+    if (volumeMB > 0) {
+      const dir = path.dirname(payload.outPath);
+      const base = path.basename(payload.outPath);
+      fs.readdirSync(dir).filter(f => f.startsWith(base + '.')).forEach(f => {
+        try { fs.rmSync(path.join(dir, f)); } catch (e) { /* 逐个忽略 */ }
+      });
+    }
+  } catch (e) { /* 删除失败由 7z 报错 */ }
   const args = args7z.buildCompressArgs({
     fmt: payload.fmt,
     level: payload.level,
+    volumeMB: volumeMB,
     pass: payload.pass,
     encNames: payload.encNames,
     inputs: items,
@@ -160,8 +172,22 @@ async function compress(getWin, payload) {
   });
   if (res.ok) {
     let size = 0;
-    try { size = fs.statSync(payload.outPath).size; } catch (e) { /* 已删除？ */ }
-    return { ok: true, outPath: payload.outPath, size };
+    let parts = 1;
+    try {
+      if (volumeMB > 0) {
+        /* 分卷：统计 out.7z.NNN 全部卷的大小 */
+        const dir = path.dirname(payload.outPath);
+        const base = path.basename(payload.outPath);
+        const vols = fs.readdirSync(dir)
+          .filter(f => f.startsWith(base + '.') && /^\.\d{3}$/.test(f.slice(base.length)))
+          .sort();
+        vols.forEach(f => { size += fs.statSync(path.join(dir, f)).size; });
+        parts = vols.length || 1;
+      } else {
+        size = fs.statSync(payload.outPath).size;
+      }
+    } catch (e) { /* 已删除？ */ }
+    return { ok: true, outPath: payload.outPath, size, parts };
   }
   return res;
 }
@@ -199,12 +225,38 @@ async function extract(getWin, payload) {
   return { ok: okCount > 0, results, okCount, failCount: results.length - okCount };
 }
 
+/* 内容浏览：payload { archive, pass } → 7z l -slt 列表解析 */
+async function listArchive(payload) {
+  const exe = resolve7zPath();
+  if (!exe) return { ok: false, error: '未找到 7z 引擎' };
+  const archive = payload && typeof payload.archive === 'string' ? payload.archive : '';
+  if (!archive || !fs.existsSync(archive)) return { ok: false, error: '压缩包不存在' };
+  return new Promise((resolve) => {
+    const child = spawn(exe, args7z.buildListArgs({ archive, pass: payload.pass }),
+      { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let errTail = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { errTail = (errTail + d).slice(-4000); });
+    child.on('error', (e) => resolve({ ok: false, error: '7z 启动失败：' + (e.message || e) }));
+    child.on('close', (code) => {
+      if (args7z.isOkExitCode(code)) {
+        const entries = args7z.parseListOutput(out);
+        resolve({ ok: true, entries, count: entries.length });
+      } else {
+        resolve({ ok: false, error: args7z.tailError(errTail) || args7z.exitCodeText(code) });
+      }
+    });
+  });
+}
+
 function registerArchiveIpc(ipcMain, getWin) {
   ipcMain.handle('archive:check7z', () => check7z());
   ipcMain.handle('archive:pickPaths', (e, kind) => pickPaths(getWin, kind));
   ipcMain.handle('archive:saveDialog', (e, defaultName) => saveDialog(getWin, defaultName));
   ipcMain.handle('archive:compress', (e, payload) => compress(getWin, payload));
   ipcMain.handle('archive:extract', (e, payload) => extract(getWin, payload));
+  ipcMain.handle('archive:list', (e, payload) => listArchive(payload));
 }
 
-module.exports = { registerArchiveIpc, resolve7zPath, check7z };
+module.exports = { registerArchiveIpc, resolve7zPath, check7z, listArchive };

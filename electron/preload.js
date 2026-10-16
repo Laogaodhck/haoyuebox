@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('zunhongArchive', {
   saveDialog: (defaultName) => ipcRenderer.invoke('archive:saveDialog', defaultName),
   compress: (payload) => ipcRenderer.invoke('archive:compress', payload),
   extract: (payload) => ipcRenderer.invoke('archive:extract', payload),
+  list: (payload) => ipcRenderer.invoke('archive:list', payload),
   onProgress: (cb) => {
     ipcRenderer.on('archive:progress', (e, data) => cb(data));
   }
