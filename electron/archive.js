@@ -170,18 +170,22 @@ async function compress(getWin, payload) {
     return { ok: false, error: '输出文件扩展名须为 .7z 或 .zip' };
   }
   const volumeMB = Math.round(+payload.volumeMB || 0);
-  /* 输出已存在则删除重建：7z a 的更新模式会在包内残留旧条目
-   * 分卷输出为 out.7z.001/002…，只精确清理 .NNN 编号卷（防误删同前缀无关文件） */
-  try {
-    if (fs.existsSync(outPath)) fs.rmSync(outPath);
-    if (volumeMB > 0) {
-      const dir = path.dirname(outPath);
-      const base = path.basename(outPath);
-      fs.readdirSync(dir).filter(f => f.startsWith(base + '.') && /^\.\d{3}$/.test(f.slice(base.length))).forEach(f => {
-        try { fs.rmSync(path.join(dir, f)); } catch (e) { /* 逐个忽略 */ }
-      });
-    }
-  } catch (e) { /* 删除失败由 7z 报错 */ }
+  /* 精确清理输出产物：非分卷删 outPath 本身；分卷删 out.7z.NNN 编号卷
+   * （只匹配 .NNN 后缀，防误删同前缀无关文件） */
+  const removeOutputs = () => {
+    try {
+      if (fs.existsSync(outPath)) fs.rmSync(outPath);
+      if (volumeMB > 0) {
+        const dir = path.dirname(outPath);
+        const base = path.basename(outPath);
+        fs.readdirSync(dir).filter(f => f.startsWith(base + '.') && /^\.\d{3}$/.test(f.slice(base.length))).forEach(f => {
+          try { fs.rmSync(path.join(dir, f)); } catch (e) { /* 逐个忽略 */ }
+        });
+      }
+    } catch (e) { /* 尽力清理，失败由后续流程报错 */ }
+  };
+  /* 输出已存在则删除重建：7z a 的更新模式会在包内残留旧条目 */
+  removeOutputs();
   const args = args7z.buildCompressArgs({
     fmt: payload.fmt,
     level: payload.level,
@@ -195,6 +199,11 @@ async function compress(getWin, payload) {
   const res = await run7z(exe, args, (pct) => {
     if (win && !win.isDestroyed()) win.webContents.send('archive:progress', { task: 'compress', pct });
   });
+  if (res.cancelled) {
+    // 用户取消：清掉半成品（非分卷的残缺包 / 分卷的 .001… 卷），不留垃圾文件
+    removeOutputs();
+    return res;
+  }
   if (res.ok) {
     let size = 0;
     let parts = 1;
