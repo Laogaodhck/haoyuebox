@@ -2,8 +2,8 @@
 
 > 老高 · QQ 846193
 
-**纯本地离线**的证件照制作、排版打印与批量文件工具。图像与文件处理全部在本机完成
-（Canvas + 本地 WASM 人像分割 + File System Access API），
+**纯本地离线**的证件照制作、排版打印、批量打印与文件工具（压缩 / 解压）。图像与文件处理全部在本机完成
+（Canvas + 本地 WASM 人像分割 + 本地 pdf.js / mammoth + 内置 7z + File System Access API），
 不调用任何后端服务或外部 API，照片不出本机，断网可完整使用全部功能。
 
 ## 使用方式
@@ -30,12 +30,14 @@ npm run dist       # 打包 Windows 安装包 + 便携版
 
 > 也可以用任意静态服务器（如 `python -m http.server 8410`）。
 > 直接双击 `index.html`（file:// 协议）无法加载本地 WASM 模型，页面会给出提示。
-> 浏览器模式没有直接打印能力，打印面板会提示改用桌面版。
+> 浏览器模式没有直接打印与压缩/解压能力（无 7z 引擎与系统打印机），相关面板会提示改用桌面版。
 
 ## 功能
 
-四个模块：**首页**（软件声明 + 入口）、**照片**（4 步制作单张成品）、**排版**（4 步批量排版打印）、
-**批量工具**（文件批量处理，已上线批量重命名）。顶部模块标签与首页工具卡片均可进入。
+六个模块：**首页**（软件声明 + 入口）、**照片工具**（证照生成 / 图片转换 / 图片合成三个子功能）、
+**排版工具**（4 步批量排版打印）、**批量工具**（批量重命名 / 去除水印 / 格式转换三个子功能）、
+**打印工具**（批量打印图片与文档）、**压缩工具**（压缩 / 解压）。顶部模块标签与首页工具卡片均可进入；
+照片与批量工具下设子功能菜单。
 
 | 功能 | 说明 |
 | --- | --- |
@@ -47,15 +49,24 @@ npm run dist       # 打包 Windows 安装包 + 便携版
 | 规格模板 | 一寸 / 小二寸 / 二寸 / 大二寸 / 护照 / 签证 / 驾驶证 / 社保照（8 种，含毫米尺寸与 300DPI 像素） |
 | 裁剪调整 | 拖动平移、滚轮/双指缩放，头顶线 / 眼线 / 下巴线参考线，一键智能对齐（`重置布局`） |
 | 单张导出 | PNG（写入 pHYs）/ JPEG（写入 JFIF 密度，质量 50–100% 可调），真实 300DPI 元数据 |
+| 图片转换 | JPG / PNG / WebP 批量互转 · 质量可调 · 透明区域填充 · 多张打包为 ZIP 一次保存 |
+| 图片合成 | 横向 / 纵向拼接 · 网格拼图 · 间距与底色可调 · PNG 无损保存 |
 | 相纸排版 | 六寸横版 / A4 / B5 / A5 / A3 竖版（5 种，300DPI），可设 0–40px 间距与裁切线开关 |
 | 批量排版 | 多选导入照片按序逐格排布，每张可设 1–4 份，超出单版自动分页并可逐页预览下载 |
 | 直接打印 | 桌面版枚举系统打印机、发送任务，支持纸张（A4/B5/A5/A3/Letter/4×6）、方向、边距、份数与打印机属性 |
+| 批量打印 | 图片：多选导入、单张 0/90/180/270 旋转、按纸张 contain 适配整批一次发送；文档：PDF / TXT / DOCX 列队逐份或合并单任务打印，支持单双面；pdf.js / mammoth 本地渲染，断网可用 |
+| 压缩工具 | 7z / ZIP 压缩（密码、7z 加密文件名、四档等级）· ZIP / RAR / 7z / tar / gz 等 16 种格式解压 · 内置 7z 引擎（LGPL）· 进度实时回传、错误中文化 |
 | 批量重命名 | 文件夹级批量改名（照片/文档/自定义后缀过滤）：规则编号（基础名 + 分隔符 + 起始序号 + 位数）与逐行自定义名可混用；照片类型显示缩略图并支持点击放大预览；自然排序（图2 排在图10 前）；冲突逐行标注并跳过（目标已存在 / 链式冲突 / 批内重名 / 非法字符 / 系统保留名）；File System Access API 本地完成，优先原生原子 `move`；「清空」一键释放缩略图缓存与全部状态 |
+| 批量去除水印 | 预览图拖拽框选水印区域（选区按比例应用到整文件夹）· 模糊 / 像素化 / 纯色覆盖 / 周边取色填充 · 强度可调 · 另存为「-无水印」或覆盖原文件 |
+| 批量格式转换 | JPG / PNG / WebP / PDF 批量互转 · 质量可调 · 透明区域填充 · PDF 可合并为单文件或逐图单页 · 输出到子文件夹「转换输出」不动原文件 |
 | 设置记忆 | 规格、底色、输出格式与 JPEG 质量写入 localStorage，下次启动自动恢复 |
 
 ## 操作流程
 
-**照片模块**：上传 → 抠图换底 → 规格调整 → 导出
+照片工具与批量工具下设**子功能菜单**（首页工具卡片 / 模块标签 → 子菜单 → 具体功能），
+其中证照生成与批量重命名为 4 步流程，图片转换 / 图片合成 / 去除水印 / 格式转换为单页操作。
+
+**照片工具 → 证照生成**：上传 → 抠图换底 → 规格调整 → 导出
 
 1. **上传**：点击 / 拖拽 / Ctrl+V 粘贴照片，自动加载模型并分割
 2. **抠图换底**：选背景色，必要时放大画面用笔刷修补发丝与衣缘
@@ -77,39 +88,67 @@ npm run dist       # 打包 Windows 安装包 + 便携版
 3. **预览**：照片类型显示缩略图，点击可放大预览；摘要栏统计待重命名与冲突数量
 4. **执行**：确认后逐个原子重命名并汇报结果；「清空」释放缩略图缓存并复位全部状态
 
+**打印工具 → 批量打印**：选择图片或文档 → 设置参数 → 打印
+
+1. **图片**：经主进程文件对话框多选本地图片，列表中可旋转（0/90/180/270）、逐张勾选/取消
+2. **文档**：多选 PDF / TXT / DOCX——PDF 经 pdf.js 本地渲染、DOCX 经 mammoth 提取文本统一排版、
+   TXT 原生解码分页，渲染全程在本机完成
+3. **参数**：选择打印机、纸张（A4/B5/A5/A3/Letter/4×6）、方向、边距、单双面与份数
+4. **打印**：图片整批合并为一次任务发送；文档可选列队逐份打印或合并单任务；浏览器模式提示改用桌面版
+
+**压缩工具**：选择文件/文件夹 → 设定格式与密码 → 执行；或选择压缩包 → 解压
+
+1. **压缩**：多选文件或选择整个文件夹（自动去重），可选 7z / ZIP 格式、四档等级
+   （存储/快速/标准/极限）、密码；7z 格式还支持加密文件名
+2. **解压**：选择一个或多个压缩包（自动识别 16 种格式），逐个解压到压缩包所在目录的
+   子文件夹或原目录，密码包输入密码即可
+3. **进度**：压缩/解压进度实时显示，失败时给出中文原因（密码错误 / 空间不足 / 文件被占用等）；
+   浏览器模式无 7z 引擎，面板提示并禁用
+
 ## 目录结构
 
 ```
 photo/
-├── index.html              # 入口页面（三模块 DOM + 脚本引入顺序）
+├── index.html              # 入口页面（六模块 DOM + 子功能菜单 + 脚本引入顺序）
 ├── electron/               # Electron 主进程（桌面版）
-│   ├── main.js             # 窗口、内置静态服务、CSP、打印 IPC、GPU 开关
-│   ├── preload.js          # contextBridge 暴露 haoyuePrint（白名单 IPC）
-│   └── static-server.js    # 随机端口本地静态服务（路径穿越防护 + 正确 MIME）
+│   ├── main.js             # 窗口、内置静态服务、CSP、打印/压缩 IPC、文件字节读取
+│   ├── preload.js          # contextBridge 暴露 haoyuePrint / haoyueArchive（白名单 IPC）
+│   ├── static-server.js    # 随机端口本地静态服务（路径穿越防护 + 正确 MIME）
+│   ├── print-doc.js        # 多页打印文档构建（合并单任务发送）
+│   ├── archive.js          # 压缩/解压 IPC（spawn 内置 7z.exe，进度回传）
+│   ├── 7z-args.js          # 7z 命令行参数构建与输出解析（纯逻辑，可单测）
+│   └── bin/                # 内置 7z.exe + 7z.dll（LGPL，打包注入 resources/bin）
 ├── assets/                 # 品牌图标（源自浩玥 logo）
 ├── css/style.css           # 暗色主题响应式样式
 ├── js/
 │   ├── specs.js            # 证件规格模板库（8 种 + 头部参考线比例）
 │   ├── dpi.js              # PNG pHYs / JPEG JFIF DPI 元数据注入
+│   ├── zip.js              # 零依赖 ZIP 打包（UTF-8 文件名 + CRC32）
 │   ├── segmenter.js        # 人像分割与精准度增强管线
 │   ├── composer.js         # 换底合成引擎 + 相纸排版引擎（5 种相纸）
 │   ├── brush.js            # 蒙版修补/擦除笔刷 + 单通道快照（撤销）
 │   ├── matteview.js        # 抠图视图自由缩放/平移
 │   ├── cropper.js          # 裁剪拖动/缩放与智能对齐
-│   ├── app.js              # 核心状态 + 照片流程（4 步状态机）+ 模块切换
-│   ├── batch.js            # 批量工具：批量重命名（计划构建/冲突检测/缩略图/自定义名）
+│   ├── app.js              # 核心状态 + 照片流程（4 步状态机）+ 模块/子功能切换
+│   ├── convert.js          # 图片转换（JPG/PNG/WebP 互转 + ZIP 打包）
+│   ├── compose.js          # 图片合成（横向/纵向/网格拼接）
+│   ├── batch.js            # 批量重命名（计划构建/冲突检测/缩略图/自定义名）
+│   ├── batch-watermark.js  # 批量去除水印（框选 + 模糊/像素化/取色填充）
+│   ├── batch-format.js     # 批量格式转换（含 PDF 合并/单页）
+│   ├── print-batch.js      # 批量打印：图片 + 文档（pdf.js / mammoth / TXT 分页）
+│   ├── archive.js          # 压缩工具渲染层（选择/参数/进度，7z 经主进程）
 │   ├── settings.js         # 用户设置持久化
 │   ├── sheet.js            # 排版流程（4 步：模板 → 导入 → 预览 → 打印）
 │   └── print.js            # 直接打印（IPC 面板、纸张参数、打印预览）
-├── vendor/mediapipe/       # 本地化的模型与 WASM 运行时（离线关键）
+├── vendor/
+│   ├── mediapipe/          # 本地化的模型与 WASM 运行时（离线关键）
+│   └── print/              # pdf.js（Apache-2.0）+ mammoth（BSD-2-Clause）本地化
 ├── tools/
 │   ├── server.js           # 浏览器模式静态服务（默认 8410，可用 PORT 覆盖）
 │   ├── _lib.cjs            # 测试公共库（端口、浏览器、断言计数、照片解析）
 │   ├── check-refs.cjs      # index.html 脚本与模型引用完整性校验（npm test 首步）
-│   ├── test-*.cjs          # 纯算法 / 冒烟测试（npm test，含 test-batch-rename.cjs 批量重命名）
-│   ├── verify-hair.cjs     # 端到端：分割效果统计
-│   ├── verify-matteview.cjs# 端到端：缩放平移、笔刷擦除与撤销
-│   ├── verify-sheet.cjs    # 端到端：5 种相纸排版与打印预览
+│   ├── test-*.cjs          # 纯算法 / 冒烟测试（npm test 16 项，含真实 7z 冒烟）
+│   ├── verify-*.cjs        # Playwright 端到端（分割/换底/缩放撤销/排版打印/压缩/批量打印/批量工具）
 │   ├── verify-output.cjs   # 检查导出 PNG 的尺寸与 pHYs（DPI）
 │   └── make-icons.cjs      # 图标生成（jimp，支持 --out 避免覆盖成品）
 ├── fixtures/               # 本地测试照片（gitignore，勿提交真人照片）
@@ -164,20 +203,46 @@ photo/
 - 页面由内置随机端口 `127.0.0.1` 静态服务提供，响应头注入 CSP；`preload.js` 通过 contextBridge
   仅暴露打印相关方法，不开放 Node 能力。
 - 打印：`print:listPrinters` 枚举、`print:printImage` 经隐藏沙箱窗口发送任务（可指定纸张尺寸、
-  方向、边距、份数；B5/4×6 走微米自定义尺寸）、`print:showProperties` 调系统打印机属性对话框。
+  方向、边距、份数、单双面；B5/4×6 走微米自定义尺寸）、`print:showProperties` 调系统打印机属性对话框。
+- 压缩：`electron/bin/7z.exe` 随包分发（extraResources → `resources/bin`，未打包时回退系统 7-Zip），
+  渲染层经 `haoyueArchive` 白名单桥接发起压缩/解压，进度经 `archive:progress` 回传。
+
+### 压缩工具（7z）
+
+- 压缩与解压均由内置 7z.exe 完成，命令行参数由 `7z-args.js` 纯函数构建、`spawn` 数组传参不经 shell，
+  密码等用户输入无注入风险；`-bsp1` 进度走 stdout 逐段解析百分比，退出码 0/1 视为成功，
+  其余映射中文错误文案（校验失败 / 空间不足 / 文件被占用等）。
+- 压缩支持 7z / ZIP 两种格式、四档等级（store / fast / normal / max）与密码；
+  ZIP 密码用 AES-256（`-mem=AES256`），仅 7z 支持加密文件名（`-mhe=on`）；
+  输出已存在先删除重建，避免 `a` 更新模式残留旧条目。
+- 解压支持 16 种常见格式（7z / zip / rar / tar / gz / xz / cab / iso / jar / deb / rpm…），
+  `-y` 自动确认覆盖避免交互挂起；默认解压到压缩包所在目录的子文件夹（可选原目录）。
+
+### 批量打印（图片 + 文档）
+
+- 图片：多选导入 → 单张 0/90/180/270 旋转 → 按所选纸张 contain 适配（不放大只缩小）→
+  整批合并一次打印任务发送（沿用多页合并单任务机制，避免驱动逐任务弹确认框）。
+- 文档：PDF 经 pdf.js 本地渲染（2.5 倍率 ≈180dpi，2400px 宽上限防内存失控），
+  DOCX 经 mammoth 提取文本后按 A4 统一排版分页，TXT 原生 UTF-8 解码折行分页；
+  列队模式每文档一个任务，合并模式全部页合为一个任务；均支持单双面
+  （simplex / longEdge / shortEdge，经 `webContents.print` 的 `duplexMode`）。
+- 沙箱渲染层无 fs 能力，文件字节经主进程 `print:readFile` 读取
+  （白名单扩展名 + 200MB 上限，ArrayBuffer 经 IPC 结构化克隆传输）。
 
 ## 开发与测试
 
 ```bash
-npm test          # 纯算法 + 静态服务 + jsdom 冒烟（无需浏览器）
-npm run verify    # Playwright 端到端：人像细节 / 换底导出 / 缩放撤销 / 排版打印
+npm test          # 纯算法 + 静态服务 + jsdom 冒烟（16 项，无需浏览器；test-archive 含真实 7z 冒烟）
+npm run verify    # Playwright 端到端：人像细节 / 换底导出 / 缩放撤销 / 排版打印 / 压缩 / 批量打印
 npm run icons     # 重新生成图标（加 -- --out <dir> 可避免覆盖成品图标）
 ```
 
 `npm run verify` 需要两项本地资源，均不入库：
 
-- 测试照片：`fixtures/photo.jpg`（或环境变量 `HAOYUE_PHOTO=<路径>`）。
-  仓库不收录真人照片，请自行放置一张正面单人照。
+- 测试照片：`fixtures/photo.jpg`（或环境变量 `HAOYUE_PHOTO=<路径>`）——仅分割相关验证项
+  （verify-hair / verify-matteview）需要；仓库不收录真人照片，请自行放置一张正面单人照。
+  压缩 / 批量工具 / 批量打印验证（verify-archive / verify-batch / verify-print-batch）
+  使用桥接 stub 与 OPFS 沙箱文件系统，无需样片。
 - Chromium：项目内 playwright 若未下载浏览器，先执行 `npx playwright install chromium`；
   也可用 `HAOYUE_CHROMIUM=<chrome.exe 路径>` 指向本机已有的浏览器。
 
@@ -205,6 +270,12 @@ npm run icons     # 重新生成图标（加 -- --out <dir> 可避免覆盖成�
   `selfie_multiclass_256x256.tflite`、`selfie_segmenter.tflite` 模型均由 Google 提供，
   遵循 **Apache License 2.0**；模型与运行时随本仓库本地化分发以满足离线运行要求，
   著作权归 Google 所有。
+- 压缩能力来自 [7-Zip](https://www.7-zip.org/)：内置的 `electron/bin/7z.exe` 与 `7z.dll`
+  遵循 **GNU LGPL**（含少量 BSD 组件），随安装包分发以满足离线压缩/解压需求；
+  7-Zip 著作权归 Igor Pavlov 所有。
+- 文档打印渲染来自 [pdf.js](https://mozilla.github.io/pdf.js/)（Mozilla Foundation，**Apache License 2.0**）
+  与 [mammoth.js](https://github.com/mwilliamson/mammoth.js)（Mike Williamson，**BSD-2-Clause**），
+  运行时本地化至 `vendor/print/` 以满足离线运行要求。
 - Electron、electron-builder、jimp、jsdom、Playwright 为开发/打包期依赖，各自遵循其开源许可。
 
 ## 注意
