@@ -780,10 +780,12 @@ window.App.printBatch = (function () {
 
   /* ================= 面板与模式切换 ================= */
 
-  /* showOnly 模式：仅显示指定面板（与批量/压缩工具一致） */
+  /* showOnly 模式：仅显示指定面板（与批量/压缩工具一致；打印机管理面板同属打印工具子功能，需互斥） */
   function showOnly(panelId) {
     $('print-menu').hidden = !!panelId;
     $('print-batch').hidden = panelId !== 'print-batch';
+    var mgr = $('print-manager');
+    if (mgr) mgr.hidden = panelId !== 'print-manager';
   }
 
   function enter() { showOnly(null); }

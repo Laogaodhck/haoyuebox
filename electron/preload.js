@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('zunhongPrint', {
   isDesktop: true,
   listPrinters: () => ipcRenderer.invoke('print:listPrinters'),
   showPrinterProperties: (printerName) => ipcRenderer.invoke('print:showProperties', printerName),
+  probePrinter: (payload) => ipcRenderer.invoke('print:probePrinter', payload),
   printImage: (payload) => ipcRenderer.invoke('print:printImage', payload),
   /* 批量打印：文件选择（kind: image | doc）与文档字节读取 */
   pickPaths: (kind) => ipcRenderer.invoke('archive:pickPaths', kind),

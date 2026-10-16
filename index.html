@@ -985,12 +985,13 @@
           <span class="hc-desc">常用规格直出打印 · 敬请期待</span>
         </span>
       </button>
-      <button class="home-card disabled" type="button" disabled>
+      <button class="home-card" id="print-open-manager" type="button">
         <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
         <span class="hc-body">
-          <span class="hc-title">打印机管理</span>
-          <span class="hc-desc">默认打印机 / 属性设置 · 敬请期待</span>
+          <span class="hc-title">打印机管理 <span class="hc-badge">可用</span></span>
+          <span class="hc-desc">添加 / 编辑 / 删除 / 查询打印机 · 可用性检测与连接状态</span>
         </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
       </button>
     </div>
   </div>
@@ -1139,6 +1140,49 @@
     </div>
   </section>
 
+  <!-- ========== 打印机管理 ========== -->
+  <section id="print-manager" class="subpage" hidden>
+    <div class="pm-bar">
+      <button id="pm-back" class="ghost batch-back">← 返回打印工具</button>
+      <h3 class="pm-title">打印机管理</h3>
+      <span id="pm-stats" class="pm-stats"></span>
+      <span id="pm-sys-hint" class="pm-sys-hint"></span>
+    </div>
+
+    <div class="pm-toolbar">
+      <button id="pm-add" class="primary">＋ 添加打印机</button>
+      <button id="pm-import" class="ghost" title="把系统已检测到、但尚未加入工作台的打印机一键导入">从系统导入</button>
+      <button id="pm-check-all" class="ghost" title="逐台检测可用性：系统类比对系统列表，网络/共享类测试 TCP 连通">检测全部</button>
+      <div class="pm-filters">
+        <input type="search" id="pm-search" class="input" placeholder="搜索名称 / 地址 / 位置 / 备注" aria-label="搜索打印机">
+        <select id="pm-filter-status" class="select" aria-label="按状态筛选">
+          <option value="all">全部状态</option>
+          <option value="online">在线</option>
+          <option value="offline">离线</option>
+          <option value="unknown">未检测</option>
+        </select>
+        <select id="pm-filter-type" class="select" aria-label="按类型筛选">
+          <option value="all">全部类型</option>
+          <option value="system">系统打印机</option>
+          <option value="network">网络打印机</option>
+          <option value="shared">共享打印机</option>
+        </select>
+      </div>
+      <span id="pm-count" class="pm-count"></span>
+    </div>
+
+    <div class="canvas-wrap batch-table-wrap">
+      <div class="batch-scroll">
+        <table id="pm-table" class="batch-table pm-table">
+          <thead><tr><th>名称</th><th>类型</th><th>状态</th><th>连接配置 / 位置</th><th>最近检测</th><th>操作</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="pm-empty" class="stage-tip">尚未添加打印机。点击「添加打印机」手动登记，或「从系统导入」一键加入本机打印机。</div>
+      <div id="pm-nofilter" class="stage-tip" hidden>没有符合筛选条件的打印机，请调整关键词或筛选条件。</div>
+    </div>
+  </section>
+
 </div>
 
 </main>
@@ -1153,6 +1197,66 @@
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <div id="thumb-lightbox" hidden><img id="thumb-lightbox-img" alt="预览大图"></div>
+
+<!-- 打印机管理 · 添加 / 编辑对话框 -->
+<div id="pm-dlg" class="pm-dlg" hidden>
+  <div class="pm-dlg-box" role="dialog" aria-modal="true" aria-labelledby="pm-dlg-title">
+    <header class="pm-dlg-head">
+      <h3 id="pm-dlg-title">添加打印机</h3>
+      <button id="pm-dlg-close" class="pm-dlg-x" type="button" title="关闭">✕</button>
+    </header>
+    <div class="pm-dlg-body">
+      <div class="field">
+        <label for="pm-f-name">名称 <b class="pm-req">*</b></label>
+        <input type="text" id="pm-f-name" class="input" maxlength="50" placeholder="如：前台照片打印机">
+      </div>
+      <div class="field">
+        <label for="pm-f-type">类型 <b class="pm-req">*</b></label>
+        <select id="pm-f-type" class="select">
+          <option value="system">系统打印机（本机已安装）</option>
+          <option value="network">网络打印机（IPP / Raw9100 / LPR）</option>
+          <option value="shared">共享打印机（SMB / 局域网共享）</option>
+        </select>
+      </div>
+      <div id="pm-row-conn" hidden>
+        <div class="field">
+          <label for="pm-f-protocol">协议</label>
+          <select id="pm-f-protocol" class="select">
+            <option value="">未指定</option>
+            <option value="IPP">IPP（631）</option>
+            <option value="Raw9100" selected>Raw9100（9100）</option>
+            <option value="LPR">LPR（515）</option>
+            <option value="SMB">SMB（445）</option>
+          </select>
+        </div>
+        <div class="pm-dlg-row">
+          <div class="field">
+            <label for="pm-f-address">地址 <b class="pm-req">*</b></label>
+            <input type="text" id="pm-f-address" class="input" placeholder="IP 或主机名，如 192.168.1.50">
+          </div>
+          <div class="field pm-field-port">
+            <label for="pm-f-port">端口</label>
+            <input type="number" id="pm-f-port" class="num-input" min="1" max="65535" placeholder="9100">
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="pm-f-location">位置</label>
+        <input type="text" id="pm-f-location" class="input" maxlength="60" placeholder="如：三楼文印室（选填）">
+      </div>
+      <div class="field">
+        <label for="pm-f-note">备注</label>
+        <input type="text" id="pm-f-note" class="input" maxlength="200" placeholder="备注信息（选填）">
+      </div>
+      <label class="pm-dlg-check"><input type="checkbox" id="pm-f-default"> 设为默认打印机</label>
+      <div id="pm-dlg-err" class="pm-dlg-err" role="alert"></div>
+    </div>
+    <footer class="pm-dlg-foot">
+      <button id="pm-dlg-cancel" class="ghost" type="button">取消</button>
+      <button id="pm-dlg-save" class="primary" type="button">保存</button>
+    </footer>
+  </div>
+</div>
 
 <script src="vendor/mediapipe/vision_bundle.iife.js"></script>
 <script src="js/specs.js"></script>
@@ -1176,5 +1280,6 @@
 <script src="vendor/print/pdf.min.js"></script>
 <script src="vendor/print/mammoth.browser.min.js"></script>
 <script src="js/print-batch.js"></script>
+<script src="js/printer-manager.js"></script>
 </body>
 </html>

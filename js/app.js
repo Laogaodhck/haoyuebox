@@ -634,6 +634,7 @@ window.App = (function () {
     $('batch-open-format').addEventListener('click', function () { window.App.batchFormat.enter(); });
     // 打印工具子功能入口
     $('print-open-batch').addEventListener('click', function () { window.App.printBatch.showOnly('print-batch'); });
+    $('print-open-manager').addEventListener('click', function () { window.App.printerManager.enter(); });
   }
 
   /* ================= 启动 ================= */
@@ -672,6 +673,7 @@ window.App = (function () {
     window.App.compose.init();
     window.App.print.init();
     window.App.printBatch.init();
+    window.App.printerManager.init();
     window.App.settings.applyToUI();
     showModule('home'); // 启动进入首页
   }
