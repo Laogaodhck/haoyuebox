@@ -143,5 +143,5 @@
 
 ### 仍开放的事项
 
-- 建议 10（打包版 E2E 链路）与建议 11（内置 SQLite）未实施——前者为增强项，后者待需求明确。
+- 建议 10 已于 1.2.1 实施（tools/verify-packaged.cjs，_electron 驱动真实打包产物 12 断言，并接入 verify 链与 release.yml 门禁）；建议 11（内置 SQLite）待需求明确。
 - 1.2.1 尚未发版：升 version + tag `v1.2.1` 后 GitHub Actions 自动出包，修复即达用户。

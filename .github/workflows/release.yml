@@ -74,6 +74,11 @@ jobs:
             exit 1
           fi
 
+      # 打包产物 E2E：启动真实 exe → 首页渲染 → 版本一致 → 桥接真身 → 7z 引擎 IPC 冒烟
+      - name: 打包产物 E2E 冒烟
+        shell: bash
+        run: node tools/verify-packaged.cjs
+
       - name: 发布到 GitHub Release
         if: github.event_name == 'push'
         env:
@@ -84,7 +89,7 @@ jobs:
             || gh release create "$GITHUB_REF_NAME" \
                  --title "尊泓工具箱 $GITHUB_REF_NAME" \
                  --generate-notes --target "$GITHUB_SHA"
-          gh release upload "$GITHUB_REF_NAME" release/*.exe --clobber
+          gh release upload "$GITHUB_REF_NAME" release-build/*.exe --clobber
 
       # 手动触发时不建 Release，只留产物供试装
       - name: 上传构建产物
@@ -92,5 +97,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zunhong-toolbox-windows
-          path: release/*.exe
+          path: release-build/*.exe
           if-no-files-found: error

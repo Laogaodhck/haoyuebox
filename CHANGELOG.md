@@ -4,6 +4,10 @@
 
 ## [1.2.1] - 未发布
 
+### 工程改进
+- 新增打包产物 E2E（verify-packaged）：Playwright _electron 驱动真实 exe，链路「产物启动 → 首页渲染 → 版本一致 → preload 桥接真身 → 压缩工具主进程 7z IPC 冒烟 → 无页面错误」12 断言；无产物时优雅跳过，verify 链扩至 11 套件
+- 修复 release.yml 产物路径不一致：electron-builder 输出目录为 release-build/，而发布步骤误传 release/*.exe → 统一为 release-build/*.exe；打包后新增「打包产物 E2E 冒烟」门禁步骤
+
 ### 交互改进
 - 压缩 / 解压面板的「密码（可选）」输入框改为按键 + 弹窗：点「设置密码… / 输入密码…」弹出密码对话框（支持回车确认、Esc 取消、一键清除），按钮实时显示密码状态（已设置 / 已输入），密码不再明文驻留面板
 

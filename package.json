@@ -12,7 +12,7 @@
     "dist": "electron-builder --win",
     "icons": "node tools/make-icons.cjs",
     "test": "node tools/check-refs.cjs && node tools/test-dpi.cjs && node tools/test-compress.cjs && node tools/test-hair-clothes.cjs && node tools/test-server.cjs && node tools/test-print-route.cjs && node tools/test-dom.cjs && node tools/test-batch-rename.cjs && node tools/test-brush.cjs && node tools/test-zip.cjs && node tools/test-convert.cjs && node tools/test-compose.cjs && node tools/test-batch-format.cjs && node tools/test-batch-watermark.cjs && node tools/test-archive.cjs && node tools/test-print-batch.cjs && node tools/test-printers.cjs && node tools/test-print-doc.cjs",
-    "verify": "node tools/verify-hair.cjs && node tools/verify-matteview.cjs && node tools/verify-sheet.cjs && node tools/verify-sheet-save.cjs && node tools/verify-archive.cjs && node tools/verify-batch.cjs && node tools/verify-print-batch.cjs && node tools/verify-printers.cjs && node tools/verify-brush.cjs && node tools/verify-output.cjs",
+    "verify": "node tools/verify-hair.cjs && node tools/verify-matteview.cjs && node tools/verify-sheet.cjs && node tools/verify-sheet-save.cjs && node tools/verify-archive.cjs && node tools/verify-batch.cjs && node tools/verify-print-batch.cjs && node tools/verify-printers.cjs && node tools/verify-brush.cjs && node tools/verify-output.cjs && node tools/verify-packaged.cjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"js/**/*.js\" \"electron/**/*.js\" \"tools/**/*.cjs\"",

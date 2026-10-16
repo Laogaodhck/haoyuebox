@@ -245,8 +245,9 @@ photo/
 ## 开发与测试
 
 ```bash
-npm test          # 纯算法 + 静态服务 + jsdom 冒烟（17 项，无需浏览器；test-archive 含真实 7z 冒烟）
+npm test          # 纯算法 + 静态服务 + jsdom 冒烟（18 套件，无需浏览器；test-archive 含真实 7z 冒烟）
 npm run verify    # Playwright 端到端：人像细节 / 换底导出 / 缩放撤销 / 笔刷 / 排版打印 / 压缩 / 批量打印
+                  # 末尾 verify-packaged 会驱动打包产物（release-build/win-unpacked）做真实启动冒烟，无产物自动跳过
 npm run lint      # ESLint 静态检查（js/ electron/ 严格，tools/ 放宽）
 npm run format    # Prettier 格式化（按需，未对历史代码全量重排）
 npm run icons     # 重新生成图标（加 -- --out <dir> 可避免覆盖成品图标）
