@@ -9,6 +9,9 @@ release-build/
 tools/_verify-*.png
 tools/_verify-*
 
+# 文档排版中间产物（正式交付物为 output/*.docx，中间 HTML 不入库）
+output/brief-compose/
+
 # 第三方工具的本地会话目录
 .workbuddy/
 
