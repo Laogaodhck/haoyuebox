@@ -1101,6 +1101,9 @@ body[data-module="print"] #sheet-steps-nav { display: none; }
 }
 .confirm-msg { font-size: 14px; line-height: 1.7; white-space: pre-line; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+/* 压缩/解压密码弹窗（复用 confirm-box 布局） */
+#pass-dlg-input { margin-top: 12px; width: 100%; box-sizing: border-box; }
+#pass-dlg-hint { margin-top: 6px; }
 .pm-dlg-foot {
   display: flex; justify-content: flex-end; gap: 10px;
   padding: 14px 18px; border-top: 1px solid var(--border);

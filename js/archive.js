@@ -19,6 +19,10 @@
   var running = false; /* 是否有压缩/解压任务进行中 */
   var bridge = null;   /* window.zunhongArchive */
 
+  /* 密码状态：由密码弹窗维护，不再直接挂在输入框上 */
+  var passState = { compress: '', extract: '' };
+  var passTarget = ''; /* 当前密码弹窗作用对象：'compress' | 'extract' */
+
   var $ = window.App.ui.$;
   function toast(msg, isErr) { window.App.ui.toast(msg, isErr); }
 
@@ -278,7 +282,7 @@
         fmt: fmt,
         level: $('ac-level').value,
         volumeMB: fmt === '7z' ? (Math.round(+$('ac-volume').value || 0)) : 0,
-        pass: $('ac-pass').value,
+        pass: passState.compress,
         encNames: fmt === '7z' && $('ac-encnames').checked,
         outPath: outPath
       }).then(function (res) {
@@ -326,7 +330,7 @@
     bridge.extract({
       items: archives.map(function (it) { return it.path; }),
       destMode: $('ax-out').value,
-      pass: $('ax-pass').value
+      pass: passState.extract
     }).then(function (res) {
       renderExtractResult(res || { ok: false, results: [], okCount: 0, failCount: 0 });
     }).catch(function (e) {
@@ -384,7 +388,7 @@
     var body = $('ax-browse-body');
     body.textContent = '';
     dlg.hidden = false;
-    bridge.list({ archive: first.path, pass: $('ax-pass').value }).then(function (res) {
+    bridge.list({ archive: first.path, pass: passState.extract }).then(function (res) {
       if (!res || !res.ok) {
         $('ax-browse-meta').textContent = '读取失败：' + ((res && res.error) || '未知错误');
         $('ax-browse-meta').className = 'hint-text st-bad';
@@ -418,6 +422,43 @@
 
   function closeBrowse() { $('ax-browse-dlg').hidden = true; }
 
+  /* ================= 密码（按键 + 弹窗输入，压缩/解压共用） ================= */
+
+  function refreshPassBtns() {
+    var ac = $('ac-pass-btn');
+    var ax = $('ax-pass-btn');
+    if (ac) ac.textContent = passState.compress ? '已设置密码 · 点击修改' : '设置密码…';
+    if (ax) ax.textContent = passState.extract ? '已输入密码 · 点击修改' : '输入密码…';
+  }
+
+  function openPassDlg(target) {
+    if (running) return;
+    passTarget = target;
+    var input = $('pass-dlg-input');
+    $('pass-dlg-title').textContent = target === 'compress' ? '设置压缩包密码' : '输入压缩包密码';
+    $('pass-dlg-hint').textContent = target === 'compress'
+      ? '用于加密待生成的压缩包；仅 7z / ZIP 格式支持'
+      : '仅对加密压缩包生效；多选时所有压缩包共用此密码';
+    $('pass-dlg-clear').hidden = !passState[target];
+    input.value = passState[target] || '';
+    $('pass-dlg').hidden = false;
+    input.focus();
+    input.select();
+  }
+
+  function closePassDlg() {
+    $('pass-dlg').hidden = true;
+    passTarget = '';
+  }
+
+  function confirmPassDlg() {
+    if (passTarget) {
+      passState[passTarget] = $('pass-dlg-input').value;
+      refreshPassBtns();
+    }
+    closePassDlg();
+  }
+
   /* ================= 模块入口 ================= */
 
   function showMenu() {
@@ -442,6 +483,8 @@
     $('ac-pick-files').disabled = true;
     $('ac-pick-dir').disabled = true;
     $('ax-pick').disabled = true;
+    $('ac-pass-btn').disabled = true;
+    $('ax-pass-btn').disabled = true;
   }
 
   function init() {
@@ -488,6 +531,20 @@
       renderExtractList();
     });
     $('ax-run').addEventListener('click', runExtract);
+    $('ac-pass-btn').addEventListener('click', function () { openPassDlg('compress'); });
+    $('ax-pass-btn').addEventListener('click', function () { openPassDlg('extract'); });
+    $('pass-dlg-ok').addEventListener('click', confirmPassDlg);
+    $('pass-dlg-cancel').addEventListener('click', closePassDlg);
+    $('pass-dlg-clear').addEventListener('click', function () {
+      if (passTarget) { passState[passTarget] = ''; refreshPassBtns(); }
+      closePassDlg();
+    });
+    $('pass-dlg').addEventListener('click', function (e) { if (e.target === this) closePassDlg(); });
+    $('pass-dlg-input').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); confirmPassDlg(); }
+      else if (e.key === 'Escape') { e.preventDefault(); closePassDlg(); }
+    });
+    refreshPassBtns();
     $('ac-cancel').addEventListener('click', cancelTask);
     $('ax-cancel').addEventListener('click', cancelTask);
 

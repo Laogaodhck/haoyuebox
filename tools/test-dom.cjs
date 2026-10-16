@@ -94,10 +94,11 @@ withServer(PORT, async () => {
   assert(doc.getElementById('archive-open-compress') && doc.getElementById('archive-open-extract'),
     '压缩文件 / 解压文件入口存在');
   assert(!!doc.getElementById('archive-compress') && !!doc.getElementById('archive-extract'), '压缩 / 解压面板存在');
-  ['ac-pick-files', 'ac-pick-dir', 'ac-count', 'ac-unsupported', 'ac-fmt', 'ac-level', 'ac-pass', 'ac-encnames',
+  ['ac-pick-files', 'ac-pick-dir', 'ac-count', 'ac-unsupported', 'ac-fmt', 'ac-level', 'ac-pass-btn', 'ac-encnames',
    'ac-encnames-row', 'ac-note', 'ac-clear', 'ac-run', 'ac-progress', 'ac-back', 'ac-list', 'ac-table', 'ac-empty',
-   'ax-pick', 'ax-count', 'ax-unsupported', 'ax-out', 'ax-pass', 'ax-clear', 'ax-run', 'ax-progress',
-   'ax-back', 'ax-list', 'ax-table', 'ax-empty', 'ax-result'
+   'ax-pick', 'ax-count', 'ax-unsupported', 'ax-out', 'ax-pass-btn', 'ax-clear', 'ax-run', 'ax-progress',
+   'ax-back', 'ax-list', 'ax-table', 'ax-empty', 'ax-result',
+   'pass-dlg', 'pass-dlg-input', 'pass-dlg-ok', 'pass-dlg-cancel', 'pass-dlg-clear'
   ].forEach(function (id) {
     assert(!!doc.getElementById(id), '压缩工具控件 #' + id + ' 存在');
   });

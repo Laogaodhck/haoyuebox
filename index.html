@@ -952,7 +952,7 @@
       </div>
       <div class="field">
         <label>密码（可选）</label>
-        <input type="password" id="ac-pass" class="num-input" placeholder="留空则不加密" autocomplete="new-password">
+        <button id="ac-pass-btn" class="ghost" type="button" title="设置压缩包密码">设置密码…</button>
       </div>
       <div class="field" id="ac-volume-row">
         <label>分卷大小</label>
@@ -1013,7 +1013,7 @@
       </div>
       <div class="field">
         <label>密码（可选）</label>
-        <input type="password" id="ax-pass" class="num-input" placeholder="加密压缩包才需要填写" autocomplete="new-password">
+        <button id="ax-pass-btn" class="ghost" type="button" title="输入加密压缩包的密码">输入密码…</button>
       </div>
       <div class="hint-text">支持 7z / ZIP / RAR / TAR / GZ / XZ / BZ2 / CAB / ISO 等常见格式；多选时逐个自动解压</div>
 
@@ -1285,6 +1285,20 @@
     <div class="confirm-actions">
       <button id="confirm-cancel" class="ghost" type="button">取消</button>
       <button id="confirm-ok" class="primary" type="button">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 压缩工具 · 密码输入对话框（压缩 / 解压共用） -->
+<div id="pass-dlg" class="pm-dlg" hidden>
+  <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="pass-dlg-title">
+    <div id="pass-dlg-title" class="confirm-msg">设置密码</div>
+    <input type="password" id="pass-dlg-input" class="num-input" autocomplete="new-password" placeholder="留空则不加密">
+    <div class="hint-text" id="pass-dlg-hint"></div>
+    <div class="confirm-actions">
+      <button id="pass-dlg-clear" class="ghost" type="button" hidden>清除密码</button>
+      <button id="pass-dlg-cancel" class="ghost" type="button">取消</button>
+      <button id="pass-dlg-ok" class="primary" type="button">确定</button>
     </div>
   </div>
 </div>
