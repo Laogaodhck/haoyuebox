@@ -32,6 +32,12 @@ function num(n) {  // 去掉多余小数位（101.6mm 而非 101.60000000000001m
   return Math.round(n * 100) / 100;
 }
 
+/* HTML 属性转义：dataURL 只做前缀校验不足以安全内插（" 可逃逸属性），
+ * 统一转义后拼入 img src */
+function escapeAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /**
  * 构造整份打印 HTML。
  * @param {string[]} dataUrls 图片 dataURL 数组（无效项自动过滤）
@@ -59,7 +65,7 @@ function buildPrintDoc(dataUrls, pageSize, landscape) {
   const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
     + 'html,body{margin:0;padding:0;background:#fff}' + css
     + '</style></head><body>'
-    + urls.map((u) => '<img src="' + u + '">').join('')
+    + urls.map((u) => '<img src="' + escapeAttr(u) + '">').join('')
     + '</body></html>';
 
   return { html: html, pageCount: urls.length, cssPageSized: !!mm };

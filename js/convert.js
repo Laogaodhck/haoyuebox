@@ -133,6 +133,9 @@
     $('conv-run').disabled = true;
     var zipFiles = [];
     var failed = [];
+    // 已用名表：优先取 renderAll 生成的 outName，兜底命名时防重名
+    var usedNames = {};
+    items.forEach(function (x) { if (x.outName) usedNames[x.outName] = true; });
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
       window.App.ui.showLoading('正在转换 ' + (i + 1) + '/' + items.length + ' …');
@@ -153,7 +156,8 @@
             conf.mime, conf.quality ? quality : undefined);
         });
         var data = new Uint8Array(await blob.arrayBuffer());
-        zipFiles.push({ name: it.outName || buildOutputName(it.name, fmt, {}), data: data });
+        // 兜底命名复用全局已用名表（防 outName 缺失时生成重名 ZIP 条目）
+        zipFiles.push({ name: it.outName || buildOutputName(it.name, fmt, usedNames), data: data });
       } catch (e) {
         failed.push(it.name);
       }

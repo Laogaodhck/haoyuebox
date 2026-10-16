@@ -27,6 +27,18 @@ function resolve7zPath() {
   return '';
 }
 
+/* 进行中的 7z 子进程集合：供「取消任务」统一 kill */
+const activeChildren = new Set();
+
+/* 取消全部进行中的 7z 任务，返回终止数 */
+function cancelActiveJobs() {
+  let n = 0;
+  activeChildren.forEach((c) => {
+    try { c.killedByUser = true; c.kill(); n++; } catch (e) { /* 已退出 */ }
+  });
+  return { killed: n };
+}
+
 function statEntry(p) {
   return new Promise((resolve) => {
     fs.stat(p, (err, st) => {
@@ -106,10 +118,13 @@ async function saveDialog(getWin, defaultName) {
   return r.canceled ? '' : (r.filePath || '');
 }
 
-/* 运行一次 7z，进度经 onProgress(pct) 回传，错误收集尾部 */
+/* 运行一次 7z，进度经 onProgress(pct) 回传，错误收集尾部。
+ * 子进程登记进 activeChildren（可被 archive:cancel 终止，
+ * 终止后 close 以「任务已取消」收场而非报未知错误） */
 function run7z(exe, args, onProgress) {
   return new Promise((resolve) => {
     const child = spawn(exe, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    activeChildren.add(child);
     let outTail = '';
     let errTail = '';
     const push = (acc, d) => {
@@ -122,8 +137,10 @@ function run7z(exe, args, onProgress) {
       if (pct !== null && onProgress) onProgress(pct);
     });
     child.stderr.on('data', (d) => { errTail = push(errTail, d); });
-    child.on('error', (e) => resolve({ ok: false, error: '7z 启动失败：' + (e.message || e) }));
+    child.on('error', (e) => { activeChildren.delete(child); resolve({ ok: false, error: '7z 启动失败：' + (e.message || e) }); });
     child.on('close', (code) => {
+      activeChildren.delete(child);
+      if (child.killedByUser) return resolve({ ok: false, cancelled: true, error: '任务已取消' });
       if (args7z.isOkExitCode(code)) {
         resolve({ ok: true, code });
       } else {
@@ -141,18 +158,26 @@ function run7z(exe, args, onProgress) {
 async function compress(getWin, payload) {
   const exe = resolve7zPath();
   if (!exe) return { ok: false, error: '未找到 7z 引擎' };
-  const items = (payload.items || []).filter(p => typeof p === 'string' && p);
+  // IPC 输入校验（纵深防御：路径须来自本机对话框风格的真实路径）
+  const items = (payload.items || []).filter(p => typeof p === 'string' && p && path.isAbsolute(p));
   if (!items.length) return { ok: false, error: '未选择要压缩的文件' };
-  if (!payload.outPath) return { ok: false, error: '未指定输出路径' };
+  const outPath = payload.outPath;
+  const outExt = path.extname(String(outPath || '')).toLowerCase();
+  if (!outPath || typeof outPath !== 'string' || !path.isAbsolute(outPath)) {
+    return { ok: false, error: '输出路径非法' };
+  }
+  if (outExt !== '.7z' && outExt !== '.zip') {
+    return { ok: false, error: '输出文件扩展名须为 .7z 或 .zip' };
+  }
   const volumeMB = Math.round(+payload.volumeMB || 0);
   /* 输出已存在则删除重建：7z a 的更新模式会在包内残留旧条目
-   * 分卷输出为 out.7z.001/002…，也要一并清理 */
+   * 分卷输出为 out.7z.001/002…，只精确清理 .NNN 编号卷（防误删同前缀无关文件） */
   try {
-    if (fs.existsSync(payload.outPath)) fs.rmSync(payload.outPath);
+    if (fs.existsSync(outPath)) fs.rmSync(outPath);
     if (volumeMB > 0) {
-      const dir = path.dirname(payload.outPath);
-      const base = path.basename(payload.outPath);
-      fs.readdirSync(dir).filter(f => f.startsWith(base + '.')).forEach(f => {
+      const dir = path.dirname(outPath);
+      const base = path.basename(outPath);
+      fs.readdirSync(dir).filter(f => f.startsWith(base + '.') && /^\.\d{3}$/.test(f.slice(base.length))).forEach(f => {
         try { fs.rmSync(path.join(dir, f)); } catch (e) { /* 逐个忽略 */ }
       });
     }
@@ -164,7 +189,7 @@ async function compress(getWin, payload) {
     pass: payload.pass,
     encNames: payload.encNames,
     inputs: items,
-    outPath: payload.outPath
+    outPath: outPath
   });
   const win = getWin();
   const res = await run7z(exe, args, (pct) => {
@@ -176,18 +201,18 @@ async function compress(getWin, payload) {
     try {
       if (volumeMB > 0) {
         /* 分卷：统计 out.7z.NNN 全部卷的大小 */
-        const dir = path.dirname(payload.outPath);
-        const base = path.basename(payload.outPath);
+        const dir = path.dirname(outPath);
+        const base = path.basename(outPath);
         const vols = fs.readdirSync(dir)
           .filter(f => f.startsWith(base + '.') && /^\.\d{3}$/.test(f.slice(base.length)))
           .sort();
         vols.forEach(f => { size += fs.statSync(path.join(dir, f)).size; });
         parts = vols.length || 1;
       } else {
-        size = fs.statSync(payload.outPath).size;
+        size = fs.statSync(outPath).size;
       }
     } catch (e) { /* 已删除？ */ }
-    return { ok: true, outPath: payload.outPath, size, parts };
+    return { ok: true, outPath: outPath, size, parts };
   }
   return res;
 }
@@ -197,7 +222,7 @@ async function compress(getWin, payload) {
 async function extract(getWin, payload) {
   const exe = resolve7zPath();
   if (!exe) return { ok: false, error: '未找到 7z 引擎' };
-  const items = (payload.items || []).filter(p => typeof p === 'string' && p);
+  const items = (payload.items || []).filter(p => typeof p === 'string' && p && path.isAbsolute(p));
   if (!items.length) return { ok: false, error: '未选择压缩包' };
   const win = getWin();
   const results = [];
@@ -213,6 +238,11 @@ async function extract(getWin, payload) {
         win.webContents.send('archive:progress', { task: 'extract', index: i, total: items.length, name: path.basename(src), pct });
       }
     });
+    if (res.cancelled) {
+      // 用户取消：当前包记为已取消，不再继续后续压缩包
+      results.push({ path: src, name: path.basename(src), outDir, ok: false, error: '任务已取消', cancelled: true });
+      break;
+    }
     results.push({
       path: src,
       name: path.basename(src),
@@ -222,10 +252,14 @@ async function extract(getWin, payload) {
     });
   }
   const okCount = results.filter(r => r.ok).length;
-  return { ok: okCount > 0, results, okCount, failCount: results.length - okCount };
+  const cancelled = results.some(r => r.cancelled);
+  return { ok: okCount > 0, results, okCount, failCount: results.length - okCount, cancelled };
 }
 
-/* 内容浏览：payload { archive, pass } → 7z l -slt 列表解析 */
+/* 内容浏览：payload { archive, pass } → 7z l -slt 列表解析
+ * 列表操作带 30s 超时兜底（损坏包/慢速盘防挂起；压缩解压靠取消按钮） */
+const LIST_TIMEOUT_MS = 30000;
+
 async function listArchive(payload) {
   const exe = resolve7zPath();
   if (!exe) return { ok: false, error: '未找到 7z 引擎' };
@@ -234,17 +268,29 @@ async function listArchive(payload) {
   return new Promise((resolve) => {
     const child = spawn(exe, args7z.buildListArgs({ archive, pass: payload.pass }),
       { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    activeChildren.add(child);
     let out = '';
     let errTail = '';
+    let done = false;
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      activeChildren.delete(child);
+      try { child.kill(); } catch (e) { /* 已退出 */ }
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish({ ok: false, error: '读取超时（' + LIST_TIMEOUT_MS / 1000 + 's），包可能过大或损坏' }), LIST_TIMEOUT_MS);
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { errTail = (errTail + d).slice(-4000); });
-    child.on('error', (e) => resolve({ ok: false, error: '7z 启动失败：' + (e.message || e) }));
+    child.on('error', (e) => finish({ ok: false, error: '7z 启动失败：' + (e.message || e) }));
     child.on('close', (code) => {
+      if (child.killedByUser) return finish({ ok: false, error: '任务已取消' });
       if (args7z.isOkExitCode(code)) {
         const entries = args7z.parseListOutput(out);
-        resolve({ ok: true, entries, count: entries.length });
+        finish({ ok: true, entries, count: entries.length });
       } else {
-        resolve({ ok: false, error: args7z.tailError(errTail) || args7z.exitCodeText(code) });
+        finish({ ok: false, error: args7z.tailError(errTail) || args7z.exitCodeText(code) });
       }
     });
   });
@@ -257,6 +303,7 @@ function registerArchiveIpc(ipcMain, getWin) {
   ipcMain.handle('archive:compress', (e, payload) => compress(getWin, payload));
   ipcMain.handle('archive:extract', (e, payload) => extract(getWin, payload));
   ipcMain.handle('archive:list', (e, payload) => listArchive(payload));
+  ipcMain.handle('archive:cancel', () => cancelActiveJobs());
 }
 
-module.exports = { registerArchiveIpc, resolve7zPath, check7z, listArchive };
+module.exports = { registerArchiveIpc, resolve7zPath, check7z, listArchive, cancelActiveJobs };

@@ -10,8 +10,10 @@
 window.MatteView = (function () {
 
   var ZOOM_MIN = 1, ZOOM_MAX = 8;
+  var attached = new WeakMap();  // canvas → 已挂载的控制器（防重复 attach 造成监听器叠加）
 
   function attach(canvas, st, hooks) {
+    if (attached.has(canvas)) return attached.get(canvas);
     hooks = hooks || {};
     var pointers = new Map();   // pointerId → canvas 坐标
     var pinch = null;           // { d, cx, cy }
@@ -149,7 +151,8 @@ window.MatteView = (function () {
       if (e.code !== 'Space' || spaceHeld) return;
       if (hooks.isActive && !hooks.isActive()) return;
       var t = e.target;
-      if (t && t.tagName === 'TEXTAREA') return;
+      // 输入控件（单行/多行/下拉/可编辑区）里空格是正常输入，不劫持
+      if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       // preventDefault 同时阻止浏览器对聚焦按钮的「空格激活」（避免平移时误触工具栏按钮）
       spaceHeld = true;
       setPanMode(true);
@@ -161,12 +164,14 @@ window.MatteView = (function () {
       if (!panning && pointers.size < 2) setPanMode(false);
     });
 
-    return {
+    var ctrl = {
       zoomAt: zoomAt,
       zoomStep: function (f) { zoomAt(canvas.width / 2, canvas.height / 2, f); },
       fit: fit,
       get zoom() { return v().zoom; }
     };
+    attached.set(canvas, ctrl);
+    return ctrl;
   }
 
   return { attach: attach };

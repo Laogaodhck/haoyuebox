@@ -39,12 +39,19 @@
     return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
   }
 
-  // 输出扩展名：keep 沿用原扩展名（无扩展名回退 jpg），否则按目标格式
-  function pickExt(origName, fmt) {
+  // 输出扩展名：keep 沿用原扩展名——但 canvas 只能编码 jpeg/png/webp，
+  // 其余格式实际会编成 JPEG，扩展名必须一并改为 jpg（防格式错标）；
+  // outMime 应传入 pickMime 的解析结果；原文件无扩展名时按 outMime 推导，
+  // 未知回退 jpg
+  function pickExt(origName, fmt, outMime) {
     if (fmt === 'jpeg') return 'jpg';
     if (fmt === 'webp') return 'webp';
+    var known = /^image\/(jpeg|png|webp)$/.test(outMime || '');
+    if (fmt === 'keep' && !known) return 'jpg';
     var m = /\.(jpe?g|png|webp|bmp|gif)$/i.exec(origName || '');
-    return m ? m[1].toLowerCase().replace(/^jpeg$/, 'jpg') : 'jpg';
+    if (m) return m[1].toLowerCase().replace(/^jpeg$/, 'jpg');
+    if (known) return /png$/.test(outMime) ? 'png' : (/webp$/.test(outMime) ? 'webp' : 'jpg');
+    return 'jpg';
   }
 
   // 输出 MIME：keep 时沿用源 MIME（未知回退 image/jpeg），否则按目标格式
@@ -54,9 +61,9 @@
   }
 
   // 生成输出文件名：替换扩展名；与已用名冲突时追加 (2)、(3)…
-  function buildOutputName(origName, fmt, used) {
+  function buildOutputName(origName, fmt, used, origMime) {
     var base = (origName || '').replace(/\.[^.]+$/, '') || '图片';
-    var ext = pickExt(origName, fmt);
+    var ext = pickExt(origName, fmt, pickMime(origMime, fmt));
     var name = base + '.' + ext;
     var n = 2;
     while (used[name]) {
@@ -123,7 +130,7 @@
     var tbody = $('cmp-table').querySelector('tbody');
     tbody.textContent = '';
     items.forEach(function (it, i) {
-      it.outName = buildOutputName(it.name, fmt, used);
+      it.outName = buildOutputName(it.name, fmt, used, it.mime);
       var target = computeTargetSize(it.w, it.h, $('cmp-maxedge').value);
       it.outW = target.w;
       it.outH = target.h;
@@ -181,6 +188,13 @@
 
   /* ================= 压缩与保存 ================= */
 
+  /* 压缩期间锁定全部会重建列表/表格的控件（防止 writeOutSize 写错行） */
+  function setControlsLocked(on) {
+    ['cmp-fmt', 'cmp-maxedge', 'cmp-quality', 'cmp-pick', 'cmp-clear', 'cmp-file'].forEach(function (id) {
+      $(id).disabled = on;
+    });
+  }
+
   async function run() {
     if (!items.length || running) return;
     var fmt = $('cmp-fmt').value;
@@ -188,11 +202,14 @@
     var maxEdge = Math.round(+$('cmp-maxedge').value || 0);
     running = true;
     $('cmp-run').disabled = true;
+    setControlsLocked(true);
     var zipFiles = [];
     var failed = [];
     var savedTotal = 0, beforeTotal = 0;
+    var gifCount = 0;
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
+      if (/^image\/gif$/i.test(it.mime || '')) gifCount++;
       window.App.ui.showLoading('正在压缩 ' + (i + 1) + '/' + items.length + ' …');
       try {
         var bmp = await createImageBitmap(it.file);
@@ -219,7 +236,7 @@
         it.outSize = data.length;
         beforeTotal += it.size;
         savedTotal += it.size - data.length;
-        zipFiles.push({ name: it.outName || buildOutputName(it.name, fmt, {}), data: data });
+        zipFiles.push({ name: it.outName || buildOutputName(it.name, fmt, {}, it.mime), data: data, mime: mime });
         writeOutSize(i, data.length, it.size > 0 ? Math.round((1 - data.length / it.size) * 100) : 0);
       } catch (e) {
         failed.push(it.name);
@@ -227,19 +244,21 @@
     }
     window.App.ui.hideLoading();
     running = false;
+    setControlsLocked(false);
     $('cmp-run').disabled = items.length === 0;
     if (!zipFiles.length) { toast('压缩失败：没有可输出的图片', true); return; }
     var savedPct = beforeTotal > 0 ? Math.round(savedTotal / beforeTotal * 100) : 0;
     try {
       if (zipFiles.length === 1) {
-        window.App.ui.download(new Blob([zipFiles[0].data], { type: 'image/*' }), zipFiles[0].name);
+        window.App.ui.download(new Blob([zipFiles[0].data], { type: zipFiles[0].mime || 'image/jpeg' }), zipFiles[0].name);
       } else {
         var zip = await window.ZipUtil.store(zipFiles);
         window.App.ui.download(zip, '图片压缩结果.zip');
       }
       toast('压缩完成：成功 ' + zipFiles.length + ' 张，共节省 ' + formatBytes(Math.max(0, savedTotal)) +
         (savedPct > 0 ? '（-' + savedPct + '%）' : '') +
-        (failed.length ? '；失败 ' + failed.length + ' 张（' + failed[0] + '）' : ''));
+        (failed.length ? '；失败 ' + failed.length + ' 张（' + failed[0] + '）' : '') +
+        (gifCount ? '；GIF 已按首帧转为静态图' : ''));
     } catch (e) {
       toast('保存失败：' + e.message, true);
     }

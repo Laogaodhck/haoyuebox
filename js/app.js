@@ -720,7 +720,21 @@ window.App = (function () {
     initMatte();
     initSpec();
     initExport();
-    MODULE_INITS.forEach(function (name) { window.App[name].init(); });
+    // 逐模块隔离初始化：单个模块脚本缺失/init 抛错只影响自身，
+    // 其余模块与首页展示照常就绪（失败原因上报诊断日志）
+    MODULE_INITS.forEach(function (name) {
+      var mod = window.App[name];
+      if (!mod || typeof mod.init !== 'function') {
+        reportError('init', '模块 ' + name + ' 未注册，已跳过');
+        return;
+      }
+      try {
+        mod.init();
+      } catch (e) {
+        reportError('init', '模块 ' + name + ' 初始化失败：' + (e && e.message || e));
+        console.error('[zunhong] 模块初始化失败:', name, e);
+      }
+    });
     window.App.settings.applyToUI();
     showModule('home'); // 启动进入首页
   }

@@ -59,5 +59,16 @@ assert.strictEqual(resolvePageMm(undefined), null, 'resolvePageMm 未知返回 n
 d = buildPrintDoc(IMG(1), 'A4', false);
 assert.strictEqual(d.pageCount, 1, '旧单张调用兼容');
 
-console.log('结果: 16 通过, 0 失败');
+
+/* 7. 属性注入转义：dataURL 中的引号/尖括号必须被转义，不可逃逸 img 属性 */
+{
+  const evil = 'data:image/png" onerror="alert(1)<script>';
+  const t = buildPrintDoc([evil], null, false);
+  assert.ok(t.pageCount === 1, '前缀校验仍放行（转义交由 escapeAttr）');
+  assert.ok(t.html.indexOf('" onerror=') === -1, '原始引号不得出现在 src 属性中');
+  assert.ok(t.html.indexOf('&quot;') !== -1, '引号已转义为 &quot;');
+  assert.ok(t.html.indexOf('<script>') === -1, '尖括号已转义');
+}
+
+console.log('结果: 20 通过, 0 失败');
 process.exit(0);

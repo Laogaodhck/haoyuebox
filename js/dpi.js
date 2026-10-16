@@ -39,16 +39,16 @@ window.DpiUtil = (function () {
       return arrayBuffer; // 不是 PNG，原样返回
     }
 
-    // 遍历 chunk：找到 IHDR 结束位置与已有 pHYs 位置
+    // 遍历 chunk：找到 IHDR 结束位置与所有已存在的 pHYs（非常规文件可能多处出现）
     var pos = 8;
     var insertPos = -1;   // 插入点（IHDR 块之后）
-    var physRange = null; // 已有 pHYs [start, end)
+    var physRanges = [];  // 所有旧 pHYs [start, end)
     while (pos + 8 <= src.length) {
       var len = (src[pos] << 24) | (src[pos + 1] << 16) | (src[pos + 2] << 8) | src[pos + 3];
       var type = String.fromCharCode(src[pos + 4], src[pos + 5], src[pos + 6], src[pos + 7]);
       var end = pos + 12 + len;
       if (type === 'IHDR') insertPos = end;
-      if (type === 'pHYs') physRange = [pos, end];
+      if (type === 'pHYs') physRanges.push([pos, end]);
       if (type === 'IEND') break;
       pos = end;
     }
@@ -65,18 +65,23 @@ window.DpiUtil = (function () {
     var crc = crc32(chunk, 4, 13);
     dv.setUint32(17, crc);
 
-    var removeStart = physRange ? physRange[0] : 0;
-    var removeEnd = physRange ? physRange[1] : 0;
-    if (physRange && physRange[1] <= insertPos) {
-      // pHYs 在 IHDR 前不可能出现，一般在其后；插入点调整为删除位置处
-      insertPos = physRange[0];
+    // 移除全部旧 pHYs（保证输出仅含单个 pHYs，符合规范单块约束），
+    // 新块统一插到 IHDR 之后
+    var totalRemove = physRanges.reduce(function (s, rg) { return s + (rg[1] - rg[0]); }, 0);
+    var out = new Uint8Array(src.length - totalRemove + 21);
+    var wi = 0, ri = 0;
+    for (var seg = 0; seg <= physRanges.length; seg++) {
+      var segEnd = seg < physRanges.length ? physRanges[seg][0] : src.length;
+      if (insertPos >= ri && insertPos <= segEnd) {
+        // 插入点落在当前区间：先拷到插入点，写新块，再拷余下部分
+        out.set(src.subarray(ri, insertPos), wi); wi += insertPos - ri;
+        out.set(chunk, wi); wi += 21;
+        out.set(src.subarray(insertPos, segEnd), wi); wi += segEnd - insertPos;
+      } else {
+        out.set(src.subarray(ri, segEnd), wi); wi += segEnd - ri;
+      }
+      if (seg < physRanges.length) ri = physRanges[seg][1];
     }
-
-    var outLen = src.length - (removeEnd - removeStart) + 21;
-    var out = new Uint8Array(outLen);
-    out.set(src.subarray(0, insertPos), 0);
-    out.set(chunk, insertPos);
-    out.set(src.subarray(insertPos + (removeEnd - removeStart)), insertPos + 21);
     return out.buffer;
   }
 

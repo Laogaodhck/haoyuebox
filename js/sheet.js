@@ -56,7 +56,9 @@
       return null;
     }
     tip.hidden = true;
-    var copies = +$('sheet-count').value;
+    // 份数钳制：非法输入（NaN/0/负数/超大）按 1 份处理，避免空 cells 误报「无法排入」
+    var copies = Math.round(+$('sheet-count').value);
+    if (!(copies >= 1 && copies <= 99)) copies = 1;
     var cells = [];
     sheetFiles.forEach(function (f) {
       var cell = coverToSpec(f.canvas, sp);
@@ -145,7 +147,7 @@
     var result = window.Composer.layoutBatch(input.cells, $('sheet-paper').value, {
       cutLines: $('sheet-cutlines').checked
     });
-    if (!result) { info.textContent = '该尺寸无法排入所选相纸'; sheetPages = null; refreshPagers(); return; }
+    if (!result) { info.textContent = '该尺寸无法排入所选相纸（照片可能大于相纸可打印区，请缩小照片或换更大相纸）'; sheetPages = null; refreshPagers(); return; }
     sheetPages = result;
     if (sheetPageIdx >= result.pages.length) sheetPageIdx = 0;
 
@@ -182,7 +184,9 @@
       // 避免逐页下载在 Electron 里连续弹出多个保存窗口
       var zipFiles = [];
       for (var i = 0; i < pages.length; i++) {
-        var blob = await new Promise(function (r) { pages[i].canvas.toBlob(r, 'image/png'); });
+        var blob = await new Promise(function (r, rej) {
+          pages[i].canvas.toBlob(function (b) { b ? r(b) : rej(new Error('画布编码失败（可能超出浏览器画布尺寸上限）')); }, 'image/png');
+        });
         var buf = window.DpiUtil.setPngDpi(await blob.arrayBuffer(), 300);
         var fname = name + '_排版_' + sheetPages.paper.name
           + (multi ? '_第' + (i + 1) + '页共' + pages.length + '页' : '_' + pages[i].count + '张')
@@ -212,6 +216,8 @@
   function loadFiles(files) {
     var total = files.length;
     var done = 0;
+    var failed = 0;
+    var failedName = '';
     var loaded = [];
     var bar = $('sheet-import-bar');
     var text = $('sheet-import-text');
@@ -222,13 +228,29 @@
     text.textContent = '正在导入 0 / ' + total + '…';
 
     var finish = function () {
-      if (!loaded.length) { box.hidden = true; return; }
+      if (!loaded.length) {
+        // 全部失败：明确报错，不留静默
+        box.hidden = true;
+        toast('导入失败：' + failed + ' 个文件无法识别（' + (failedName || '未知文件') + '）', true);
+        return;
+      }
       sheetFiles = sheetFiles.concat(loaded); // 累加导入
       bar.style.width = '100%';
-      text.textContent = '已导入 ' + total + ' 张 ✓';
+      // 成功数用实际载入数，失败一并提示（不虚报）
+      text.textContent = '已导入 ' + loaded.length + ' 张' + (failed ? ' · 失败 ' + failed + ' 张' : '') + (failed ? ' ⚠' : ' ✓');
+      if (failed) toast('导入完成：成功 ' + loaded.length + ' 张，失败 ' + failed + ' 张（' + failedName + '）', true);
       $('sheet-file-name').textContent = '已导入 ' + sheetFiles.length + ' 张';
       renderLaySheet();
       hideTimer = setTimeout(function () { box.hidden = true; hideTimer = null; }, 1200); // 满格停留后收起
+    };
+
+    // 单个文件结束时统一计数（成功 / 失败都推进进度条）
+    var settle = function (ok, name) {
+      done++;
+      if (!ok) { failed++; if (!failedName) failedName = name || '未知文件'; }
+      bar.style.width = Math.round(done / total * 100) + '%';
+      text.textContent = '正在导入 ' + done + ' / ' + total + '…';
+      if (done === total) finish();
     };
 
     files.forEach(function (file) {
@@ -240,19 +262,12 @@
           c.width = img.naturalWidth; c.height = img.naturalHeight;
           c.getContext('2d').drawImage(img, 0, 0);
           loaded.push({ canvas: c, name: (file.name || '').replace(/\.[^.]+$/, '') || '照片' });
-          done++;
-          bar.style.width = Math.round(done / total * 100) + '%';
-          text.textContent = '正在导入 ' + done + ' / ' + total + '…';
-          if (done === total) finish();
+          settle(true);
         };
-        img.onerror = function () {
-          done++;
-          bar.style.width = Math.round(done / total * 100) + '%';
-          text.textContent = '正在导入 ' + done + ' / ' + total + '…';
-          if (done === total) finish();
-        };
+        img.onerror = function () { settle(false, file.name); };
         img.src = reader.result;
       };
+      reader.onerror = function () { settle(false, file.name); };
       reader.readAsDataURL(file);
     });
   }

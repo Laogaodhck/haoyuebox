@@ -281,6 +281,10 @@ window.Composer = (function () {
     var cellW = cells[0].width, cellH = cells[0].height;
     var cap = sheetCapacity(cellW, cellH, paperKey, { gapX: gapX, gapY: gapY });
     var availW = paper.w - 2 * MARGIN_X;
+    var availH = paper.h - 2 * MARGIN_Y;
+    // 照片任意一边超过相纸可打印区：硬性放不下（放进去也必然越界裁切），
+    // 返回 null 交由调用方提示，绝不静默裁切
+    if (cellW > availW || cellH > availH) return null;
     var startX = MARGIN_X + Math.round((availW - (cap.cols * cellW + (cap.cols - 1) * gapX)) / 2);
     var pages = [];
 

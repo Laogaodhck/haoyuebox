@@ -107,6 +107,8 @@ function createStaticServer(root, memoryPages) {
     });
 
     server.on('error', reject);
+    // 空闲 socket 30s 销毁：防异常客户端（半开连接）长期占住句柄（仅回环监听，兜底性质）
+    server.timeout = 30000;
     // 随机可用端口，仅监听本机回环
     server.listen(0, '127.0.0.1', () => {
       resolve({ port: server.address().port, close: () => server.close() });

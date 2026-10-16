@@ -213,15 +213,24 @@
 
   function setRunning(on, which) {
     running = on;
+    var cancelBtn = $(which === 'compress' ? 'ac-cancel' : 'ax-cancel');
     if (on) {
-      /* 开始任务：重建列表以禁用执行按钮 */
+      /* 开始任务：重建列表以禁用执行按钮，显示取消按钮 */
       if (which === 'compress') renderCompressList();
       else renderExtractList();
+      cancelBtn.hidden = false;
       return;
     }
     /* 结束任务：仅恢复按钮可用性，保留结果行的 ✓/失败标记不被重建覆盖 */
+    cancelBtn.hidden = true;
     var has = which === 'compress' ? items.length : archives.length;
     $(which === 'compress' ? 'ac-run' : 'ax-run').disabled = !has || !bridgeOk();
+  }
+
+  /* 取消当前 7z 任务：主进程 kill 后任务以「任务已取消」收场 */
+  function cancelTask() {
+    if (!running || !bridgeOk()) return;
+    bridge.cancel().catch(function (e) { toast('取消失败：' + (e.message || e), true); });
   }
 
   function onProgress(d) {
@@ -278,6 +287,9 @@
           var volNote = res.parts > 1 ? '，分 ' + res.parts + ' 卷' : '';
           prog.textContent = '压缩完成 ✓ ' + outPath + '（' + fmtSize(res.size) + volNote + '）';
           toast('压缩完成');
+        } else if (res && res.cancelled) {
+          prog.textContent = '压缩已取消';
+          toast('压缩已取消', true);
         } else {
           prog.textContent = '压缩失败：' + ((res && res.error) || '未知错误');
           toast('压缩失败：' + ((res && res.error) || '未知错误'), true);
@@ -338,7 +350,8 @@
         td3.textContent = extractTargetText(r.name, $('ax-out').value) + ' ✓';
       }
     });
-    var line = '解压完成：成功 ' + res.okCount + ' 个' + (res.failCount ? '，失败 ' + res.failCount + ' 个' : '');
+    var line = (res.cancelled ? '解压已取消' : '解压完成') +
+      '：成功 ' + res.okCount + ' 个' + (res.failCount ? '，失败 ' + res.failCount + ' 个' : '');
     $('ax-result').textContent = line;
     toast(line, res.failCount > 0);
   }
@@ -475,6 +488,8 @@
       renderExtractList();
     });
     $('ax-run').addEventListener('click', runExtract);
+    $('ac-cancel').addEventListener('click', cancelTask);
+    $('ax-cancel').addEventListener('click', cancelTask);
 
     /* 进度回传 */
     bridge.onProgress(onProgress);

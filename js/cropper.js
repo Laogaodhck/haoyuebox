@@ -130,10 +130,11 @@ window.Cropper = (function () {
 
     canvas.addEventListener('pointerdown', function (e) {
       activePointers.set(e.pointerId, pt(e));
-      canvas.setPointerCapture(e.pointerId);
+      // 指针可能已失效（快速连点/触摸边缘场景），捕获失败不中断拖拽初始化
+      if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ } }
       if (activePointers.size === 2) {
         var a = pointers()[0], b = pointers()[1];
-        pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), scale: st.transform.scale };
+        pinch = { dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), scale: st.transform.scale };
       }
       dragging = true;
       lastPt = pt(e);
@@ -145,7 +146,7 @@ window.Cropper = (function () {
       if (activePointers.has(e.pointerId)) activePointers.set(e.pointerId, pt(e));
       if (activePointers.size === 2 && pinch) {
         var ps = pointers();
-        var d = Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y);
+        var d = Math.max(1, Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y)); // 双指重合时按 1 处理，防除零放大 Infinity
         var f = d / pinch.dist;
         var cx = (ps[0].x + ps[1].x) / 2, cy = (ps[0].y + ps[1].y) / 2;
         zoomAt(cx, cy, (pinch.scale * f) / st.transform.scale);

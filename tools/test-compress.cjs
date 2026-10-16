@@ -33,9 +33,12 @@ assert(T.computeTargetSize(3, 2, 2).w === 2 && T.computeTargetSize(3, 2, 2).h ==
 /* ---------- pickExt / pickMime ---------- */
 assert(T.pickExt('a.png', 'jpeg') === 'jpg', '统一 JPG 输出 jpg');
 assert(T.pickExt('a.png', 'webp') === 'webp', '统一 WebP 输出 webp');
-assert(T.pickExt('a.PNG', 'keep') === 'png', 'keep 沿用原扩展名（大小写归一）');
-assert(T.pickExt('a.jpeg', 'keep') === 'jpg', 'jpeg 扩展名归一为 jpg');
-assert(T.pickExt('noext', 'keep') === 'jpg', '无扩展名回退 jpg');
+assert(T.pickExt('a.PNG', 'keep', 'image/png') === 'png', 'keep 沿用原扩展名（大小写归一）');
+assert(T.pickExt('a.jpeg', 'keep', 'image/jpeg') === 'jpg', 'jpeg 扩展名归一为 jpg');
+assert(T.pickExt('noext', 'keep', 'image/png') === 'png', '无扩展名回退（可编码格式）');
+assert(T.pickExt('a.gif', 'keep', 'image/gif') === 'jpg', 'keep+gif 实际编成 JPEG，扩展名改 jpg');
+assert(T.pickExt('a.bmp', 'keep', 'image/bmp') === 'jpg', 'keep+bmp 实际编成 JPEG，扩展名改 jpg');
+assert(T.pickExt('a.png', 'keep') === 'jpg', 'keep 且输出 MIME 未知时保守回退 jpg');
 assert(T.pickMime('image/png', 'keep') === 'image/png', 'keep 沿用 PNG MIME');
 assert(T.pickMime('image/x-unknown', 'keep') === 'image/jpeg', '未知 MIME 回退 JPEG');
 assert(T.pickMime('image/png', 'webp') === 'image/webp', '指定格式覆盖源 MIME');
@@ -44,7 +47,7 @@ assert(T.pickMime('image/png', 'webp') === 'image/webp', '指定格式覆盖源 
 const used = {};
 assert(T.buildOutputName('照片.png', 'jpeg', used) === '照片.jpg', '替换扩展名');
 assert(T.buildOutputName('照片.png', 'jpeg', used) === '照片(2).jpg', '重名追加 (2)');
-assert(T.buildOutputName('', 'keep', {}) === '图片.jpg', '空名回退 图片');
+assert(T.buildOutputName('', 'keep', {}, 'image/png') === '图片.png', '空名回退 图片');
 
 /* ---------- formatBytes ---------- */
 assert(T.formatBytes(512) === '512 B', '字节直显');

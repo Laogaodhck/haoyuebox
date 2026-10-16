@@ -198,7 +198,8 @@ window.Brush = (function () {
         sy = st.workCanvas.height / (rectCache.height || 1);
         ox = 0; oy = 0;
       }
-      sizeWork = Math.max(2, st.brushSize * sx);
+      // brushSize 缺失/非法时回退默认 30px（app.js State 初始值），防 NaN 被静默忽略
+      sizeWork = Math.max(2, (st.brushSize > 0 ? st.brushSize : 30) * sx);
       if (hooks && hooks.onStrokeStart) hooks.onStrokeStart(snapMask(st));
       last = lastMid = null;
       var p0 = workPoint(e);
@@ -223,6 +224,9 @@ window.Brush = (function () {
     });
 
     function stop(e) {
+      // 笔悬停类设备可能对未按下过的 pointerId 也派发 up/cancel：
+      // 只对真实按下过的 id 计数回收，防 pointerCount 失步
+      if (!pointers[e.pointerId]) return;
       delete pointers[e.pointerId];
       if (pointerCount > 0) pointerCount--;
       if (!painting) return;

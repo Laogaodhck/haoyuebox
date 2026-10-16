@@ -6,6 +6,8 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+let progressCallback = null;  // archive:progress 回调（单注册，可替换）
+
 contextBridge.exposeInMainWorld('zunhongPrint', {
   isDesktop: true,
   listPrinters: () => ipcRenderer.invoke('print:listPrinters'),
@@ -17,7 +19,7 @@ contextBridge.exposeInMainWorld('zunhongPrint', {
   readFile: (filePath) => ipcRenderer.invoke('print:readFile', filePath)
 });
 
-/* 压缩工具桥接：选文件 / 保存路径 / 压缩 / 解压 / 进度回调 */
+/* 压缩工具桥接：选文件 / 保存路径 / 压缩 / 解压 / 进度回调 / 取消 */
 contextBridge.exposeInMainWorld('zunhongArchive', {
   isDesktop: true,
   check7z: () => ipcRenderer.invoke('archive:check7z'),
@@ -26,8 +28,13 @@ contextBridge.exposeInMainWorld('zunhongArchive', {
   compress: (payload) => ipcRenderer.invoke('archive:compress', payload),
   extract: (payload) => ipcRenderer.invoke('archive:extract', payload),
   list: (payload) => ipcRenderer.invoke('archive:list', payload),
+  cancel: () => ipcRenderer.invoke('archive:cancel'),
   onProgress: (cb) => {
-    ipcRenderer.on('archive:progress', (e, data) => cb(data));
+    // 进度监听器只在首次调用时注册，后续调用仅替换回调（防重复绑定叠加触发）
+    if (progressCallback === null) {
+      ipcRenderer.on('archive:progress', (e, data) => { if (progressCallback) progressCallback(data); });
+    }
+    progressCallback = cb;
   }
 });
 

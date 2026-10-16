@@ -72,6 +72,14 @@
 
   /* ================= 列表管理 ================= */
 
+  // 解码位图缓存总像素预算（约 1 亿像素 ≈ 400MB RGBA 常驻），
+  // 超出时对新加入的图等比降采样，防止大图批量导入耗尽内存
+  var MAX_TOTAL_PIXELS = 100 * 1000 * 1000;
+
+  function totalPixels() {
+    return items.reduce(function (s, it) { return s + it.w * it.h; }, 0);
+  }
+
   function addFiles(fileList) {
     var files = Array.prototype.slice.call(fileList || []).filter(function (f) {
       return f && /^image\//.test(f.type);
@@ -79,9 +87,29 @@
     if (!files.length) { toast('请选择图片文件（JPG/PNG/WebP 等）', true); return; }
     var chain = Promise.resolve();
     var failed = 0;
+    var downsampled = 0;
     files.forEach(function (file) {
       chain = chain.then(function () {
         return createImageBitmap(file).catch(function () { return null; });
+      }).then(function (bmp) {
+        if (!bmp) { failed++; return; }
+        var w = bmp.width, h = bmp.height;
+        var remaining = MAX_TOTAL_PIXELS - totalPixels();
+        var pixels = w * h;
+        if (pixels > remaining && remaining > 0) {
+          // 超预算：按剩余预算等比降采样（重新解码，随后释放原位图）
+          var k = Math.sqrt(remaining / pixels);
+          return createImageBitmap(file, {
+            resizeWidth: Math.max(1, Math.round(w * k)),
+            resizeHeight: Math.max(1, Math.round(h * k)),
+            resizeQuality: 'medium'
+          }).then(function (small) {
+            if (bmp.close) bmp.close();
+            downsampled++;
+            return small;
+          }).catch(function () { return bmp; }); // 降采样失败则保留原图（正确性优先）
+        }
+        return bmp;
       }).then(function (bmp) {
         if (!bmp) { failed++; return; }
         items.push({
@@ -96,12 +124,14 @@
     });
     chain.then(function () {
       if (failed) toast(failed + ' 个文件无法识别，已跳过', true);
+      if (downsampled) toast(downsampled + ' 张图片为控制内存占用已降采样', true);
       renderThumbs();
       scheduleRender();
     });
   }
 
   function removeItem(i) {
+    if (composing) { toast('正在合成，请等待完成后再调整列表', true); return; }
     var it = items[i];
     if (!it) return;
     if (it.bmp && it.bmp.close) it.bmp.close();
@@ -124,6 +154,7 @@
   }
 
   function clearAll() {
+    if (composing) { toast('正在合成，请等待完成后再调整列表', true); return; }
     items.forEach(function (it) {
       if (it.bmp && it.bmp.close) it.bmp.close();
       if (typeof URL !== 'undefined' && URL.revokeObjectURL && it.url) {
@@ -237,6 +268,7 @@
     try {
       var off = document.createElement('canvas');
       var layout = await renderTo(off); // 离屏重绘，确保与当前参数一致
+      if (!layout || !layout.W) throw new Error('没有可合成的图片，请重新选择');
       var blob = await new Promise(function (res, rej) {
         off.toBlob(function (b) { b ? res(b) : rej(new Error('编码失败')); }, 'image/png');
       });

@@ -57,6 +57,9 @@ function buildCompressArgs(opts) {
   const vol = Math.round(+opts.volumeMB || 0);
   if (fmt === '7z' && vol > 0) args.push('-v' + vol + 'm');
   if (pass) {
+    /* 已知残留风险：-p 密码经命令行传递，本机其他进程可从进程列表读到。
+     * 7-Zip 无 stdin 密码通道（列表文件同样不收密码），离线单用户场景
+     * 评估为可接受；若未来需求升级可换 7z SFX 或外部加密层。 */
     args.push('-p' + pass);
     if (fmt === 'zip') args.push('-mem=AES256'); // ZIP 用 AES-256 加密内容
   }

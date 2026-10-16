@@ -40,7 +40,12 @@ window.Matting = (function () {
         console.warn('多分类模型加载失败，回退基础分割模型:', e);
         return createSegmenter('vendor/mediapipe/models/selfie_segmenter.tflite');
       })
-      .then(function (s) { segmenter = s; });
+      .then(function (s) { segmenter = s; })
+      .catch(function (e) {
+        // 两个模型都失败：清空缓存让下次调用重新尝试（文件恢复后本会话内可自愈）
+        initPromise = null;
+        throw e;
+      });
     return initPromise;
   }
 
@@ -144,13 +149,15 @@ window.Matting = (function () {
     return Math.min(w0, w1);
   }
 
-  /* 让渡事件循环：rAF 保证进度文字真正绘制一帧后再继续重活 */
+  /* 让渡事件循环：rAF 保证进度文字真正绘制一帧后再继续重活。
+   * 窗口最小化/被遮挡时 rAF 会暂停导致 await 永不 resolve（界面假死），
+   * 此时退化为 setTimeout 节流让渡 */
   function yieldUI() {
     return new Promise(function (r) {
-      if (window.requestAnimationFrame) {
+      if (window.requestAnimationFrame && !document.hidden) {
         window.requestAnimationFrame(function () { setTimeout(r, 0); });
       } else {
-        setTimeout(r, 0);
+        setTimeout(r, 32);
       }
     });
   }
