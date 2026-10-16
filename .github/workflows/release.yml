@@ -4,6 +4,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: '补发模式：填已有 tag（如 v1.2.0）则构建 main 并把安装包上传到该 tag 的 Release；留空则仅出 artifact'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -48,15 +53,25 @@ jobs:
           test -f node_modules/electron/path.txt
           node -p "'Electron ' + require('electron').version + ' -> ' + require('electron')"
 
-      - name: 校验标签与 package.json 版本一致
+      # 发布目标：tag push 用自身引用；手动触发时可指定补发到已有 tag
+      - name: 计算发布标签
+        id: reltag
         shell: bash
         run: |
-          if [ "$GITHUB_EVENT_NAME" != "push" ]; then
-            echo "手动触发，不做版本校验"; exit 0
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: 校验标签与 package.json 版本一致
+        if: steps.reltag.outputs.tag != ''
+        shell: bash
+        run: |
+          tag="${{ steps.reltag.outputs.tag }}"
           version=$(node -p "require('./package.json').version")
-          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
-            echo "::error::标签 $GITHUB_REF_NAME 与 package.json 版本 $version 不一致，请先在 PR 里改版本号"
+          if [ "${tag#v}" != "$version" ]; then
+            echo "::error::标签 $tag 与 package.json 版本 $version 不一致（补发旧 tag 时请在该 tag 的源码上打包，或临时核对版本语义）"
             exit 1
           fi
 
@@ -80,20 +95,21 @@ jobs:
         run: node tools/verify-packaged.cjs
 
       - name: 发布到 GitHub Release
-        if: github.event_name == 'push'
+        if: steps.reltag.outputs.tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REL_TAG: ${{ steps.reltag.outputs.tag }}
         shell: bash
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" \
-                 --title "尊泓工具箱 $GITHUB_REF_NAME" \
+          gh release view "$REL_TAG" >/dev/null 2>&1 \
+            || gh release create "$REL_TAG" \
+                 --title "尊泓工具箱 $REL_TAG" \
                  --generate-notes --target "$GITHUB_SHA"
-          gh release upload "$GITHUB_REF_NAME" release-build/*.exe --clobber
+          gh release upload "$REL_TAG" release-build/*.exe --clobber
 
-      # 手动触发时不建 Release，只留产物供试装
+      # 手动触发且未指定补发 tag 时，不建 Release，只留产物供试装
       - name: 上传构建产物
-        if: github.event_name == 'workflow_dispatch'
+        if: steps.reltag.outputs.tag == ''
         uses: actions/upload-artifact@v4
         with:
           name: zunhong-toolbox-windows
