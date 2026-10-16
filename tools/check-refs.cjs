@@ -29,6 +29,15 @@ for (const ref of new Set(html)) {
   assert(fs.existsSync(path.join(ROOT, ref.split('?')[0])), 'index.html 引用存在：' + ref);
 }
 
+/* 首页版本号必须与 package.json 一致（v1.1.0/v1.2.0 两次发版均漏改首页标签） */
+const pkgVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+const homeVer = /class="home-version">桌面离线版 v([^<]+)</.exec(
+  fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')
+);
+assert(homeVer, 'index.html 存在首页版本标签');
+assert(homeVer && homeVer[1] === pkgVersion,
+  '首页版本号（' + (homeVer ? homeVer[1] : '无') + '）与 package.json（' + pkgVersion + '）一致');
+
 const vendor = refsFrom('js/segmenter.js', /['"](vendor\/[^'"]+)['"]/g);
 assert(vendor.length >= 3, '分割器解析到 ' + vendor.length + ' 个 vendor 路径');
 for (const ref of new Set(vendor)) {
