@@ -22,6 +22,7 @@ withServer(PORT, async () => {
 
     await page.goto('http://localhost:' + PORT + '/');
     await page.click('#home-photo');
+    await page.click('#photo-open-idphoto'); // 进入「证照生成」子功能
     await page.setInputFiles('#file-input', PHOTO);
     await page.waitForSelector('#step-matte.active', { timeout: 90000 });
     await sleep(400);

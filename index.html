@@ -21,6 +21,8 @@
     <button class="module-tab" data-module="photo">照片工具</button>
     <button class="module-tab" data-module="sheet">排版工具</button>
     <button class="module-tab" data-module="batch">批量工具</button>
+    <button class="module-tab" data-module="print">打印工具</button>
+    <button class="module-tab" data-module="archive">压缩工具</button>
   </nav>
   <nav class="steps" id="steps-nav">
     <div class="step active" data-step="upload"><i>1</i>上传照片</div>
@@ -62,7 +64,7 @@
       <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span>
       <span class="hc-body">
         <span class="hc-title">照片工具</span>
-        <span class="hc-desc">AI 人像抠图换底 · 一寸 / 二寸 / 护照 / 签证 8 种规格 · 300DPI 导出打印</span>
+        <span class="hc-desc">证照生成 · 图片转换 · 图片合成 · 更多功能陆续上线</span>
       </span>
       <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
@@ -78,7 +80,7 @@
       <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
       <span class="hc-body">
         <span class="hc-title">批量工具</span>
-        <span class="hc-desc">批量重命名（照片 / 文档） · 更多功能陆续上线</span>
+        <span class="hc-desc">批量重命名 · 去除水印 · 格式转换 · 更多功能陆续上线</span>
       </span>
       <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
@@ -86,7 +88,15 @@
       <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
       <span class="hc-body">
         <span class="hc-title">打印工具</span>
-        <span class="hc-desc">批量打印 / 证照打印 / 打印机管理 · 敬请期待</span>
+        <span class="hc-desc">批量打印图片 / 批量打印文档 · 单双面 · 证照打印陆续上线</span>
+      </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+    </button>
+    <button class="home-card" id="home-archive" type="button">
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg></span>
+      <span class="hc-body">
+        <span class="hc-title">压缩工具</span>
+        <span class="hc-desc">7z / ZIP 批量压缩 · ZIP / RAR / 7z 等一键解压 · 密码加密</span>
       </span>
       <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
@@ -94,6 +104,44 @@
 </div>
 
 <div id="view-photo">
+
+  <!-- ========== 照片工具 · 子功能菜单 ========== -->
+  <div id="photo-menu" class="photo-menu">
+    <button class="home-card" id="photo-open-idphoto" type="button">
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span>
+      <span class="hc-body">
+        <span class="hc-title">证照生成 <span class="hc-badge">可用</span></span>
+        <span class="hc-desc">AI 人像抠图换底 · 一寸 / 二寸 / 护照 / 签证 8 种规格 · 300DPI 导出打印</span>
+      </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+    </button>
+    <button class="home-card" id="photo-open-convert" type="button">
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></span>
+      <span class="hc-body">
+        <span class="hc-title">图片转换 <span class="hc-badge">可用</span></span>
+        <span class="hc-desc">JPG / PNG / WebP 批量互转 · 质量可调 · 透明底填充 · 打包保存</span>
+      </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+    </button>
+    <button class="home-card" id="photo-open-compose" type="button">
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="12" height="12" rx="2"/><rect x="9" y="9" width="12" height="12" rx="2"/></svg></span>
+      <span class="hc-body">
+        <span class="hc-title">图片合成 <span class="hc-badge">可用</span></span>
+        <span class="hc-desc">横向 / 纵向拼接 · 网格拼图 · 间距与底色可调 · PNG 无损保存</span>
+      </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+    </button>
+    <button class="home-card disabled" type="button" disabled>
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg></span>
+      <span class="hc-body">
+        <span class="hc-title">更多功能</span>
+        <span class="hc-desc">图片压缩 / 尺寸调整 · 敬请期待</span>
+      </span>
+    </button>
+  </div>
+
+  <!-- ========== 子功能：证照生成 ========== -->
+  <section id="photo-flow" hidden>
   <!-- ========== 步骤 1：上传 ========== -->
   <section id="step-upload" class="step-panel active">
     <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="选择或拖入照片">
@@ -244,6 +292,117 @@
       </div>
     </div>
   </section>
+  </section>
+
+  <!-- ========== 子功能：图片转换 ========== -->
+  <section id="photo-convert" class="subpage" hidden>
+    <aside class="panel">
+      <h3>选择图片</h3>
+      <div class="btn-col">
+        <button id="conv-pick" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="10" cy="12" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> 选择图片…（可多选）</button>
+        <input type="file" id="conv-file" accept="image/*" multiple hidden>
+      </div>
+      <div id="conv-count" class="hint-text">未选择图片</div>
+
+      <h3>输出设置</h3>
+      <div class="field">
+        <label>目标格式</label>
+        <select id="conv-fmt" class="select">
+          <option value="jpeg" selected>JPG（体积小，通用）</option>
+          <option value="png">PNG（无损，保留透明）</option>
+          <option value="webp">WebP（体积最小）</option>
+        </select>
+      </div>
+      <div class="field" id="conv-quality-row">
+        <label>质量 <span id="conv-quality-val">92%</span></label>
+        <input type="range" id="conv-quality" min="50" max="100" value="92">
+      </div>
+      <div class="field" id="conv-bg-row">
+        <label>透明区域填充 <span class="inline-color"><input type="color" id="conv-bg" value="#FFFFFF" aria-label="填充颜色"></span></label>
+      </div>
+      <div class="hint-text">转 JPG 时透明背景填充所选颜色（默认白色）；输出沿用原文件名，多张时打包为一个 ZIP 保存</div>
+
+      <div class="btn-row bottom">
+        <button id="conv-clear" class="ghost">清空</button>
+        <button id="conv-run" class="primary" disabled>开始转换</button>
+      </div>
+      <button id="conv-back" class="ghost batch-back">← 返回照片工具</button>
+    </aside>
+
+    <div class="stage">
+      <div class="canvas-wrap batch-table-wrap">
+        <div class="preview-title">待转换图片</div>
+        <div class="batch-scroll" id="conv-list" hidden>
+          <table id="conv-table" class="batch-table">
+            <thead><tr><th>序号</th><th>预览</th><th>文件名</th><th>尺寸</th><th>输出为</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="conv-empty" class="empty-state" role="button" tabindex="0" aria-label="选择要转换的图片">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="10" cy="12" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+          <div class="es-title">还没有选择图片</div>
+          <div class="es-hint">点击此处选择，或直接拖入窗口<br>支持 JPG / PNG / WebP 等常见格式 · 可多选</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 子功能：图片合成 ========== -->
+  <section id="photo-compose" class="subpage" hidden>
+    <aside class="panel">
+      <h3>选择图片</h3>
+      <div class="btn-col">
+        <button id="cmp-pick" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="10" cy="12" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> 选择图片…（可多选）</button>
+        <input type="file" id="cmp-file" accept="image/*" multiple hidden>
+      </div>
+      <div id="cmp-count" class="hint-text">未选择图片</div>
+
+      <h3>拼接方式</h3>
+      <div id="cmp-mode" class="seg-group">
+        <button data-mode="horizontal" class="active">横向拼接</button>
+        <button data-mode="vertical">纵向拼接</button>
+        <button data-mode="grid">网格拼图</button>
+      </div>
+      <div class="field" id="cmp-cols-row" hidden>
+        <label>列数</label>
+        <select id="cmp-cols" class="select">
+          <option value="2">2 列</option>
+          <option value="3" selected>3 列</option>
+          <option value="4">4 列</option>
+          <option value="5">5 列</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>间距 <span id="cmp-gap-val">8px</span></label>
+        <input type="range" id="cmp-gap" min="0" max="60" value="8">
+      </div>
+      <div class="field">
+        <label>背景颜色 <span class="inline-color"><input type="color" id="cmp-bg" value="#FFFFFF" aria-label="背景颜色"></span></label>
+      </div>
+
+      <div class="btn-row bottom">
+        <button id="cmp-clear" class="ghost">清空</button>
+        <button id="cmp-run" class="primary" disabled>生成并保存</button>
+      </div>
+      <div class="hint-text">合成结果以 PNG 无损保存；在预览下方可移除图片或调整顺序</div>
+      <button id="cmp-back" class="ghost batch-back">← 返回照片工具</button>
+    </aside>
+
+    <div class="stage">
+      <div class="canvas-wrap compose-wrap">
+        <div class="preview-title">合成预览</div>
+        <div id="cmp-empty" class="empty-state" role="button" tabindex="0" aria-label="选择要合成的图片">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="10" cy="12" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+          <div class="es-title">还没有选择图片</div>
+          <div class="es-hint">点击此处选择，或直接拖入窗口<br>可多选 · 按预览下方的顺序拼合</div>
+        </div>
+        <canvas id="cmp-preview" hidden></canvas>
+        <div id="cmp-info" class="hint-text"></div>
+        <div id="cmp-thumbs" class="cmp-thumbs"></div>
+      </div>
+    </div>
+  </section>
+
 </div>
 
 <!-- ========== 排版模块（分步流程） ========== -->
@@ -425,19 +584,21 @@
       </span>
       <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
-    <button class="home-card disabled" type="button" disabled>
+    <button class="home-card" id="batch-open-watermark" type="button">
       <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.6A2 2 0 0 1 14 7a2 2 0 0 0 2 2 2 2 0 0 1 1.3 3.5"/><path d="M6.4 6.4C4 7.6 3 9 3 9s4 8 9 8c1.4 0 2.7-.4 3.8-.9"/></svg></span>
       <span class="hc-body">
-        <span class="hc-title">去除水印</span>
-        <span class="hc-desc">图片水印擦除 · 敬请期待</span>
+        <span class="hc-title">去除水印 <span class="hc-badge">可用</span></span>
+        <span class="hc-desc">框选水印位置 · 模糊 / 像素化 / 取色填充 · 整个文件夹一键处理</span>
       </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
-    <button class="home-card disabled" type="button" disabled>
+    <button class="home-card" id="batch-open-format" type="button">
       <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg></span>
       <span class="hc-body">
-        <span class="hc-title">格式转换</span>
-        <span class="hc-desc">JPG / PNG / WebP / PDF 互转 · 敬请期待</span>
+        <span class="hc-title">格式转换 <span class="hc-badge">可用</span></span>
+        <span class="hc-desc">JPG / PNG / WebP / PDF 批量互转 · 质量可调 · 结果直接写入文件夹</span>
       </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
     <button class="home-card disabled" type="button" disabled>
       <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
@@ -527,6 +688,457 @@
     </div>
   </section>
 
+  <!-- 格式转换面板 -->
+  <section id="batch-format" class="subpage" hidden>
+    <aside class="panel">
+      <h3>选择文件夹</h3>
+      <div class="btn-col">
+        <button id="bf-pick" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg> 选择文件夹…</button>
+      </div>
+      <div id="bf-folder" class="hint-text">未选择文件夹</div>
+      <div id="bf-unsupported" class="hint-text st-bad" hidden>当前浏览器不支持文件夹写入，请使用桌面版（安装版 / start.bat）或 Chrome / Edge 打开</div>
+
+      <h3>输出设置</h3>
+      <div class="field">
+        <label>目标格式</label>
+        <select id="bf-fmt" class="select">
+          <option value="jpeg" selected>JPG（体积小，通用）</option>
+          <option value="png">PNG（无损，保留透明）</option>
+          <option value="webp">WebP（体积最小）</option>
+          <option value="pdf">PDF（文档归档）</option>
+        </select>
+      </div>
+      <div class="field" id="bf-quality-row">
+        <label>质量 <span id="bf-quality-val">92%</span></label>
+        <input type="range" id="bf-quality" min="50" max="100" value="92">
+      </div>
+      <div class="field" id="bf-bg-row">
+        <label>透明区域填充 <span class="inline-color"><input type="color" id="bf-bg" value="#FFFFFF" aria-label="填充颜色"></span></label>
+      </div>
+      <div class="field" id="bf-pdf-row" hidden>
+        <label>PDF 输出方式</label>
+        <select id="bf-pdf-merge" class="select">
+          <option value="merge" selected>合并为一个 PDF（按文件名排序）</option>
+          <option value="single">每张图片单独一个 PDF</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>输出位置</label>
+        <select id="bf-out" class="select">
+          <option value="sub" selected>子文件夹「转换输出」（推荐）</option>
+          <option value="same">原文件夹（覆盖原文件）</option>
+        </select>
+      </div>
+      <div id="bf-note" class="hint-text">在原文件夹中新建「转换输出」保存结果，不动原文件</div>
+
+      <div class="btn-row bottom">
+        <button id="bf-clear" class="ghost">清空</button>
+        <button id="bf-run" class="primary" disabled>开始转换</button>
+      </div>
+      <button id="bf-back" class="ghost batch-back">← 返回批量工具</button>
+    </aside>
+
+    <div class="stage">
+      <div class="canvas-wrap batch-table-wrap">
+        <div class="preview-title">待转换文件</div>
+        <div id="bf-summary" class="hint-text"></div>
+        <div class="batch-scroll" id="bf-list" hidden>
+          <table id="bf-table" class="batch-table">
+            <thead><tr><th>序号</th><th>预览</th><th>文件名</th><th>尺寸</th><th>输出为</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="bf-empty" class="empty-state" role="button" tabindex="0" aria-label="选择文件夹">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+          <div class="es-title">还没有选择文件夹</div>
+          <div class="es-hint">点击此处选择文件夹<br>自动识别其中的图片（JPG / PNG / WebP / BMP / GIF）并批量转换</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 去除水印面板 -->
+  <section id="batch-watermark" class="subpage" hidden>
+    <aside class="panel">
+      <h3>选择文件夹</h3>
+      <div class="btn-col">
+        <button id="bw-pick" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg> 选择文件夹…</button>
+      </div>
+      <div id="bw-folder" class="hint-text">未选择文件夹</div>
+      <div id="bw-unsupported" class="hint-text st-bad" hidden>当前浏览器不支持文件夹写入，请使用桌面版（安装版 / start.bat）或 Chrome / Edge 打开</div>
+
+      <h3>水印区域</h3>
+      <div class="hint-text">在右侧预览图上<b>按住拖拽框选</b>水印位置，选区按比例应用到文件夹内全部图片</div>
+      <div class="btn-row">
+        <button id="bw-undo" class="ghost">撤销一处</button>
+        <button id="bw-clear" class="ghost">清空选区</button>
+      </div>
+      <div id="wm-chips" class="wm-chips"></div>
+
+      <h3>处理方式</h3>
+      <select id="bw-mode" class="select">
+        <option value="blur" selected>模糊（适合文字 / Logo 水印）</option>
+        <option value="block">像素化（马赛克）</option>
+        <option value="fill">纯色覆盖</option>
+        <option value="median">周边取色填充（适合纯色背景）</option>
+      </select>
+      <div class="field" id="bw-strength-row">
+        <label>强度 <span id="bw-strength-val">5</span></label>
+        <input type="range" id="bw-strength" min="1" max="10" value="5">
+      </div>
+      <div class="field" id="bw-color-row" hidden>
+        <label>填充颜色 <span class="inline-color"><input type="color" id="bw-color" value="#FFFFFF" aria-label="填充颜色"></span></label>
+      </div>
+
+      <h3>输出</h3>
+      <select id="bw-out" class="select">
+        <option value="suffix" selected>另存为「原文件名-无水印」（推荐）</option>
+        <option value="overwrite">覆盖原文件</option>
+      </select>
+
+      <div class="btn-row bottom">
+        <button id="bw-clear-all" class="ghost">重置</button>
+        <button id="bw-run" class="primary" disabled>批量去除水印</button>
+      </div>
+      <div id="bw-note" class="hint-text">GIF 仅处理第一帧；HEIC / TIFF 等特殊格式暂不支持，将自动跳过</div>
+      <button id="bw-back" class="ghost batch-back">← 返回批量工具</button>
+    </aside>
+
+    <div class="stage">
+      <div class="canvas-wrap">
+        <div class="preview-title">水印处理预览（第 1 张图片）</div>
+        <div id="wm-empty" class="empty-state" role="button" tabindex="0" aria-label="选择文件夹">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+          <div class="es-title">还没有选择文件夹</div>
+          <div class="es-hint">点击此处选择文件夹<br>预览第一张图片，拖拽框选水印位置</div>
+        </div>
+        <canvas id="wm-canvas" hidden></canvas>
+        <div id="wm-info" class="hint-text"></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ========== 压缩工具模块 ========== -->
+<div id="view-archive">
+
+  <!-- 子功能菜单 -->
+  <div id="archive-menu" class="archive-menu">
+    <button class="home-card" id="archive-open-compress" type="button">
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg></span>
+      <span class="hc-body">
+        <span class="hc-title">压缩文件 <span class="hc-badge">可用</span></span>
+        <span class="hc-desc">多选文件 / 整个文件夹 → 7z 或 ZIP · 压缩等级可调 · 可设密码加密</span>
+      </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+    </button>
+    <button class="home-card" id="archive-open-extract" type="button">
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+      <span class="hc-body">
+        <span class="hc-title">解压文件 <span class="hc-badge">可用</span></span>
+        <span class="hc-desc">7z / ZIP / RAR / TAR / GZ / XZ / CAB / ISO 等 · 支持加密包 · 批量解压</span>
+      </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+    </button>
+    <button class="home-card disabled" type="button" disabled>
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg></span>
+      <span class="hc-body">
+        <span class="hc-title">更多功能</span>
+        <span class="hc-desc">分卷压缩 / 压缩包内容浏览 · 敬请期待</span>
+      </span>
+    </button>
+  </div>
+
+  <!-- 压缩面板 -->
+  <section id="archive-compress" class="subpage" hidden>
+    <aside class="panel">
+      <h3>选择内容</h3>
+      <div class="btn-row">
+        <button id="ac-pick-files" class="ghost">选文件…</button>
+        <button id="ac-pick-dir" class="ghost">选文件夹…</button>
+      </div>
+      <div id="ac-count" class="hint-text">未选择</div>
+      <div id="ac-unsupported" class="hint-text st-bad" hidden>压缩功能需要在桌面版（安装版 / 便携版）中使用，浏览器打开不支持</div>
+
+      <h3>压缩设置</h3>
+      <div class="field">
+        <label>压缩到</label>
+        <select id="ac-out" class="select">
+          <option value="dialog" selected>每次选择位置（弹窗另存为）</option>
+          <option value="same">所选内容所在目录（自动命名）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>输出格式</label>
+        <select id="ac-fmt" class="select">
+          <option value="7z" selected>7z（体积最小，支持加密文件名）</option>
+          <option value="zip">ZIP（兼容性最好）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>压缩等级</label>
+        <select id="ac-level" class="select">
+          <option value="fast">快速（体积较大）</option>
+          <option value="normal" selected>标准（推荐）</option>
+          <option value="max">最大（速度较慢）</option>
+          <option value="store">仅存储（不压缩）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>密码（可选）</label>
+        <input type="password" id="ac-pass" class="num-input" placeholder="留空则不加密" autocomplete="new-password">
+      </div>
+      <div class="field" id="ac-encnames-row">
+        <label>加密文件名 <input type="checkbox" id="ac-encnames"></label>
+      </div>
+      <div id="ac-note" class="hint-text">7z 格式可用 AES-256 加密内容与文件名；ZIP 仅加密内容（文件名可见）</div>
+
+      <div class="btn-row bottom">
+        <button id="ac-clear" class="ghost">清空</button>
+        <button id="ac-run" class="primary" disabled>压缩…</button>
+      </div>
+      <div id="ac-progress" class="hint-text" hidden></div>
+      <button id="ac-back" class="ghost batch-back">← 返回压缩工具</button>
+    </aside>
+
+    <div class="stage">
+      <div class="canvas-wrap batch-table-wrap">
+        <div class="preview-title">待压缩内容</div>
+        <div class="batch-scroll" id="ac-list" hidden>
+          <table id="ac-table" class="batch-table">
+            <thead><tr><th class="col-check"><input type="checkbox" id="ac-check-all" title="全选/全不选"></th><th>序号</th><th>名称</th><th>类型</th><th>大小</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="ac-empty" class="stage-tip">点击上方按钮选择要压缩的文件或文件夹</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 解压面板 -->
+  <section id="archive-extract" class="subpage" hidden>
+    <aside class="panel">
+      <h3>选择压缩包</h3>
+      <div class="btn-col">
+        <button id="ax-pick" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg> 选择压缩包…（可多选）</button>
+      </div>
+      <div id="ax-count" class="hint-text">未选择</div>
+      <div id="ax-unsupported" class="hint-text st-bad" hidden>解压功能需要在桌面版（安装版 / 便携版）中使用，浏览器打开不支持</div>
+
+      <h3>解压设置</h3>
+      <div class="field">
+        <label>解压到</label>
+        <select id="ax-out" class="select">
+          <option value="sub" selected>同名子文件夹（推荐，避免混乱）</option>
+          <option value="same">压缩包所在目录</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>密码（可选）</label>
+        <input type="password" id="ax-pass" class="num-input" placeholder="加密压缩包才需要填写" autocomplete="new-password">
+      </div>
+      <div class="hint-text">支持 7z / ZIP / RAR / TAR / GZ / XZ / BZ2 / CAB / ISO 等常见格式；多选时逐个自动解压</div>
+
+      <div class="btn-row bottom">
+        <button id="ax-clear" class="ghost">清空</button>
+        <button id="ax-run" class="primary" disabled>开始解压</button>
+      </div>
+      <div id="ax-progress" class="hint-text" hidden></div>
+      <button id="ax-back" class="ghost batch-back">← 返回压缩工具</button>
+    </aside>
+
+    <div class="stage">
+      <div class="canvas-wrap batch-table-wrap">
+        <div class="preview-title">待解压文件</div>
+        <div class="batch-scroll" id="ax-list" hidden>
+          <table id="ax-table" class="batch-table">
+            <thead><tr><th>序号</th><th>文件名</th><th>大小</th><th>解压到</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="ax-empty" class="stage-tip">点击上方按钮选择要解压的压缩包</div>
+        <div id="ax-result" class="hint-text"></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div id="view-print">
+
+  <!-- ========== 打印工具 · 子功能菜单 ========== -->
+  <div id="print-menu">
+    <div class="archive-menu">
+      <button class="home-card" id="print-open-batch" type="button">
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">批量打印 <span class="hc-badge">可用</span></span>
+          <span class="hc-desc">多图旋转后统一打印 · PDF / TXT / DOCX 列队或合并打印 · 单双面</span>
+        </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </button>
+      <button class="home-card disabled" type="button" disabled>
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">证照打印</span>
+          <span class="hc-desc">常用规格直出打印 · 敬请期待</span>
+        </span>
+      </button>
+      <button class="home-card disabled" type="button" disabled>
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">打印机管理</span>
+          <span class="hc-desc">默认打印机 / 属性设置 · 敬请期待</span>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ========== 批量打印 ========== -->
+  <section id="print-batch" class="subpage" hidden>
+    <div class="pb-tabs">
+      <button id="pb-tab-img" class="pb-tab active" type="button">图片打印</button>
+      <button id="pb-tab-doc" class="pb-tab" type="button">文档打印</button>
+    </div>
+
+    <!-- 图片打印面板 -->
+    <div id="pb-img" class="subpage-inner">
+      <aside class="panel">
+        <h3>选择图片</h3>
+        <div class="btn-col">
+          <button id="pb-pick" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> 选择图片…（可多选）</button>
+        </div>
+        <div id="pb-count" class="hint-text">未选择</div>
+        <div id="pb-unsupported" class="hint-text st-bad" hidden>打印功能需要在桌面版（安装版 / 便携版）中使用，浏览器打开不支持</div>
+
+        <h3>打印设置</h3>
+        <div class="field">
+          <label>打印机</label>
+          <select id="pb-printer" class="select"></select>
+        </div>
+        <div class="field">
+          <label>纸张</label>
+          <select id="pb-paper" class="select">
+            <option value="A4" selected>A4（210×297mm）</option>
+            <option value="B5">B5（182×257mm）</option>
+            <option value="A5">A5（148×210mm）</option>
+            <option value="A3">A3（297×420mm）</option>
+            <option value="Letter">Letter（8.5×11"）</option>
+            <option value="4x6">4×6 英寸照片纸</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>方向</label>
+          <select id="pb-orient" class="select">
+            <option value="0" selected>竖向</option>
+            <option value="1">横向</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>边距</label>
+          <select id="pb-margin" class="select">
+            <option value="none" selected>无边距（整页打印）</option>
+            <option value="printableArea">可打印区域（约 5mm）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>单双面</label>
+          <select id="pb-duplex" class="select">
+            <option value="simplex" selected>单面打印</option>
+            <option value="longEdge">双面打印（长边翻页）</option>
+            <option value="shortEdge">双面打印（短边翻页）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>份数</label>
+          <input type="number" id="pb-copies" class="num-input" min="1" max="99" value="1">
+        </div>
+
+        <div class="btn-row bottom">
+          <button id="pb-clear" class="ghost">清空</button>
+          <button id="pb-run" class="primary" disabled>统一打印</button>
+        </div>
+        <div id="pb-status" class="hint-text"></div>
+        <button id="pb-back" class="ghost batch-back">← 返回打印工具</button>
+      </aside>
+
+      <div class="stage">
+        <div class="canvas-wrap batch-table-wrap">
+          <div class="preview-title">
+            <label class="pt-check"><input type="checkbox" id="pb-check-all"> 全选</label>
+            <span>待打印图片</span>
+          </div>
+          <div class="hint-text">点击每张卡片上的「旋转 90°」可单独调整该图的打印方向，缩略图实时预览、右下角显示当前角度；取消勾选的图片不参与打印；全部调整好后点左侧「统一打印」。</div>
+          <div id="pb-grid" class="pb-grid" hidden></div>
+          <div id="pb-empty" class="stage-tip">点击上方按钮选择要打印的图片</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 文档打印面板 -->
+    <div id="pd-doc" class="subpage-inner" hidden>
+      <aside class="panel">
+        <h3>选择文档</h3>
+        <div class="btn-col">
+          <button id="pd-pick" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 选择文档…（可多选）</button>
+        </div>
+        <div id="pd-count" class="hint-text">未选择</div>
+        <div id="pd-unsupported" class="hint-text st-bad" hidden>打印功能需要在桌面版（安装版 / 便携版）中使用，浏览器打开不支持</div>
+
+        <h3>打印方式</h3>
+        <div class="field">
+          <label>打印模式</label>
+          <select id="pd-mode" class="select">
+            <option value="queue" selected>列队顺序打印（每文档一个任务）</option>
+            <option value="merge">合并打印（全部文档合并为一个任务）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>打印机</label>
+          <select id="pd-printer" class="select"></select>
+        </div>
+        <div class="field">
+          <label>单双面</label>
+          <select id="pd-duplex" class="select">
+            <option value="simplex" selected>单面打印</option>
+            <option value="longEdge">双面打印（长边翻页）</option>
+            <option value="shortEdge">双面打印（短边翻页）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>份数</label>
+          <input type="number" id="pd-copies" class="num-input" min="1" max="99" value="1">
+        </div>
+        <div id="pd-note" class="hint-text">支持 PDF / TXT / DOCX；DOCX 以简化版式（纯文本）打印，需要完整版式请转 PDF</div>
+
+        <div class="btn-row bottom">
+          <button id="pd-clear" class="ghost">清空</button>
+          <button id="pd-run" class="primary" disabled>开始打印</button>
+        </div>
+        <div id="pd-status" class="hint-text"></div>
+        <button id="pd-back" class="ghost batch-back">← 返回打印工具</button>
+      </aside>
+
+      <div class="stage">
+        <div class="canvas-wrap batch-table-wrap">
+          <div class="preview-title">
+            <label class="pt-check"><input type="checkbox" id="pd-check-all"> 全选</label>
+            <span>文档队列</span>
+          </div>
+          <div class="hint-text">按列表从上到下的顺序打印：取消勾选的文档不参与打印，用「↑ / ↓」调整文档先后、「✕」移除；「列队顺序打印」为每个勾选文档单独发送一个打印任务，「合并打印」则把勾选文档的页面合并为一个任务。</div>
+          <div class="batch-scroll" id="pd-list" hidden>
+            <table id="pd-table" class="batch-table">
+              <thead><tr><th>选</th><th>序号</th><th>文件名</th><th>类型</th><th>页数</th><th>操作</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="pd-empty" class="stage-tip">点击上方按钮选择要打印的文档（PDF / TXT / DOCX）</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
 </div>
 
 </main>
@@ -553,8 +1165,16 @@
 <script src="js/cropper.js"></script>
 <script src="js/app.js"></script>
 <script src="js/batch.js"></script>
+<script src="js/batch-format.js"></script>
+<script src="js/batch-watermark.js"></script>
+<script src="js/archive.js"></script>
+<script src="js/convert.js"></script>
+<script src="js/compose.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/sheet.js"></script>
 <script src="js/print.js"></script>
+<script src="vendor/print/pdf.min.js"></script>
+<script src="vendor/print/mammoth.browser.min.js"></script>
+<script src="js/print-batch.js"></script>
 </body>
 </html>

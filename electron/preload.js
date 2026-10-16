@@ -10,7 +10,23 @@ contextBridge.exposeInMainWorld('haoyuePrint', {
   isDesktop: true,
   listPrinters: () => ipcRenderer.invoke('print:listPrinters'),
   showPrinterProperties: (printerName) => ipcRenderer.invoke('print:showProperties', printerName),
-  printImage: (payload) => ipcRenderer.invoke('print:printImage', payload)
+  printImage: (payload) => ipcRenderer.invoke('print:printImage', payload),
+  /* 批量打印：文件选择（kind: image | doc）与文档字节读取 */
+  pickPaths: (kind) => ipcRenderer.invoke('archive:pickPaths', kind),
+  readFile: (filePath) => ipcRenderer.invoke('print:readFile', filePath)
+});
+
+/* 压缩工具桥接：选文件 / 保存路径 / 压缩 / 解压 / 进度回调 */
+contextBridge.exposeInMainWorld('haoyueArchive', {
+  isDesktop: true,
+  check7z: () => ipcRenderer.invoke('archive:check7z'),
+  pickPaths: (kind) => ipcRenderer.invoke('archive:pickPaths', kind),
+  saveDialog: (defaultName) => ipcRenderer.invoke('archive:saveDialog', defaultName),
+  compress: (payload) => ipcRenderer.invoke('archive:compress', payload),
+  extract: (payload) => ipcRenderer.invoke('archive:extract', payload),
+  onProgress: (cb) => {
+    ipcRenderer.on('archive:progress', (e, data) => cb(data));
+  }
 });
 
 console.log('[haoyue] 打印桥接已就绪');

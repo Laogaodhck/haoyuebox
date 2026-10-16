@@ -20,6 +20,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await sleep(400);
   await desktop.screenshot({ path: OUT + '/desktop-home.png' });
   await desktop.click('#home-photo');
+  await desktop.click('#photo-open-idphoto'); // 进入「证照生成」子功能
   await sleep(300);
   await desktop.screenshot({ path: OUT + '/desktop-upload.png' });
   // 检查横向滚动
@@ -33,6 +34,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await sleep(400);
   await mobile.screenshot({ path: OUT + '/mobile-home.png', fullPage: true });
   await mobile.click('#home-photo');
+  await mobile.click('#photo-open-idphoto'); // 进入「证照生成」子功能
   await sleep(300);
   await mobile.screenshot({ path: OUT + '/mobile-upload.png' });
   const mScroll = await mobile.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);

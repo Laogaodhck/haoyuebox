@@ -152,8 +152,10 @@ window.App = (function () {
     dropzone.addEventListener('drop', function (e) {
       if (e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
     });
-    // 支持粘贴截图
+    // 支持粘贴截图（仅证照生成流程可见时响应，避免在其他子功能页误触发）
     window.addEventListener('paste', function (e) {
+      if (document.body.dataset.module !== 'photo' ||
+          document.body.dataset.photoSub !== 'idphoto') return;
       if (e.clipboardData && e.clipboardData.files && e.clipboardData.files[0]) {
         loadFile(e.clipboardData.files[0]);
       }
@@ -589,11 +591,29 @@ window.App = (function () {
     $('view-photo').style.display = name === 'photo' ? '' : 'none';
     $('view-sheet').classList.toggle('active', name === 'sheet');
     $('view-batch').style.display = name === 'batch' ? 'block' : 'none';
+    $('view-archive').style.display = name === 'archive' ? 'block' : 'none';
+    $('view-print').style.display = name === 'print' ? 'block' : 'none';
     document.querySelectorAll('.module-tab').forEach(function (t) {
       t.classList.toggle('active', t.dataset.module === name);
     });
+    if (name === 'photo') showPhotoSub('menu');               // 每次进入照片工具回到子功能菜单
     if (name === 'sheet') window.App.sheet.showStep('tpl'); // 每次进入排版模块回到第 1 步
     if (name === 'batch') window.App.batch.enter();          // 每次进入批量工具回到子功能菜单
+    if (name === 'archive') window.App.archive.enter();      // 每次进入压缩工具回到子功能菜单
+    if (name === 'print') {                                   // 每次进入打印工具回到子功能菜单
+      window.App.printBatch.enter();
+      window.App.printBatch.refreshPrinters();
+    }
+  }
+
+  /* 照片工具子功能：menu=子功能菜单 idphoto=证照生成 convert=图片转换 compose=图片合成
+     steps-nav（上传/抠图/规格/导出）仅在证照生成流程中显示（见 style.css） */
+  function showPhotoSub(name) {
+    document.body.dataset.photoSub = name;
+    $('photo-menu').hidden = name !== 'menu';
+    $('photo-flow').hidden = name !== 'idphoto';
+    $('photo-convert').hidden = name !== 'convert';
+    $('photo-compose').hidden = name !== 'compose';
   }
 
   function initModules() {
@@ -603,8 +623,17 @@ window.App = (function () {
     $('home-photo').addEventListener('click', function () { showModule('photo'); });
     $('home-sheet').addEventListener('click', function () { showModule('sheet'); });
     $('home-batch').addEventListener('click', function () { showModule('batch'); });
-    // 待开发入口：打印工具
-    $('home-print').addEventListener('click', function () { toast('打印工具待开发中，敬请期待'); });
+    $('home-archive').addEventListener('click', function () { showModule('archive'); });
+    $('home-print').addEventListener('click', function () { showModule('print'); });
+    // 照片工具子功能入口
+    $('photo-open-idphoto').addEventListener('click', function () { showPhotoSub('idphoto'); });
+    $('photo-open-convert').addEventListener('click', function () { window.App.convert.enter(); showPhotoSub('convert'); });
+    $('photo-open-compose').addEventListener('click', function () { window.App.compose.enter(); showPhotoSub('compose'); });
+    // 批量工具子功能入口（面板切换由各模块 enter 负责）
+    $('batch-open-watermark').addEventListener('click', function () { window.App.batchWatermark.enter(); });
+    $('batch-open-format').addEventListener('click', function () { window.App.batchFormat.enter(); });
+    // 打印工具子功能入口
+    $('print-open-batch').addEventListener('click', function () { window.App.printBatch.showOnly('print-batch'); });
   }
 
   /* ================= 启动 ================= */
@@ -636,7 +665,13 @@ window.App = (function () {
     initExport();
     window.App.sheet.init();
     window.App.batch.init();
+    window.App.batchFormat.init();
+    window.App.batchWatermark.init();
+    window.App.archive.init();
+    window.App.convert.init();
+    window.App.compose.init();
     window.App.print.init();
+    window.App.printBatch.init();
     window.App.settings.applyToUI();
     showModule('home'); // 启动进入首页
   }
@@ -649,6 +684,7 @@ window.App = (function () {
     },
     photo: {
       showStep: showStep,
+      showPhotoSub: showPhotoSub,
       syncBgSwatches: syncBgSwatches,
       makeSingleCanvas: makeSingleCanvas
     }

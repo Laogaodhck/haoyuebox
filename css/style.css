@@ -114,6 +114,9 @@ button { font-family: inherit; cursor: pointer; }
 .steps { display: flex; gap: 6px; flex-wrap: wrap; }
 body[data-module="sheet"] #steps-nav { display: none; }
 body[data-module="home"] #steps-nav { display: none; }
+/* 照片工具：步骤条仅在「证照生成」子功能中显示 */
+body[data-module="photo"] #steps-nav { display: none; }
+body[data-module="photo"][data-photo-sub="idphoto"] #steps-nav { display: flex; }
 #sheet-steps-nav { display: none; }
 body[data-module="sheet"] #sheet-steps-nav { display: flex; }
 
@@ -624,7 +627,122 @@ button:disabled, .btn-col button:disabled, .btn-row button:disabled {
 body[data-module="batch"] #steps-nav,
 body[data-module="batch"] #sheet-steps-nav { display: none; }
 #view-batch { display: none; }
-.batch-menu {
+/* ---------- 压缩工具 ---------- */
+body[data-module="archive"] #steps-nav,
+body[data-module="archive"] #sheet-steps-nav { display: none; }
+#view-archive { display: none; }
+#ac-encnames { accent-color: var(--accent); vertical-align: -2px; margin-left: 4px; }
+/* 压缩列表勾选列 */
+#ac-table .col-check { width: 36px; text-align: center; }
+#ac-table td.col-check { padding: 4px 0; }
+#ac-table input[type="checkbox"] { accent-color: var(--accent); vertical-align: middle; cursor: pointer; }
+#ac-table tr.row-unchecked td { opacity: .45; }
+/* ---------- 打印工具 ---------- */
+body[data-module="print"] #steps-nav,
+body[data-module="print"] #sheet-steps-nav { display: none; }
+#view-print { display: none; }
+/* 批量打印：面板外壳（内部再分 图片/文档 两个 subpage-inner） */
+#print-batch.subpage { display: block; }
+.subpage-inner { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+.pb-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.pb-tab {
+  padding: 7px 18px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pb-tab:hover { color: var(--text); border-color: var(--accent); }
+.pb-tab.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+/* 图片缩略图网格 */
+.pb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+.pb-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pb-card-err { opacity: .6; }
+.pb-thumb {
+  position: relative;
+  height: 110px;
+  border-radius: 4px;
+  background: var(--bg-canvas, #1a1d24);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.pb-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  transition: transform .15s ease;
+}
+.pb-deg {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  font-size: 11px;
+  color: #fff;
+  background: rgba(0,0,0,.55);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.pb-thumb-tip { font-size: 12px; color: var(--text-dim); }
+.pb-name {
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pb-meta { font-size: 11.5px; color: var(--text-dim); }
+.pb-ops { display: flex; gap: 6px; }
+.pb-op { flex: 1; font-size: 12px; padding: 4px 6px; }
+.pb-op-del:hover { color: var(--danger); border-color: var(--danger); }
+/* 文档队列操作列 */
+.pd-ops { white-space: nowrap; }
+.pd-op { font-size: 12px; padding: 3px 8px; margin-right: 4px; }
+.pd-op-del:hover { color: var(--danger); border-color: var(--danger); }
+/* 勾选：标题行全选框 + 未勾选卡片/行弱化 */
+.pt-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  margin-right: 10px;
+}
+.preview-title { display: flex; align-items: center; }
+.pb-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.pb-card-off { opacity: .45; }
+.pb-card-off .pb-thumb img { filter: grayscale(.4); }
+#pd-table tr.row-unchecked td { opacity: .45; }
+.batch-menu, .photo-menu, .archive-menu {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
@@ -724,11 +842,132 @@ body[data-module="batch"] #sheet-steps-nav { display: none; }
 }
 #batch-empty { margin: auto; }
 
+/* ---------- 照片工具子页（图片转换 / 图片合成） ---------- */
+#photo-menu[hidden], .subpage[hidden], #photo-flow[hidden] { display: none !important; }
+/* 空态占位提示：虚线框 + 图标 + 引导文案，点击可直接选图 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: auto;
+  padding: 46px 32px;
+  min-width: 260px;
+  max-width: 480px;
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s, background .15s;
+}
+.empty-state:hover, .empty-state:focus-visible {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+  outline: none;
+}
+.empty-state.drag {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.empty-state .icon { width: 40px; height: 40px; opacity: 0.55; }
+.empty-state .es-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.empty-state .es-hint { font-size: 12.5px; line-height: 1.7; }
+.subpage {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+/* 内联颜色选择（透明填充 / 合成底色）：label 为两端对齐 flex，色块靠右 */
+.inline-color input[type="color"] {
+  width: 44px;
+  height: 28px;
+  padding: 1px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  cursor: pointer;
+}
+/* 图片合成：预览画布等比缩放（replaced element 双向 max 约束保持宽高比） */
+#cmp-preview {
+  max-width: 100%;
+  max-height: 58vh;
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+  background: var(--bg-canvas);
+}
+.cmp-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.cmp-thumb {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+.cmp-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cmp-thumb .ops {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+}
+.cmp-thumb .ops button {
+  flex: 1;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: rgba(15, 18, 26, 0.72);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cmp-thumb .ops button:hover { background: var(--accent); }
+
+/* ---------- 批量工具子页（格式转换 / 去除水印） ---------- */
+/* 水印预览画布：等比缩放，十字光标提示可框选 */
+#wm-canvas {
+  max-width: 100%;
+  max-height: 62vh;
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+  background: var(--bg-canvas);
+  cursor: crosshair;
+}
+/* 已框选水印区域的标签 */
+.wm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.wm-chips:empty { display: none; }
+.wm-chip {
+  font-size: 12px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 1px 9px;
+  background: var(--accent-soft);
+}
+
 /* ---------- 响应式 ---------- */
 /* 中屏（≤860px）：左右分栏改上下堆叠，画布优先展示（内容优先级：先看到操作对象） */
 @media (max-width: 860px) {
   #step-matte.active, #step-spec.active, #step-export.active,
-  #sheetstep-tpl.active, #sheetstep-import.active, #sheetstep-preview.active, #sheetstep-print.active {
+  #sheetstep-tpl.active, #sheetstep-import.active, #sheetstep-preview.active, #sheetstep-print.active,
+  .subpage {
     grid-template-columns: 1fr;
   }
   .panel { order: 2; }

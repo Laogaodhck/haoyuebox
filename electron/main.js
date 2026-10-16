@@ -6,8 +6,10 @@
 
 const { app, BrowserWindow, Menu, shell, session, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { createStaticServer } = require('./static-server');
 const { buildPrintDoc } = require('./print-doc');
+const { registerArchiveIpc } = require('./archive');
 
 const APP_TITLE = '浩玥工具箱';
 let mainWindow = null;
@@ -51,7 +53,7 @@ function registerPrintIpc() {
      全部页合并为一次打印任务——一个隐藏窗口装载整份多页文档、一次 print()
      发送；逐页各发任务会让打印机驱动每个任务弹一次确认框。 */
   ipcMain.handle('print:printImage', async (e, payload) => {
-    const { dataUrl, dataUrls, printerName, copies, pageSize, landscape, marginType } = payload || {};
+    const { dataUrl, dataUrls, printerName, copies, pageSize, landscape, marginType, duplex } = payload || {};
     const doc = buildPrintDoc(Array.isArray(dataUrls) && dataUrls.length ? dataUrls : [dataUrl], pageSize, !!landscape);
     if (!doc.pageCount) return { ok: false, error: '无效的图片数据' };
     // 隐藏窗口装载图片，按所选纸张/方向/边距静默发送到指定打印机
@@ -74,6 +76,8 @@ function registerPrintIpc() {
       };
       if (pageSize) opts.pageSize = pageSize;          // 'A4'/'A5'/'Letter' 或 {width,height} 微米
       if (landscape) opts.landscape = true;
+      // 双面：simplex 单面 / longEdge 长边翻页 / shortEdge 短边翻页
+      if (duplex === 'longEdge' || duplex === 'shortEdge') opts.duplexMode = duplex;
       return await new Promise((resolve) => {
         printWin.webContents.print(opts, (ok, failureReason) => {
           printWin.destroy();
@@ -89,6 +93,26 @@ function registerPrintIpc() {
   });
 }
 registerPrintIpc();
+registerArchiveIpc(ipcMain, () => mainWindow);
+
+/* 打印文档/图片读取：渲染层沙箱无 fs，经此读取所选文件字节。
+   文档（pdf.js / mammoth 渲染）与图片（缩略图 / 打印绘制）共用，
+   限定可打印扩展名与 200MB 上限，返回 ArrayBuffer（IPC 结构化克隆传输） */
+const FILE_READ_EXTS = ['pdf', 'txt', 'docx', 'doc', 'jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'];
+ipcMain.handle('print:readFile', (e, filePath) => {
+  if (!filePath || typeof filePath !== 'string') return { ok: false, error: '未指定文件' };
+  const ext = path.extname(filePath).replace(/^\./, '').toLowerCase();
+  if (FILE_READ_EXTS.indexOf(ext) < 0) return { ok: false, error: '不支持的文件类型：' + ext };
+  try {
+    const st = fs.statSync(filePath);
+    if (!st.isFile()) return { ok: false, error: '不是常规文件' };
+    if (st.size > 200 * 1024 * 1024) return { ok: false, error: '文档超过 200MB，无法读取' };
+    const buf = fs.readFileSync(filePath);
+    return { ok: true, data: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength), size: st.size };
+  } catch (err) {
+    return { ok: false, error: '读取失败：' + (err.message || err) };
+  }
+});
 
 // 照片工具以 Canvas 2D 为主，禁用硬件加速换取稳定性（弱 GPU 机器防崩）
 app.disableHardwareAcceleration();

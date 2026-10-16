@@ -157,14 +157,22 @@
 
   function toast(msg, isErr) { window.App.ui.toast(msg, isErr); }
 
+  var BATCH_PANELS = ['batch-rename', 'batch-format', 'batch-watermark'];
+
   function showMenu() {
     $('batch-menu').hidden = false;
-    $('batch-rename').hidden = true;
+    BATCH_PANELS.forEach(function (p) { $(p).hidden = true; });
   }
 
   function showRename() {
     $('batch-menu').hidden = true;
-    $('batch-rename').hidden = false;
+    BATCH_PANELS.forEach(function (p) { $(p).hidden = (p !== 'batch-rename'); });
+  }
+
+  // 子面板通用切换：显示指定面板（null=返回菜单），其余全部收纳
+  function showOnly(panelId) {
+    $('batch-menu').hidden = !!panelId;
+    BATCH_PANELS.forEach(function (p) { $(p).hidden = (p !== panelId); });
   }
 
   function supported() {
@@ -449,6 +457,7 @@
   window.App.batch = {
     init: init,
     enter: showMenu,
+    showOnly: showOnly,
     // 以下导出仅供测试
     _test: {
       validateBase: validateBase,

@@ -253,6 +253,8 @@
     refreshSheetList: refreshSheetList,
     openPrinterProps: openPrinterProps,
     printSheets: printSheets,
+    PAPERS: PRINT_PAPERS,      /* 批量打印复用同一张纸张表 */
+    fillPrinterSelect: fillPrinterSelect,
     /* 照片导出步骤进入时刷新列表；浏览器模式下未注册则静默跳过 */
     refreshExportList: function () { if (refreshExportPrinters) refreshExportPrinters(); },
     isSupported: function () { return !!printApi; }
