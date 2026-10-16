@@ -105,13 +105,14 @@ window.Matting = (function () {
   function extractPersonConf(result, expectW, expectH) {
     var masks = result.confidenceMasks;
     var m;
-    var hair = null, clothes = null, face = null;
+    var hair = null, clothes = null, face = null, body = null;
     if (masks.length >= 3) {
       var bg = new Float32Array(masks[0].getAsFloat32Array());
       var conf = new Float32Array(bg.length);
       for (var i = 0; i < bg.length; i++) conf[i] = 1 - bg[i];
       if (masks.length >= 6) { // 6 通道多分类：0背景 1头发 2身体皮肤 3脸部皮肤 4衣服 5其他
         hair = new Float32Array(masks[1].getAsFloat32Array());
+        body = new Float32Array(masks[2].getAsFloat32Array());
         face = new Float32Array(masks[3].getAsFloat32Array());
         clothes = new Float32Array(masks[4].getAsFloat32Array());
       }
@@ -124,11 +125,43 @@ window.Matting = (function () {
       m.conf = resampleF32(m.conf, m.w, m.h, expectW, expectH);
       if (hair) hair = resampleF32(hair, m.w, m.h, expectW, expectH);
       if (face) face = resampleF32(face, m.w, m.h, expectW, expectH);
+      if (body) body = resampleF32(body, m.w, m.h, expectW, expectH);
       if (clothes) clothes = resampleF32(clothes, m.w, m.h, expectW, expectH);
       m.w = expectW; m.h = expectH;
     }
-    m.hair = hair; m.clothes = clothes; m.face = face;
+    // 皮肤置信度 = max(身体皮肤, 脸部皮肤)：两通道 softmax 天然互补，
+    // 取 max 而非相加，避免交界处双高置信导致美白过强
+    var skin = null;
+    if (body && face) {
+      skin = new Float32Array(body.length);
+      for (var si = 0; si < skin.length; si++) skin[si] = Math.max(body[si], face[si]);
+    }
+    m.hair = hair; m.clothes = clothes; m.face = face; m.skin = skin;
     return m;
+  }
+
+  /* 皮肤美白：data(RGBA) 就地修改。strength 0..1，skin 为逐像素皮肤置信度（0..1）。
+   * 算法 = 白色 Screen 混合 × 置信度门控：
+   *   screen(c) = 255-(255-c)²/255 —— 高光提亮多、暗部少，
+   *   且 R/G/B 中原本越低的通道增益越大 → 肤色饱和度相对收敛，偏白不偏橙。
+   * 强度再乘以像素皮肤置信度，蒙版边缘自然羽化，不产生硬边。 */
+  function whitenData(data, skin, strength) {
+    if (!(strength > 0) || !skin || skin.length * 4 !== data.length) return 0;
+    var n = 0;
+    for (var i = 0, j = 0; i < skin.length; i++, j += 4) {
+      var a = skin[i];
+      if (a < 0.08) continue;          // 非皮肤像素零开销跳过
+      var t = strength * a;
+      var r = data[j], g = data[j + 1], b = data[j + 2];
+      var sr = 255 - (255 - r) * (255 - r) / 255;
+      var sg = 255 - (255 - g) * (255 - g) / 255;
+      var sb = 255 - (255 - b) * (255 - b) / 255;
+      data[j] = r + (sr - r) * t;
+      data[j + 1] = g + (sg - g) * t;
+      data[j + 2] = b + (sb - b) * t;
+      n++;
+    }
+    return n;
   }
 
   /* 对任一画布做一次人像分割，返回其原始分辨率的置信度 */
@@ -775,12 +808,12 @@ window.Matting = (function () {
       wctx.putImageData(wimg, 0, 0);                       // 发丝混色净化写回工作图
     }
 
-    return { workCanvas: work, maskCanvas: alphaToCanvas(alpha, W, H) };
+    return { workCanvas: work, maskCanvas: alphaToCanvas(alpha, W, H), skin: coarse.skin || null };
   }
 
   return {
     init: init, segment: segment, isReady: isReady,
     /* 内部纯算法函数，供 Node 冒烟测试（不依赖 DOM） */
-    _test: { axisWeight: axisWeight, tileStarts: tileStarts, resampleF32: resampleF32, extractPersonConf: extractPersonConf, refineAlpha: refineAlpha, clearHairGaps: clearHairGaps, medianFilter3: medianFilter3, cleanComponents: cleanComponents, fillHoles: fillHoles, solidifyBorders: solidifyBorders, boxBlur: boxBlur, guidedFilter: guidedFilter, hysteresisBin: hysteresisBin, classBoost: classBoost, classGain: classGain }
+    _test: { axisWeight: axisWeight, tileStarts: tileStarts, resampleF32: resampleF32, extractPersonConf: extractPersonConf, refineAlpha: refineAlpha, clearHairGaps: clearHairGaps, medianFilter3: medianFilter3, cleanComponents: cleanComponents, fillHoles: fillHoles, solidifyBorders: solidifyBorders, boxBlur: boxBlur, guidedFilter: guidedFilter, hysteresisBin: hysteresisBin, classBoost: classBoost, classGain: classGain, whitenData: whitenData }
   };
 })();

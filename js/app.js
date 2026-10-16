@@ -11,6 +11,9 @@ window.App = (function () {
     originalImg: null,
     sourceName: '',         // 原始文件名（去扩展名），用于导出命名
     workCanvas: null,
+    baseCanvas: null,       // 分割原始基准图（美白重算的来源，只读）
+    skin: null,             // 皮肤置信度 Float32Array（工作图尺寸；多分类模型才有）
+    whiten: 0,              // 皮肤美白强度 0..100
     maskCanvas: null,
     initialMask: null,      // 自动抠图初始蒙版（Brush.snapMask 快照）
     bg: '#FFFFFF',
@@ -135,11 +138,20 @@ window.App = (function () {
       return window.Matting.segment(img, showLoading); // 分割进度实时显示在遮罩上
     }).then(function (r) {
       State.workCanvas = r.workCanvas;
+      /* 美白基准：独立克隆副本（与 workCanvas 同对象会让 clearRect+自绘
+       * 清空整幅位图——canvas 自绘读取的是调用时刻的快照） */
+      State.baseCanvas = document.createElement('canvas');
+      State.baseCanvas.width = r.workCanvas.width;
+      State.baseCanvas.height = r.workCanvas.height;
+      State.baseCanvas.getContext('2d').drawImage(r.workCanvas, 0, 0);
+      State.skin = r.skin || null;
       State.maskCanvas = r.maskCanvas;
       State.undoStack = [];
       State.initialMask = window.Brush.snapMask(State);
       State.bg = '#FFFFFF';
       State.matteView = { zoom: 1, panX: 0, panY: 0 }; // 新照片重置视图
+      initWhitenUI();
+      applyWhiten();                     // 按已保存的美白偏好重算（0 值时零开销直通）
       if (matteViewApi) matteViewApi.fit();
       syncBgSwatches();
       renderMatteView();
@@ -193,6 +205,43 @@ window.App = (function () {
   }
 
   /* ================= 步骤 2：抠图换底 ================= */
+
+  /* ---------- 皮肤美白：基准图 + 皮肤置信度 → 重算工作图 ---------- */
+  var whitenPending = false;
+  function applyWhiten() {
+    if (!State.baseCanvas || !State.workCanvas) return;
+    var dst = State.workCanvas;
+    var ctx = dst.getContext('2d');
+    /* 基准图为整幅不透明照片，直接覆盖绘制（无需 clear） */
+    ctx.drawImage(State.baseCanvas, 0, 0);
+    var strength = State.whiten / 100 * 0.5;   // 滑块 100 → Screen 混合上限 0.5
+    if (strength > 0 && State.skin) {
+      var img = ctx.getImageData(0, 0, dst.width, dst.height);
+      window.Matting.whitenData(img.data, State.skin, strength);
+      ctx.putImageData(img, 0, 0);
+    }
+    State._workRev = (State._workRev || 0) + 1;  // 失效合成引擎的工作图层缓存
+    renderMatteView();
+  }
+  function scheduleWhiten() {
+    /* 滑块拖动高频触发：rAF 合帧，一帧只重算一次 */
+    if (whitenPending) return;
+    whitenPending = true;
+    requestAnimationFrame(function () {
+      whitenPending = false;
+      applyWhiten();
+    });
+  }
+  function initWhitenUI() {
+    /* 新照片就绪后同步滑块；回退到二/三分类模型时无皮肤数据则禁用 */
+    var range = $('whiten-range');
+    var supported = !!State.skin;
+    range.disabled = !supported;
+    $('whiten-field').title = supported ? '' : '当前分割模型不支持皮肤识别，美白不可用';
+    range.value = State.whiten;
+    $('whiten-val').textContent = State.whiten;
+  }
+
   function matteViewSize() {
     var work = State.workCanvas;
     var maxV = 900;
@@ -327,6 +376,16 @@ window.App = (function () {
     $('brush-size').addEventListener('input', function () {
       State.brushSize = +this.value;
       $('brush-size-val').textContent = this.value + 'px';
+    });
+
+    // 皮肤美白：input 实时预览（rAF 合帧重算），change 记住偏好
+    $('whiten-range').addEventListener('input', function () {
+      State.whiten = Math.min(100, Math.max(0, Math.round(+this.value || 0)));
+      $('whiten-val').textContent = State.whiten;
+      scheduleWhiten();
+    });
+    $('whiten-range').addEventListener('change', function () {
+      window.App.settings.save();
     });
 
     $('btn-undo').addEventListener('click', undoMask);

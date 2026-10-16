@@ -30,7 +30,8 @@ window.Composer = (function () {
      key 含变换与尺寸：换图 / 缩放 / 平移 / 目标尺寸变化自动重建。 */
   var _layerC = null, _layerWork = null, _layerKey = '';
   function workLayer(st, outW, outH, tf) {
-    var key = outW + 'x' + outH + '|' + tf.scale + '|' + tf.tx + '|' + tf.ty;
+    /* key 含 _workRev：皮肤美白等就地重写工作图后缓存自动重建 */
+    var key = outW + 'x' + outH + '|' + tf.scale + '|' + tf.tx + '|' + tf.ty + '|w' + (st._workRev || 0);
     if (_layerC && _layerWork === st.workCanvas && _layerKey === key) return _layerC;
     var c = ensureSize(_layerC, outW, outH);
     _layerC = c; _layerWork = st.workCanvas; _layerKey = key;

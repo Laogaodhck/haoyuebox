@@ -68,6 +68,8 @@ withServer(PORT, async () => {
     'App.settings.save / App.photo.makeSingleCanvas 可用');
   assert(!!doc.getElementById('dropzone'), '上传区存在');
   assert(!!doc.getElementById('matte-view'), '抠图画布存在');
+  assert(!!doc.getElementById('whiten-range') && !!doc.getElementById('whiten-val') && !!doc.getElementById('whiten-field'),
+    '皮肤美白滑块与数值标签存在');
   assert(!!doc.getElementById('mv-zoom-in') && !!doc.getElementById('mv-zoom-out') && !!doc.getElementById('mv-zoom-fit'), '缩放工具栏存在');
   assert(!!doc.getElementById('mv-zoom-label'), '缩放百分比标签存在');
   assert(!!doc.getElementById('crop-view'), '裁剪画布存在');

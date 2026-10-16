@@ -15,7 +15,8 @@
   function save() {
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify({
-        spec: State.spec.id, bg: State.bg, fmt: State.fmt, quality: State.quality
+        spec: State.spec.id, bg: State.bg, fmt: State.fmt, quality: State.quality,
+        whiten: State.whiten
       }));
     } catch (e) { /* 存储不可用时静默忽略 */ }
   }
@@ -31,6 +32,7 @@
       if (s.bg) State.bg = s.bg;
       if (s.fmt === 'png' || s.fmt === 'jpeg') State.fmt = s.fmt;
       if (typeof s.quality === 'number') State.quality = Math.min(1, Math.max(0.5, s.quality));
+      if (typeof s.whiten === 'number') State.whiten = Math.min(100, Math.max(0, Math.round(s.whiten)));
       if (fromLegacy) save(); // 旧品牌设置迁移到新存储键
     } catch (e) { /* 设置损坏或不可读时按默认值继续 */ }
   }

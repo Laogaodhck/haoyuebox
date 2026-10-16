@@ -210,5 +210,35 @@ assert(gapB.alpha[notchIdx] === 255, '衣服通道占优的同色区域不被当
 assert(T.clearHairGaps(gapB.alpha, gapB.bin, gapB.conf, gapB.rgba, { hair: null }, 60, 40) === 0,
   '回退模型无头发通道时不做间隙清除');
 
+/* ---------- 8. 皮肤通道提取与美白 ---------- */
+// 六分类模型：ch2 身体皮肤 0.6 / ch3 脸部皮肤 0.9 → skin = max = 0.9
+var masks2 = [0.05, 0.1, 0.6, 0.9, 0.1, 0.05].map(v => ({
+  width: 1, height: 1, getAsFloat32Array: () => new Float32Array([v])
+}));
+var ext2 = T.extractPersonConf({ confidenceMasks: masks2 }, 2, 2);
+assert(ext2.skin && ext2.skin.length === 4 && Math.abs(ext2.skin[3] - 0.9) < EPS,
+  '皮肤置信度 = max(身体皮肤, 脸部皮肤)');
+// 交界处双通道中等置信：max 不叠加（0.5 与 0.5 → 0.5 而非 1.0）
+var masks3 = [0.05, 0.1, 0.5, 0.5, 0.1, 0.05].map(v => ({
+  width: 1, height: 1, getAsFloat32Array: () => new Float32Array([v])
+}));
+var ext3 = T.extractPersonConf({ confidenceMasks: masks3 }, 1, 1);
+assert(Math.abs(ext3.skin[0] - 0.5) < EPS, '皮肤交界处取 max 不叠加');
+
+// 美白：白色 Screen 混合 × 置信度门控
+var rgba = new Uint8ClampedArray([200, 150, 100, 255,  30, 40, 50, 255,  220, 220, 220, 255]);
+var skin = new Float32Array([1.0, 1.0, 0.0]);
+var nHit = T.whitenData(rgba, skin, 0.5);
+assert(nHit === 2, '低置信像素跳过不计入');
+// screen(200)=255-55²/255≈243.14；t=0.5 → 200+43.14*0.5≈221.6 → 钳位取整 222
+assert(rgba[0] === 222, 'Screen 混合提亮红色通道');
+// 低通道增益更大：screen(100)=160.8 → 100+60.8*0.5≈130（涨幅 30）
+// screen(150)=211.8 → 181（涨幅 31）；B 涨幅 30 与 R 相当，白化方向收敛
+assert(rgba[2] === 130, '低亮度通道按 Screen 曲线提亮');
+assert(rgba[8] === 220 && rgba[9] === 220, '置信度 0 像素保持原值');
+assert(T.whitenData(rgba, skin, 0) === 0, '强度 0 直通');
+assert(T.whitenData(new Uint8ClampedArray(4), new Float32Array(2), 0.5) === 0,
+  '长度不匹配拒绝执行');
+
 console.log('\n结果: ' + pass + ' 通过, ' + fail + ' 失败');
 process.exit(fail ? 1 : 0);
