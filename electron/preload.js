@@ -6,7 +6,7 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('haoyuePrint', {
+contextBridge.exposeInMainWorld('zunhongPrint', {
   isDesktop: true,
   listPrinters: () => ipcRenderer.invoke('print:listPrinters'),
   showPrinterProperties: (printerName) => ipcRenderer.invoke('print:showProperties', printerName),
@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('haoyuePrint', {
 });
 
 /* 压缩工具桥接：选文件 / 保存路径 / 压缩 / 解压 / 进度回调 */
-contextBridge.exposeInMainWorld('haoyueArchive', {
+contextBridge.exposeInMainWorld('zunhongArchive', {
   isDesktop: true,
   check7z: () => ipcRenderer.invoke('archive:check7z'),
   pickPaths: (kind) => ipcRenderer.invoke('archive:pickPaths', kind),
@@ -29,4 +29,4 @@ contextBridge.exposeInMainWorld('haoyueArchive', {
   }
 });
 
-console.log('[haoyue] 打印桥接已就绪');
+console.log('[zunhong] 打印桥接已就绪');

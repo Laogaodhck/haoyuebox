@@ -1,4 +1,4 @@
-# 浩玥工具箱
+# 尊泓工具箱
 
 > 老高 · QQ 846193
 
@@ -17,8 +17,8 @@ npm run dist       # 打包 Windows 安装包 + 便携版
 
 产物输出在 `release-build/`：
 
-- `浩玥工具箱 Setup 1.0.0.exe`（NSIS 安装版，可选安装目录、创建桌面快捷方式）
-- `浩玥工具箱_便携版.exe`（免安装单文件）
+- `尊泓工具箱 Setup 1.0.0.exe`（NSIS 安装版，可选安装目录、创建桌面快捷方式）
+- `尊泓工具箱_便携版.exe`（免安装单文件）
 
 开发调试：`npm start` 直接启动 Electron 窗口（内置随机端口静态服务 + 打印 IPC）。
 
@@ -112,13 +112,13 @@ photo/
 ├── index.html              # 入口页面（六模块 DOM + 子功能菜单 + 脚本引入顺序）
 ├── electron/               # Electron 主进程（桌面版）
 │   ├── main.js             # 窗口、内置静态服务、CSP、打印/压缩 IPC、文件字节读取
-│   ├── preload.js          # contextBridge 暴露 haoyuePrint / haoyueArchive（白名单 IPC）
+│   ├── preload.js          # contextBridge 暴露 zunhongPrint / zunhongArchive（白名单 IPC）
 │   ├── static-server.js    # 随机端口本地静态服务（路径穿越防护 + 正确 MIME）
 │   ├── print-doc.js        # 多页打印文档构建（合并单任务发送）
 │   ├── archive.js          # 压缩/解压 IPC（spawn 内置 7z.exe，进度回传）
 │   ├── 7z-args.js          # 7z 命令行参数构建与输出解析（纯逻辑，可单测）
 │   └── bin/                # 内置 7z.exe + 7z.dll（LGPL，打包注入 resources/bin）
-├── assets/                 # 品牌图标（源自浩玥 logo）
+├── assets/                 # 品牌图标（源自尊泓 logo）
 ├── css/style.css           # 暗色主题响应式样式
 ├── js/
 │   ├── specs.js            # 证件规格模板库（8 种 + 头部参考线比例）
@@ -205,7 +205,7 @@ photo/
 - 打印：`print:listPrinters` 枚举、`print:printImage` 经隐藏沙箱窗口发送任务（可指定纸张尺寸、
   方向、边距、份数、单双面；B5/4×6 走微米自定义尺寸）、`print:showProperties` 调系统打印机属性对话框。
 - 压缩：`electron/bin/7z.exe` 随包分发（extraResources → `resources/bin`，未打包时回退系统 7-Zip），
-  渲染层经 `haoyueArchive` 白名单桥接发起压缩/解压，进度经 `archive:progress` 回传。
+  渲染层经 `zunhongArchive` 白名单桥接发起压缩/解压，进度经 `archive:progress` 回传。
 
 ### 压缩工具（7z）
 
@@ -239,12 +239,12 @@ npm run icons     # 重新生成图标（加 -- --out <dir> 可避免覆盖成�
 
 `npm run verify` 需要两项本地资源，均不入库：
 
-- 测试照片：`fixtures/photo.jpg`（或环境变量 `HAOYUE_PHOTO=<路径>`）——仅分割相关验证项
+- 测试照片：`fixtures/photo.jpg`（或环境变量 `ZUNHONG_PHOTO=<路径>`）——仅分割相关验证项
   （verify-hair / verify-matteview）需要；仓库不收录真人照片，请自行放置一张正面单人照。
   压缩 / 批量工具 / 批量打印验证（verify-archive / verify-batch / verify-print-batch）
   使用桥接 stub 与 OPFS 沙箱文件系统，无需样片。
 - Chromium：项目内 playwright 若未下载浏览器，先执行 `npx playwright install chromium`；
-  也可用 `HAOYUE_CHROMIUM=<chrome.exe 路径>` 指向本机已有的浏览器。
+  也可用 `ZUNHONG_CHROMIUM=<chrome.exe 路径>` 指向本机已有的浏览器。
 
 ### 持续集成与发布（GitHub Actions）
 

@@ -1,6 +1,6 @@
 /* ============================================================
  * verify-print-batch.cjs — 批量打印真机验证（Playwright + 真实 pdf.js）
- * stub window.haoyuePrint（页面脚本执行前注入），文件字节经 base64 预埋：
+ * stub window.zunhongPrint（页面脚本执行前注入），文件字节经 base64 预埋：
  * PDF / TXT / PNG 用真实字节走完整渲染与打印链路。
  * ============================================================ */
 'use strict';
@@ -38,9 +38,9 @@ function buildPdf(text) {
 }
 
 (async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'haoyue-print-'));
-  fs.writeFileSync(path.join(tmp, '文档A.pdf'), buildPdf('Hello Haoyue PDF'));
-  fs.writeFileSync(path.join(tmp, '文档B.txt'), '第一行浩玥\n第二行测试\n第三行结束\n', 'utf8');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zunhong-print-'));
+  fs.writeFileSync(path.join(tmp, '文档A.pdf'), buildPdf('Hello Zunhong PDF'));
+  fs.writeFileSync(path.join(tmp, '文档B.txt'), '第一行尊泓\n第二行测试\n第三行结束\n', 'utf8');
   const pngB64 = fs.readFileSync(path.join(ROOT, 'assets', 'icon.png')).toString('base64');
   const pdfB64 = fs.readFileSync(path.join(tmp, '文档A.pdf')).toString('base64');
   const txtB64 = fs.readFileSync(path.join(tmp, '文档B.txt')).toString('base64');
@@ -56,7 +56,7 @@ function buildPdf(text) {
           for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
           return u8.buffer;
         };
-        window.haoyuePrint = {
+        window.zunhongPrint = {
           isDesktop: true,
           calls: [],
           _pick: null,
@@ -94,7 +94,7 @@ function buildPdf(text) {
 
       /* ---------- 2. 图片面板：选择 / 旋转 / 统一打印 ---------- */
       await page.evaluate(() => {
-        window.haoyuePrint._pick = [
+        window.zunhongPrint._pick = [
           { path: 'C:\\t\\a.png', name: 'a.png', isDir: false, size: 1024 },
           { path: 'C:\\t\\b.png', name: 'b.png', isDir: false, size: 1024 }
         ];
@@ -114,10 +114,10 @@ function buildPdf(text) {
 
       await page.click('#pb-run');
       await page.waitForFunction(() => {
-        const c = window.haoyuePrint.calls.filter((c) => c[0] === 'printImage');
+        const c = window.zunhongPrint.calls.filter((c) => c[0] === 'printImage');
         return c.length >= 1;
       });
-      const imgPayload = await page.evaluate(() => window.haoyuePrint.calls.filter((c) => c[0] === 'printImage')[0][1]);
+      const imgPayload = await page.evaluate(() => window.zunhongPrint.calls.filter((c) => c[0] === 'printImage')[0][1]);
       assert(imgPayload.dataUrls.length === 2, '统一打印两页（两图）');
       assert(/^data:image\/jpeg/.test(imgPayload.dataUrls[0]), '页面以 JPEG dataUrl 发送');
       assert(imgPayload.pageSize === 'A4', 'A4 纸张');
@@ -128,9 +128,9 @@ function buildPdf(text) {
       await page.selectOption('#pb-duplex', 'longEdge');
       await page.selectOption('#pb-orient', '1');
       await page.click('#pb-run');
-      await page.waitForFunction(() => window.haoyuePrint.calls.filter((c) => c[0] === 'printImage').length >= 2);
+      await page.waitForFunction(() => window.zunhongPrint.calls.filter((c) => c[0] === 'printImage').length >= 2);
       const p2 = await page.evaluate(() => {
-        const c = window.haoyuePrint.calls.filter((c) => c[0] === 'printImage');
+        const c = window.zunhongPrint.calls.filter((c) => c[0] === 'printImage');
         return c[c.length - 1][1];
       });
       assert(p2.duplex === 'longEdge', '双面长边透传');
@@ -145,9 +145,9 @@ function buildPdf(text) {
       assert(await page.$eval('#pb-check-all', (el) => el.indeterminate), '部分勾选时全选框半选');
       assert(await page.$eval('#pb-count', (el) => /已勾选 1 张/.test(el.textContent)), '计数含已勾选数');
       await page.click('#pb-run');
-      await page.waitForFunction(() => window.haoyuePrint.calls.filter((c) => c[0] === 'printImage').length >= 3);
+      await page.waitForFunction(() => window.zunhongPrint.calls.filter((c) => c[0] === 'printImage').length >= 3);
       const p3 = await page.evaluate(() => {
-        const c = window.haoyuePrint.calls.filter((c) => c[0] === 'printImage');
+        const c = window.zunhongPrint.calls.filter((c) => c[0] === 'printImage');
         return c[c.length - 1][1];
       });
       assert(p3.dataUrls.length === 1, '取消勾选后仅打印勾选的图片');
@@ -158,7 +158,7 @@ function buildPdf(text) {
       await page.click('#pb-tab-doc');
       assert(await page.$eval('#pd-doc', (el) => !el.hidden), '切换到文档面板');
       await page.evaluate(() => {
-        window.haoyuePrint._pick = [
+        window.zunhongPrint._pick = [
           { path: 'C:\\t\\文档A.pdf', name: '文档A.pdf', isDir: false, size: 800 },
           { path: 'C:\\t\\文档B.txt', name: '文档B.txt', isDir: false, size: 48 }
         ];
@@ -177,11 +177,11 @@ function buildPdf(text) {
       /* 列队顺序打印：每文档一个任务，按表格顺序（文档任务特征：pageSize 为字符串且无 landscape 字段） */
       await page.click('#pd-run');
       await page.waitForFunction(() => {
-        const c = window.haoyuePrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined);
+        const c = window.zunhongPrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined);
         return c.length >= 2;
       });
       const docCalls = await page.evaluate(() =>
-        window.haoyuePrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined));
+        window.zunhongPrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined));
       assert(docCalls.length === 2, '列队模式两个打印任务');
       assert(docCalls[0][1].dataUrls.length === 1 && docCalls[1][1].dataUrls.length === 1, '每任务各自文档页');
       assert(docCalls[0][1].duplex === 'simplex', '文档任务默认单面');
@@ -190,11 +190,11 @@ function buildPdf(text) {
       await page.selectOption('#pd-mode', 'merge');
       await page.click('#pd-run');
       await page.waitForFunction(() => {
-        const c = window.haoyuePrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined);
+        const c = window.zunhongPrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined);
         return c.length >= 3;
       });
       const mergeCall = await page.evaluate(() => {
-        const c = window.haoyuePrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined);
+        const c = window.zunhongPrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined);
         return c[c.length - 1][1];
       });
       assert(mergeCall.dataUrls.length === 2, '合并模式一个任务含全部页');
@@ -207,11 +207,11 @@ function buildPdf(text) {
       assert(await page.$eval('#pd-count', (el) => /共 1 页/.test(el.textContent)), '计数仅统计勾选文档页数');
       await page.click('#pd-run');
       await page.waitForFunction(() => {
-        const c = window.haoyuePrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined);
+        const c = window.zunhongPrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined);
         return c.length >= 4;
       });
       const ckCall = await page.evaluate(() => {
-        const c = window.haoyuePrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined);
+        const c = window.zunhongPrint.calls.filter((c) => c[0] === 'printImage' && c[1].landscape === undefined);
         return c[c.length - 1][1];
       });
       assert(ckCall.dataUrls.length === 1, '取消勾选的文档不参与列队打印');
@@ -233,7 +233,7 @@ function buildPdf(text) {
 
       /* ---------- 4. 浏览器降级 ---------- */
       const page2 = await ctx.newPage();
-      await page2.addInitScript(() => { delete window.haoyuePrint; });
+      await page2.addInitScript(() => { delete window.zunhongPrint; });
       await page2.goto('http://127.0.0.1:8614/', { waitUntil: 'load' });
       await page2.click('#home-print');
       await page2.click('#print-open-batch');

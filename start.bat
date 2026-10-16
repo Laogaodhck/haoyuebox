@@ -1,6 +1,6 @@
 @echo off
-rem Haoyue ID Photo Studio - start local offline server and open the browser.
-title Haoyue ID Photo Studio (node/python server)
+rem Zunhong Toolbox - start local offline server and open the browser.
+title Zunhong Toolbox (node/python server)
 cd /d "%~dp0"
 
 where node >nul 2>nul

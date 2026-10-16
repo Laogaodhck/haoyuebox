@@ -59,7 +59,7 @@ withServer(PORT, async () => {
     assert(/\.zip$/.test(zipName) && zipName.includes('排版') && zipName.includes(pages + '页'),
       '多页文件名为 ZIP 且含页数：' + zipName);
 
-    const tmp = path.join(os.tmpdir(), 'haoyue-sheet-save.zip');
+    const tmp = path.join(os.tmpdir(), 'zunhong-sheet-save.zip');
     if (dl.length) {
       await dl[0].saveAs(tmp);
       const head = fs.readFileSync(tmp).subarray(0, 4).toString('latin1');

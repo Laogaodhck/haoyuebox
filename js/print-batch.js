@@ -5,7 +5,7 @@
  *       或合并打印（全部页合并为一个任务），支持单双面。
  * PDF 渲染用 pdf.js（vendor/print），DOCX 用 mammoth 提取文本简化排版，
  * TXT 原生排版分页；全部离线本地执行。
- * 浏览器模式下 window.haoyuePrint 不存在，面板提示并禁用。
+ * 浏览器模式下 window.zunhongPrint 不存在，面板提示并禁用。
  * ============================================================ */
 'use strict';
 
@@ -14,7 +14,7 @@ window.App.printBatch = (function () {
 
   var $ = function (id) { return document.getElementById(id); };
   var toast = window.App.ui ? window.App.ui.toast : function () {};
-  var printApi = window.haoyuePrint || null;
+  var printApi = window.zunhongPrint || null;
 
   var IMG_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'];
   var DOC_EXTS = ['pdf', 'txt', 'docx', 'doc'];

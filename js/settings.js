@@ -8,7 +8,9 @@
 
   var $ = App.ui.$;
   var State = App.State;
-  var SETTINGS_KEY = 'haoyue-idphoto-settings';
+  var SETTINGS_KEY = 'zunhong-toolbox-settings';
+  /* 旧版「浩玥工具箱」的存储键：首次加载时读取并迁移，之后不再使用 */
+  var SETTINGS_KEY_LEGACY = 'haoyue-idphoto-settings';
 
   function save() {
     try {
@@ -20,12 +22,16 @@
 
   function load() {
     try {
-      var s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+      var fromLegacy = localStorage.getItem(SETTINGS_KEY) === null;
+      var raw = localStorage.getItem(SETTINGS_KEY);
+      if (raw === null) raw = localStorage.getItem(SETTINGS_KEY_LEGACY);
+      var s = JSON.parse(raw || 'null');
       if (!s) return;
       if (s.spec) State.spec = window.SpecUtil.byId(s.spec);
       if (s.bg) State.bg = s.bg;
       if (s.fmt === 'png' || s.fmt === 'jpeg') State.fmt = s.fmt;
       if (typeof s.quality === 'number') State.quality = Math.min(1, Math.max(0.5, s.quality));
+      if (fromLegacy) save(); // 旧品牌设置迁移到新存储键
     } catch (e) { }
   }
 

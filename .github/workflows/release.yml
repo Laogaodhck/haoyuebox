@@ -82,7 +82,7 @@ jobs:
         run: |
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
             || gh release create "$GITHUB_REF_NAME" \
-                 --title "浩玥照片工具 $GITHUB_REF_NAME" \
+                 --title "尊泓工具箱 $GITHUB_REF_NAME" \
                  --generate-notes --target "$GITHUB_SHA"
           gh release upload "$GITHUB_REF_NAME" release/*.exe --clobber
 
@@ -91,6 +91,6 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: haoyue-idphoto-windows
+          name: zunhong-toolbox-windows
           path: release/*.exe
           if-no-files-found: error

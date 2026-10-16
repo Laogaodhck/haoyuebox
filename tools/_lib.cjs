@@ -3,8 +3,8 @@
  * 断言计数、本地静态服务、Chromium 启动、测试照片解析。
  *
  * 环境覆盖（全部可选，便于换机器运行）：
- *   HAOYUE_PHOTO     E2E 用单人正面照的绝对路径
- *   HAOYUE_CHROMIUM  Chrome 可执行文件路径（默认用 Playwright 自带浏览器）
+ *   ZUNHONG_PHOTO     E2E 用单人正面照的绝对路径
+ *   ZUNHONG_CHROMIUM  Chrome 可执行文件路径（默认用 Playwright 自带浏览器）
  * ============================================================ */
 'use strict';
 
@@ -33,7 +33,7 @@ function createChecker() {
 /* E2E 测试照片：真人照片不入库（隐私），按需从环境变量或 fixtures/ 提供 */
 function resolvePhoto() {
   const candidates = [
-    process.env.HAOYUE_PHOTO,
+    process.env.ZUNHONG_PHOTO,
     path.join(ROOT, 'fixtures', 'photo.jpg'),
     path.join(ROOT, 'fixtures', 'photo.jpeg'),
     path.join(ROOT, 'fixtures', 'photo.png')
@@ -43,18 +43,18 @@ function resolvePhoto() {
     if (fs.existsSync(p)) return p;
   }
   throw new Error('找不到 E2E 测试照片。请把一张单人正面照放为 fixtures/photo.jpg，'
-    + '或设置 HAOYUE_PHOTO=<照片绝对路径> 后重试。');
+    + '或设置 ZUNHONG_PHOTO=<照片绝对路径> 后重试。');
 }
 
 async function launchBrowser() {
   const chromium = require('playwright').chromium;
-  const exe = process.env.HAOYUE_CHROMIUM;
+  const exe = process.env.ZUNHONG_CHROMIUM;
   try {
     return await chromium.launch(exe ? { executablePath: exe } : {});
   } catch (e) {
     throw new Error('Chromium 启动失败：' + String(e.message || e).split('\n')[0]
       + '\n  请先执行 npx playwright install chromium，'
-      + '或设置 HAOYUE_CHROMIUM=<chrome.exe 绝对路径>');
+      + '或设置 ZUNHONG_CHROMIUM=<chrome.exe 绝对路径>');
   }
 }
 

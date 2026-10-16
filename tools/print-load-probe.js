@@ -1,7 +1,7 @@
 /* ============================================================
  * print-load-probe.js — 打印装载路径探针（Electron 运行）
  * 复现旧 data: URL 装载 >2MB 失败（ERR_INVALID_URL），
- * 对比 file:// 与自定义协议 haoyue-print:// 两条替代路径，
+ * 对比 file:// 与自定义协议 zunhong-print:// 两条替代路径，
  * 验证图片真实解码。运行：electron.exe tools/print-load-probe.js
  * ============================================================ */
 'use strict';
@@ -15,7 +15,7 @@ app.commandLine.appendSwitch('in-process-gpu');
 
 /* 自定义打印协议：内存直供 HTML（需在 app ready 前注册特权） */
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'haoyue-print', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+  { scheme: 'zunhong-print', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
 ]);
 
 const printPages = new Map();
@@ -23,7 +23,7 @@ const printPages = new Map();
 app.whenReady().then(async () => {
   const results = {};
 
-  protocol.handle('haoyue-print', (req) => {
+  protocol.handle('zunhong-print', (req) => {
     const id = new URL(req.url).hostname;
     const html = printPages.get(id);
     if (!html) return new Response('gone', { status: 404 });
@@ -60,9 +60,9 @@ app.whenReady().then(async () => {
     }
     w.destroy();
   }
-  await tryLoad('customProto_sandbox', 'haoyue-print://probe/x', true);
-  await tryLoad('customProto_nosandbox', 'haoyue-print://probe/x', false);
-  const tmp = path.join(os.tmpdir(), 'haoyue-print-probe-' + Date.now() + '.html');
+  await tryLoad('customProto_sandbox', 'zunhong-print://probe/x', true);
+  await tryLoad('customProto_nosandbox', 'zunhong-print://probe/x', false);
+  const tmp = path.join(os.tmpdir(), 'zunhong-print-probe-' + Date.now() + '.html');
   fs.writeFileSync(tmp, html, 'utf8');
   await tryLoad('file_sandbox', 'file:///' + tmp.replace(/\\/g, '/'), true);
   await tryLoad('file_nosandbox', 'file:///' + tmp.replace(/\\/g, '/'), false);

@@ -72,7 +72,7 @@ function assert(cond, name) {
   assert(pos === cdOffset + cdSize, '中央目录实际大小与 EOCD 记录一致');
 
   /* ---------- 5. 真实解压回归：Windows PowerShell Expand-Archive ---------- */
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'haoyue-zip-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zunhong-zip-'));
   try {
     const zipPath = path.join(tmp, 'test.zip');
     fs.writeFileSync(zipPath, buf);

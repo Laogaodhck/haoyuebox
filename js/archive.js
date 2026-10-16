@@ -1,7 +1,7 @@
 /* 压缩工具模块：压缩文件 / 解压文件
  * 压缩与解压均由桌面版内置 7z 引擎（主进程 spawn）完成，
  * 渲染层只负责选择、参数与进度展示，全程本地、无网络。
- * 浏览器打开时功能不可用（无 haoyueArchive 桥接）。
+ * 浏览器打开时功能不可用（无 zunhongArchive 桥接）。
  */
 (function () {
   'use strict';
@@ -17,7 +17,7 @@
   var items = [];      /* 待压缩条目 [{path,name,isDir,size}] */
   var archives = [];   /* 待解压压缩包 [{path,name,isDir,size}] */
   var running = false; /* 是否有压缩/解压任务进行中 */
-  var bridge = null;   /* window.haoyueArchive */
+  var bridge = null;   /* window.zunhongArchive */
 
   function $(id) { return document.getElementById(id); }
   function toast(msg, isErr) { window.App.ui.toast(msg, isErr); }
@@ -354,7 +354,7 @@
   function enter() { showMenu(); }
 
   function markUnsupported() {
-    /* 浏览器环境：无 haoyueArchive 桥接，展示提示并禁用执行按钮 */
+    /* 浏览器环境：无 zunhongArchive 桥接，展示提示并禁用执行按钮 */
     $('ac-unsupported').hidden = false;
     $('ax-unsupported').hidden = false;
     $('ac-run').disabled = true;
@@ -365,7 +365,7 @@
   }
 
   function init() {
-    bridge = window.haoyueArchive || null;
+    bridge = window.zunhongArchive || null;
     if (!bridgeOk()) markUnsupported();
 
     /* 菜单 → 子面板（浏览器下也可浏览界面） */
