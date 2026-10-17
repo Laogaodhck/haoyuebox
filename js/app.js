@@ -688,7 +688,7 @@ window.App = (function () {
     if (name === 'sheet') window.App.sheet.showStep('tpl'); // 每次进入排版模块回到第 1 步
     if (name === 'batch') window.App.batch.enter();          // 每次进入批量工具回到子功能菜单
     if (name === 'archive') window.App.archive.enter();      // 每次进入压缩工具回到子功能菜单
-    if (name === 'print') {                                   // 每次进入打印工具回到子功能菜单
+    if (name === 'print') {                                   // 每次进入文档工具回到子功能菜单
       window.App.printBatch.enter();
       window.App.printBatch.refreshPrinters();
     }
@@ -704,6 +704,7 @@ window.App = (function () {
     $('photo-compose').hidden = name !== 'compose';
     $('photo-compress').hidden = name !== 'compress';
     $('photo-soon').hidden = name !== 'soon';   // 老照片修复（开发中占位）
+    $('print-soon').hidden = name !== 'printsoon'; // 证照打印（开发中占位，自打印工具迁入）
   }
 
   /* ============ 入口注册表（声明式） ============
@@ -722,16 +723,21 @@ window.App = (function () {
     { card: 'photo-open-compress',   run: function () { window.App.compress.enter(); showPhotoSub('compress'); } },
     { card: 'batch-open-watermark',  run: function () { window.App.batchWatermark.enter(); } },
     { card: 'batch-open-format',     run: function () { window.App.batchFormat.enter(); } },
-    /* 批量体积优化复用照片工具的压缩子功能 */
-    { card: 'batch-open-optimize',   run: function () { showModule('photo'); window.App.compress.enter(); showPhotoSub('compress'); } },
+    /* 批量体积优化复用照片工具的压缩子功能（传入来源，返回时回批量工具） */
+    { card: 'batch-open-optimize',   run: function () { showModule('photo'); window.App.compress.enter('batch'); showPhotoSub('compress'); } },
     /* 未开发子功能占位页（进入 / 返回） */
     { card: 'photo-open-restore',    run: function () { showPhotoSub('soon'); } },
     { card: 'soon-photo-back',       run: function () { showPhotoSub('menu'); } },
+    { card: 'photo-open-idphotoprint', run: function () { showPhotoSub('printsoon'); } },
+    { card: 'soon-print-back',       run: function () { showPhotoSub('menu'); } },
     { card: 'batch-open-addwm',      run: function () { window.App.batch.showOnly('batch-soon'); } },
     { card: 'soon-batch-back',       run: function () { window.App.batch.showOnly(null); } },
-    { card: 'print-open-idphoto',    run: function () { window.App.printBatch.showOnly('print-soon'); } },
-    { card: 'soon-print-back',       run: function () { window.App.printBatch.showOnly(null); } },
-    { card: 'print-open-batch',      run: function () { window.App.printBatch.showOnly('print-batch'); } }
+    /* 批量打印（图片面板）已自打印工具迁入批量工具 */
+    { card: 'batch-open-printbatch', run: function () { window.App.batch.showOnly('print-batch'); window.App.printBatch.refreshPrinters(); } },
+    /* 文档工具：文档打印 + 文档转换占位 */
+    { card: 'print-open-docs',       run: function () { window.App.printBatch.showOnly('print-docs'); } },
+    { card: 'print-open-convert',    run: function () { window.App.printBatch.showOnly('docs-soon'); } },
+    { card: 'soon-docs-back',        run: function () { window.App.printBatch.showOnly(null); } }
   ];
   /* boot 时逐个调用的模块 init 列表（与 window.App 键名一致） */
   var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch'];

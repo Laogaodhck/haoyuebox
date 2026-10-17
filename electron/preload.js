@@ -50,4 +50,12 @@ contextBridge.exposeInMainWorld('zunhongDiag', {
   logError: (msg) => ipcRenderer.send('app:logError', String(msg))
 });
 
+/* 压缩包图标关联桥接：探测 / 注册 / 恢复（主进程经 reg.exe 写 HKCU） */
+contextBridge.exposeInMainWorld('zunhongArchiveIcons', {
+  isDesktop: true,
+  probe: () => ipcRenderer.invoke('archive-icons:probe'),
+  apply: (exts) => ipcRenderer.invoke('archive-icons:apply', exts),
+  restore: (exts) => ipcRenderer.invoke('archive-icons:restore', exts)
+});
+
 console.log('[zunhong] 打印桥接已就绪');

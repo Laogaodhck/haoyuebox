@@ -81,16 +81,13 @@ function buildPdf(text) {
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto('http://127.0.0.1:' + port + '/', { waitUntil: 'load' });
 
-      /* ---------- 1. 模块导航 ---------- */
-      await page.click('#home-print');
-      assert(await page.$eval('#view-print', (el) => el.style.display === 'block'), '首页卡进入打印工具');
-      assert(await page.$eval('#print-menu', (el) => !el.hidden), '打印工具子功能菜单可见');
-      assert(await page.$eval('#print-batch', (el) => el.hidden), '批量打印面板初始隐藏');
-      await page.click('#print-open-batch');
-      assert(await page.$eval('#print-menu', (el) => el.hidden), '进入批量打印后菜单收纳');
+      /* ---------- 1. 模块导航（批量打印在批量工具内） ---------- */
+      await page.click('#home-batch');
+      assert(await page.$eval('#view-batch', (el) => el.style.display === 'block'), '首页卡进入批量工具');
+      await page.click('#batch-open-printbatch');
+      assert(await page.$eval('#batch-menu', (el) => el.hidden), '进入批量打印后菜单收纳');
       assert(await page.$eval('#print-batch', (el) => !el.hidden), '批量打印面板可见');
-      assert(await page.$eval('#pb-img', (el) => !el.hidden), '默认显示图片面板');
-      assert(await page.$eval('#pd-doc', (el) => el.hidden), '文档面板初始隐藏');
+      assert(await page.$eval('#pb-img', (el) => !el.hidden), '图片打印面板可见');
 
       /* ---------- 2. 图片面板：选择 / 旋转 / 统一打印 ---------- */
       await page.evaluate(() => {
@@ -154,9 +151,11 @@ function buildPdf(text) {
       await page.click('#pb-grid .pb-card:nth-child(1) .pb-pick input');   // 勾回
       assert(await page.$eval('#pb-check-all', (el) => el.checked && !el.indeterminate), '勾回后全选框恢复全选');
 
-      /* ---------- 3. 文档面板：列队 / 合并 ---------- */
-      await page.click('#pb-tab-doc');
-      assert(await page.$eval('#pd-doc', (el) => !el.hidden), '切换到文档面板');
+      /* ---------- 3. 文档打印（文档工具）：列队 / 合并 ---------- */
+      await page.click('.module-tab[data-module="print"]');
+      assert(await page.$eval('#view-print', (el) => el.style.display === 'block'), '切到文档工具');
+      await page.click('#print-open-docs');
+      assert(await page.$eval('#pd-doc', (el) => !el.hidden), '进入文档打印面板');
       await page.evaluate(() => {
         window.zunhongPrint._pick = [
           { path: 'C:\\t\\文档A.pdf', name: '文档A.pdf', isDir: false, size: 800 },
@@ -229,17 +228,21 @@ function buildPdf(text) {
       await page.click('#pd-clear');
       assert(await page.$eval('#pd-empty', (el) => !el.hidden), '清空后空态提示显示');
       await page.click('#pd-back');
-      assert(await page.$eval('#print-menu', (el) => !el.hidden), '返回打印工具菜单');
+      assert(await page.$eval('#print-menu', (el) => !el.hidden), '返回文档工具菜单');
 
       /* ---------- 4. 浏览器降级 ---------- */
       const page2 = await ctx.newPage();
       await page2.addInitScript(() => { delete window.zunhongPrint; });
       await page2.goto('http://127.0.0.1:' + port + '/', { waitUntil: 'load' });
       await page2.click('#home-print');
-      await page2.click('#print-open-batch');
-      assert(await page2.$eval('#pb-unsupported', (el) => !el.hidden), '浏览器模式显示不支持提示');
-      assert(await page2.$eval('#pb-pick', (el) => el.disabled), '浏览器模式选择按钮禁用');
-      assert(await page2.$eval('#pd-pick', (el) => el.disabled), '文档面板同样禁用');
+      await page2.click('#print-open-docs');
+      assert(await page2.$eval('#pd-unsupported', (el) => !el.hidden), '浏览器模式显示不支持提示');
+      assert(await page2.$eval('#pd-pick', (el) => el.disabled), '浏览器模式选择按钮禁用');
+      await page2.click('#pd-back');
+      await page2.click('.module-tab[data-module="batch"]');
+      await page2.click('#batch-open-printbatch');
+      assert(await page2.$eval('#pb-unsupported', (el) => !el.hidden), '批量打印（图片面板）同样禁用');
+      assert(await page2.$eval('#pb-pick', (el) => el.disabled), '浏览器模式图片选择按钮禁用');
 
       assert(errors.length === 0, '无页面脚本错误' + (errors.length ? '：' + errors[0] : ''));
     } finally {

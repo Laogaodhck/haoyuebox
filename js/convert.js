@@ -123,6 +123,13 @@
 
   /* ================= 转换与保存 ================= */
 
+  /* 转换期间锁定全部会重建列表/表格的控件（与 compress.js 一致，防写错行/中途改参数） */
+  function setControlsLocked(on) {
+    ['conv-fmt', 'conv-quality', 'conv-bg', 'conv-pick', 'conv-clear', 'conv-file'].forEach(function (id) {
+      $(id).disabled = on;
+    });
+  }
+
   async function run() {
     if (!items.length || running) return;
     var fmt = $('conv-fmt').value;
@@ -131,6 +138,7 @@
     var bg = $('conv-bg').value;
     running = true;
     $('conv-run').disabled = true;
+    setControlsLocked(true);
     var zipFiles = [];
     var failed = [];
     // 已用名表：优先取 renderAll 生成的 outName，兜底命名时防重名
@@ -164,6 +172,7 @@
     }
     window.App.ui.hideLoading();
     running = false;
+    setControlsLocked(false);
     $('conv-run').disabled = items.length === 0;
     if (!zipFiles.length) { toast('转换失败：没有可输出的图片', true); renderAll(); return; }
     try {

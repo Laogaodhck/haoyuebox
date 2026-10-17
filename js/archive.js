@@ -18,6 +18,7 @@
   var archives = [];   /* 待解压压缩包 [{path,name,isDir,size}] */
   var running = false; /* 是否有压缩/解压任务进行中 */
   var bridge = null;   /* window.zunhongArchive */
+  var engineOk = true; /* 7z 引擎可用性（check7z 失败后置 false，锁死执行入口） */
 
   /* 密码状态：由密码弹窗维护，不再直接挂在输入框上 */
   var passState = { compress: '', extract: '' };
@@ -107,6 +108,21 @@
     if (mode !== 'same') return '';
     var dir = parentDir(chosen[0].path);
     return dir + (/[\\/]$/.test(dir) ? '' : '\\') + defaultArchiveName(chosen, fmt);
+  }
+
+  /* 自动命名与已有路径冲突时追加 _1/_2 后缀（纯函数，防覆盖源文件）。
+   * taken 为小写化路径字典；99 次仍冲突返回 ''（调用方报错兜底） */
+  function bumpOutName(p, taken) {
+    var s = String(p || '');
+    if (!s) return '';
+    var m = /^(.*)(\.[^.]*)$/.exec(s);
+    var base = m ? m[1] : s;
+    var ext = m ? m[2] : '';
+    for (var i = 1; i <= 99; i++) {
+      var cand = base + '_' + i + ext;
+      if (!taken || !taken[cand.toLowerCase()]) return cand;
+    }
+    return '';
   }
 
   /* ================= 渲染 ================= */
@@ -213,7 +229,7 @@
 
   /* ================= 桌面桥接 ================= */
 
-  function bridgeOk() { return !!(bridge && bridge.isDesktop); }
+  function bridgeOk() { return !!(bridge && bridge.isDesktop && engineOk); }
 
   function setRunning(on, which) {
     running = on;
@@ -320,9 +336,28 @@
     var fmt = $('ac-fmt').value;
     var autoPath = resolveOutPath($('ac-out').value, chosen, fmt);
     var useDialog = !autoPath;
-    var next = useDialog
-      ? bridge.saveDialog(defaultArchiveName(chosen, fmt))
-      : Promise.resolve(autoPath);
+    /* 数据安全：自动命名与待压缩内容同名（如单文件 report.7z → report.7z）
+     * 时自动追加 _1 后缀，防止后续清产物步骤删掉源文件 */
+    if (!useDialog) {
+      var taken = {};
+      chosen.forEach(function (it) { taken[String(it.path || '').toLowerCase()] = 1; });
+      if (taken[autoPath.toLowerCase()]) {
+        var bumped = bumpOutName(autoPath, taken);
+        if (!bumped) { toast('无法生成安全的输出文件名，请改用「每次选择位置」', true); return; }
+        autoPath = bumped;
+      }
+    }
+    var next;
+    if (useDialog) {
+      next = bridge.saveDialog(defaultArchiveName(chosen, fmt));
+    } else {
+      /* 同目录自动命名：输出已存在时先经用户确认，不静默覆盖 */
+      next = bridge.statPaths([autoPath]).then(function (list) {
+        if (!list || !list.length) return autoPath;
+        return window.App.ui.confirm('输出位置已存在同名文件：\n' + autoPath + '\n\n覆盖它吗？')
+          .then(function (yes) { return yes ? autoPath : ''; });
+      });
+    }
     next.then(function (outPath) {
       if (!outPath) return; /* 用户取消保存对话框 */
       setRunning(true, 'compress');
@@ -510,6 +545,82 @@
     closePassDlg();
   }
 
+  /* ================= 压缩包图标关联（桌面版） ================= */
+
+  /* 探测结果 → 卡片徽标/文案/按钮可见性 */
+  function renderAiState(data) {
+    var exts = (data && data.exts) || {};
+    var s7 = exts['7z'] || {};
+    var sz = exts['zip'] || {};
+    var badge = '检测中';
+    var desc = '';
+    var showApply = false;
+    var showRestore = false;
+    if (data && !data.dllFound) {
+      badge = '资源缺失';
+      desc = '未找到 7z.dll 图标资源，无法注册图标关联';
+    } else if (s7.state === 'ours' || sz.state === 'ours') {
+      badge = '已注册';
+      desc = '.7z：' + (s7.hint || '—') + '；.zip：' + (sz.hint || '—') +
+        '。若图标未立即刷新，按 F5 或重开资源管理器窗口';
+      showRestore = true;
+    } else if (s7.state === 'available' || sz.state === 'available') {
+      badge = '未关联';
+      desc = '.7z：' + (s7.hint || '—') + '；.zip：' + (sz.hint || '—') +
+        '。注册后本机无需安装压缩软件即可显示专属图标';
+      showApply = true;
+    } else {
+      badge = '已有关联';
+      desc = '.7z：' + (s7.hint || '—') + '；.zip：' + (sz.hint || '—') + '。本程序不会改动';
+    }
+    $('ai-badge').textContent = badge;
+    $('ai-desc').textContent = desc;
+    $('ai-actions').hidden = !(showApply || showRestore);
+    $('ai-apply').hidden = !showApply;
+    $('ai-restore').hidden = !showRestore;
+  }
+
+  function initIconsCard() {
+    var icons = window.zunhongArchiveIcons || null;
+    if (!icons || !icons.isDesktop) {
+      $('ai-badge').textContent = '桌面版可用';
+      $('ai-desc').textContent = '压缩包图标关联需要在桌面版（安装版 / 便携版）中使用';
+      return;
+    }
+    icons.probe().then(renderAiState).catch(function () {
+      $('ai-badge').textContent = '未知';
+      $('ai-desc').textContent = '图标关联状态读取失败';
+    });
+    $('ai-apply').addEventListener('click', function () {
+      window.App.ui.confirm('将在当前用户注册 .7z / .zip 图标关联：\n仅当系统当前没有关联时生效，不改动已有打开方式。\n\n现在注册吗？')
+        .then(function (yes) {
+          if (!yes) return;
+          icons.apply().then(function (r) {
+            if (r && r.ok) {
+              toast('图标关联已注册，若未立即生效请按 F5 刷新');
+            } else {
+              toast('注册失败：' + ((r && r.errors && r.errors.join('；')) || (r && r.error) || '未知错误'), true);
+            }
+            return icons.probe().then(renderAiState);
+          }).catch(function (e) { toast('注册失败：' + (e.message || e), true); });
+        });
+    });
+    $('ai-restore').addEventListener('click', function () {
+      window.App.ui.confirm('将移除本程序注册的压缩包图标关联，并还原注册前的默认值。\n\n继续吗？')
+        .then(function (yes) {
+          if (!yes) return;
+          icons.restore().then(function (r) {
+            if (r && r.ok) {
+              toast('已恢复默认');
+            } else {
+              toast('恢复失败：' + ((r && r.errors && r.errors.join('；')) || (r && r.error) || '未知错误'), true);
+            }
+            return icons.probe().then(renderAiState);
+          }).catch(function (e) { toast('恢复失败：' + (e.message || e), true); });
+        });
+    });
+  }
+
   /* ================= 模块入口 ================= */
 
   function showMenu() {
@@ -526,7 +637,7 @@
   function enter() { showMenu(); }
 
   function markUnsupported() {
-    /* 浏览器环境：无 zunhongArchive 桥接，展示提示并禁用执行按钮 */
+    /* 浏览器 / 引擎不可用环境：展示提示并禁用全部动作入口 */
     $('ac-unsupported').hidden = false;
     $('ax-unsupported').hidden = false;
     $('ac-run').disabled = true;
@@ -534,6 +645,7 @@
     $('ac-pick-files').disabled = true;
     $('ac-pick-dir').disabled = true;
     $('ax-pick').disabled = true;
+    $('ax-browse').disabled = true;
     $('ac-pass-btn').disabled = true;
     $('ax-pass-btn').disabled = true;
   }
@@ -541,6 +653,7 @@
   function init() {
     bridge = window.zunhongArchive || null;
     if (!bridgeOk()) markUnsupported();
+    initIconsCard();
 
     /* 菜单 → 子面板（浏览器下也可浏览界面） */
     $('archive-open-compress').addEventListener('click', function () { showOnly('archive-compress'); });
@@ -610,6 +723,7 @@
       if (r && r.ok) {
         $('ac-note').textContent = '7z 引擎已就绪（' + (r.version || '7-Zip') + '）';
       } else {
+        engineOk = false;
         markUnsupported();
         var msg = '7z 引擎不可用：' + ((r && r.error) || '未找到 7z.exe');
         $('ac-unsupported').textContent = msg;
@@ -634,6 +748,7 @@
       countText: countText,
       parentDir: parentDir,
       resolveOutPath: resolveOutPath,
+      bumpOutName: bumpOutName,
       extractTargetText: extractTargetText,
       compressProgressText: compressProgressText,
       extractProgressText: extractProgressText,

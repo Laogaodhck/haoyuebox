@@ -427,7 +427,7 @@
     var ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (previewBmp) ctx.drawImage(previewBmp, 0, 0);
-    if (maskInk && maskCanvas) {
+    if ((maskInk || stroking) && maskCanvas) { // 涂抹中蒙版已含实时笔迹，首笔也即时可见
       ctx.save();
       ctx.globalAlpha = MASK_ALPHA;
       ctx.drawImage(maskCanvas, 0, 0);
@@ -553,6 +553,13 @@
       outDir = saveDir;
     }
 
+    /* 覆盖原文件不可逆：执行前经统一确认框二次确认（全项目唯一覆盖用户数据的路径） */
+    if (outMode === 'overwrite') {
+      var go = await window.App.ui.confirm(
+        '即将直接覆盖 ' + items.length + ' 张原始照片文件，此操作不可撤销！\n确定继续吗？');
+      if (!go) return;
+    }
+
     running = true;
     updateRun();
     var ok = 0;
@@ -627,16 +634,32 @@
         drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
       } else {
         stroking = { erase: tool === 'erase', size: brushSize(), points: [[p.x, p.y]] };
+        buildMask(); // 建好已提交内容的蒙版底色，涂抹中只做增量分段绘制
       }
     });
     canvas.addEventListener('pointermove', function (e) {
       var p = toCanvasXY(e);
       if (stroking) {
-        stroking.points.push([p.x, p.y]);
-        // 实时反馈：把当前笔迹画进蒙版再整帧重绘
-        actions.push({ type: 'stroke', erase: stroking.erase, size: stroking.size, points: stroking.points });
-        buildMask();
-        actions.pop();
+        var last = stroking.points[stroking.points.length - 1];
+        if (p.x !== last[0] || p.y !== last[1]) {
+          stroking.points.push([p.x, p.y]);
+          // 增量绘制：只把新增一段画进蒙版（O(1)/次），不再整帧重放全部笔迹
+          // （旧实现每次 pointermove 全量 replayStrokes，长笔迹时 O(n²) 卡顿）；
+          // 蒙版色不透明 + 圆头笔帽，分段绘制与整笔画重放视觉等价
+          if (maskCanvas) {
+            var mctx = maskCanvas.getContext('2d');
+            mctx.lineCap = 'round';
+            mctx.lineJoin = 'round';
+            mctx.globalCompositeOperation = stroking.erase ? 'destination-out' : 'source-over';
+            mctx.strokeStyle = MASK_COLOR;
+            mctx.lineWidth = stroking.size;
+            mctx.beginPath();
+            mctx.moveTo(last[0], last[1]);
+            mctx.lineTo(p.x, p.y);
+            mctx.stroke();
+            mctx.globalCompositeOperation = 'source-over';
+          }
+        }
         drawPreview();
         return;
       }
@@ -670,9 +693,11 @@
         stroking = null;
         if (commit) {
           actions.push({ type: 'stroke', erase: s.erase, size: s.size, points: s.points });
-          if (actions.length > HISTORY_MAX) { actions.shift(); buildMask(); }
-          buildMask();
+          if (actions.length > HISTORY_MAX) { actions.shift(); }
+          buildMask(); // 涂抹中已增量上屏，此处整帧重放一次兜底（含历史上限淘汰）
           maskInk = strokesHaveInk();
+        } else {
+          buildMask(); // 取消：把涂抹中增量画上的像素抹掉
         }
       }
       renderChips();

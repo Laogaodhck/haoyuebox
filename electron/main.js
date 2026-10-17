@@ -10,6 +10,7 @@ const fs = require('fs');
 const { createStaticServer } = require('./static-server');
 const { buildPrintDoc } = require('./print-doc');
 const { registerArchiveIpc } = require('./archive');
+const archiveIcons = require('./archive-icons');
 
 const APP_TITLE = '尊泓工具箱';
 let mainWindow = null;
@@ -22,13 +23,18 @@ const printPages = new Map();
 /* ---------- 诊断日志：异常落盘（离线软件无远程上报，日志是排障最后手段） ----------
    写入 <userData>/logs/app-YYYY-MM-DD.log，按天分文件，自动轮转保留最近 LOG_KEEP 份。
    覆盖：主进程未捕获异常 / Promise 拒绝 / 渲染进程与子进程异常退出 / 渲染层上报。 */
+/* 诊断日志单行化：CR/LF 展平为 ↵，防止伪造多行日志条目干扰排障 */
+function flattenLog(s) {
+  return String(s).replace(/\r\n?|\n/g, ' ↵ ');
+}
+
 const LOG_KEEP = 10;
 function appendDiag(kind, detail) {
   try {
     const dir = path.join(app.getPath('userData'), 'logs');
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(dir, 'app-' + new Date().toISOString().slice(0, 10) + '.log');
-    fs.appendFileSync(file, new Date().toISOString() + ' [' + kind + '] ' + String(detail).slice(0, 4000) + '\n');
+    fs.appendFileSync(file, new Date().toISOString() + ' [' + kind + '] ' + flattenLog(detail).slice(0, 4000) + '\n');
     const files = fs.readdirSync(dir)
       .filter((f) => /^app-\d{4}-\d{2}-\d{2}\.log$/.test(f))
       .sort();
@@ -52,11 +58,16 @@ ipcMain.on('app:logError', (_e, msg) => appendDiag('renderer', msg));
 
 /* Windows 默认打印机名（Electron 36+ 移除了 PrinterInfo.isDefault，无替代 API；
    Windows 上经 CIM 查询补回，失败/非 Windows 返回空串 = 无默认标记） */
+/* 系统工具一律用 System32 绝对路径解析，避免 PATH（或当前目录）劫持 */
+function sysExe(name) {
+  return path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', name + '.exe');
+}
+
 function windowsDefaultPrinter() {
   if (process.platform !== 'win32') return Promise.resolve('');
   const { execFile } = require('child_process');
   return new Promise((resolve) => {
-    execFile('powershell', [
+    execFile(sysExe('powershell'), [
       '-NoProfile', '-Command',
       '(Get-CimInstance Win32_Printer | Where-Object { $_.Default -eq $true } | Select-Object -First 1).Name'
     ], { windowsHide: true, timeout: 5000 }, (err, stdout) => {
@@ -90,7 +101,8 @@ function registerPrintIpc() {
     const { execFile } = require('child_process');
     return new Promise((resolve) => {
       // rundll32 printui.dll,PrintUIEntry /p /n "打印机名" → 打印机属性
-      execFile('rundll32', ['printui.dll,PrintUIEntry', '/p', '/n', printerName], (err) => {
+      execFile(sysExe('rundll32'), ['printui.dll,PrintUIEntry', '/p', '/n', printerName],
+        { windowsHide: true, timeout: 15000 }, (err) => {
         if (err) resolve({ ok: false, error: '无法打开打印机属性：' + (err.message || '未知错误') });
         else resolve({ ok: true });
       });
@@ -106,7 +118,7 @@ function registerPrintIpc() {
     if (!doc.pageCount) return { ok: false, error: '无效的图片数据' };
     // 隐藏窗口装载图片，按所选纸张/方向/边距静默发送到指定打印机
     const html = doc.html;
-    const token = 'p' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    const token = require('crypto').randomUUID();
     const route = '/__print__/' + token;
     printPages.set(route, html);
     const printWin = new BrowserWindow({
@@ -142,6 +154,11 @@ function registerPrintIpc() {
 }
 registerPrintIpc();
 registerArchiveIpc(ipcMain, () => mainWindow);
+
+/* 压缩包图标关联（HKCU 用户级，只补无关联的电脑，不动已有关联） */
+ipcMain.handle('archive-icons:probe', () => archiveIcons.probe());
+ipcMain.handle('archive-icons:apply', (e, exts) => archiveIcons.apply(exts));
+ipcMain.handle('archive-icons:restore', (e, exts) => archiveIcons.restore(exts));
 
 /* 打印文档/图片读取：渲染层沙箱无 fs，经此读取所选文件字节。
    文档（pdf.js / mammoth 渲染）与图片（缩略图 / 打印绘制）共用，

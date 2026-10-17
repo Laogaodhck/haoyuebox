@@ -4,6 +4,8 @@
  * ============================================================ */
 'use strict';
 
+const path = require('path');
+
 /* 可解压的常见压缩包扩展名（7z.exe 支持的解码格式） */
 const ARCHIVE_EXTS = {
   '7z': 1, zip: 1, rar: 1, tar: 1, gz: 1, tgz: 1, bz2: 1, tbz2: 1,
@@ -42,6 +44,24 @@ function exitCodeText(code) {
     255: '用户取消'
   };
   return M[code] || ('未知错误（代码 ' + code + '）');
+}
+
+/* 路径归一化键：resolve 消解相对段、统一分隔符、Windows 语义下不区分大小写
+ * （本应用仅发 Windows 版；lowercase 对 Linux 极端同名场景可能误报，可接受） */
+function normPathKey(p) {
+  let s = String(p || '').trim();
+  if (!s) return '';
+  try { s = path.resolve(s); } catch (e) { /* 保持原样 */ }
+  if (/^[a-zA-Z]:/.test(s)) s = s.charAt(0).toLowerCase() + s.slice(1);
+  return s.replace(/\\/g, '/').toLowerCase();
+}
+
+/* 输出路径是否与任一输入路径相同（compress 删除旧产物前必须检查，
+ * 防止「单文件压缩、自动命名与源文件同名」时把源文件当旧产物删掉） */
+function hasInputConflict(inputs, outPath) {
+  const key = normPathKey(outPath);
+  if (!key) return false;
+  return (inputs || []).some((p) => normPathKey(p) === key);
 }
 
 /* 构建压缩命令参数
@@ -141,6 +161,8 @@ module.exports = {
   isArchiveFile,
   isOkExitCode,
   exitCodeText,
+  normPathKey,
+  hasInputConflict,
   buildCompressArgs,
   buildExtractArgs,
   buildListArgs,

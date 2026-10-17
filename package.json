@@ -1,7 +1,7 @@
 {
   "name": "zunhong-toolbox",
   "productName": "尊泓工具箱",
-  "version": "1.2.5",
+  "version": "1.3.0",
   "description": "尊泓工具箱 - 纯本地离线证件照制作工具（AI 人像分割 / 换底 / 排版打印 / 批量打印 / 压缩解压）",
   "main": "electron/main.js",
   "author": "laogao <846193@qq.com>",
@@ -11,7 +11,7 @@
     "serve": "node tools/server.js",
     "dist": "electron-builder --win",
     "icons": "node tools/make-icons.cjs",
-    "test": "node tools/check-refs.cjs && node tools/test-dpi.cjs && node tools/test-compress.cjs && node tools/test-hair-clothes.cjs && node tools/test-server.cjs && node tools/test-print-route.cjs && node tools/test-dom.cjs && node tools/test-batch-rename.cjs && node tools/test-brush.cjs && node tools/test-zip.cjs && node tools/test-convert.cjs && node tools/test-compose.cjs && node tools/test-batch-format.cjs && node tools/test-batch-watermark.cjs && node tools/test-archive.cjs && node tools/test-print-batch.cjs && node tools/test-print-doc.cjs",
+    "test": "node tools/check-refs.cjs && node tools/test-dpi.cjs && node tools/test-compress.cjs && node tools/test-hair-clothes.cjs && node tools/test-server.cjs && node tools/test-print-route.cjs && node tools/test-dom.cjs && node tools/test-batch-rename.cjs && node tools/test-brush.cjs && node tools/test-zip.cjs && node tools/test-convert.cjs && node tools/test-compose.cjs && node tools/test-batch-format.cjs && node tools/test-batch-watermark.cjs && node tools/test-archive.cjs && node tools/test-archive-icons.cjs && node tools/test-print-batch.cjs && node tools/test-print-doc.cjs",
     "verify": "node tools/verify-hair.cjs && node tools/verify-matteview.cjs && node tools/verify-sheet.cjs && node tools/verify-sheet-save.cjs && node tools/verify-archive.cjs && node tools/verify-batch.cjs && node tools/verify-print-batch.cjs && node tools/verify-brush.cjs && node tools/verify-output.cjs && node tools/verify-packaged.cjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -79,12 +79,15 @@
   },
   "devDependencies": {
     "electron": "^44.8.0",
-    "electron-builder": "^25.1.8",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.39.4",
     "globals": "^17.13.0",
     "jimp": "^1.6.1",
     "jsdom": "^30.1.2",
     "playwright": "^1.64.1",
     "prettier": "^3.9.10"
+  },
+  "overrides": {
+    "@electron/get": "5.1.0"
   }
 }

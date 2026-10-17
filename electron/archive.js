@@ -54,18 +54,29 @@ function statEntry(p) {
   });
 }
 
-/* 检查 7z 是否可用，返回 { ok, version | error } */
+/* 检查 7z 是否可用，返回 { ok, version | error }（15s 超时兜底防挂起） */
+const CHECK7Z_TIMEOUT_MS = 15000;
+
 async function check7z() {
   const exe = resolve7zPath();
   if (!exe) return { ok: false, error: '未找到 7z 引擎（electron/bin/7z.exe）' };
   return new Promise((resolve) => {
     let out = '';
+    let settled = false;
     const child = spawn(exe, [], { windowsHide: true });
     child.stdout.on('data', d => { out += d; });
-    child.on('error', e => resolve({ ok: false, error: String(e.message || e) }));
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { child.kill(); } catch (e) { /* 已退出 */ }
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish({ ok: false, error: '7z 引擎检测超时（' + CHECK7Z_TIMEOUT_MS / 1000 + 's）' }), CHECK7Z_TIMEOUT_MS);
+    child.on('error', e => finish({ ok: false, error: String(e.message || e) }));
     child.on('close', () => {
       const m = out.match(/7-Zip[^\r\n]*/i);
-      resolve({ ok: true, version: m ? m[0] : '7-Zip', path: exe });
+      finish({ ok: true, version: m ? m[0] : '7-Zip', path: exe });
     });
   });
 }
@@ -177,6 +188,11 @@ async function compress(getWin, payload) {
   }
   if (outExt !== '.7z' && outExt !== '.zip') {
     return { ok: false, error: '输出文件扩展名须为 .7z 或 .zip' };
+  }
+  /* 数据安全硬防护：输出与任一输入相同（如单文件压缩、自动命名恰好同名）时
+   * 绝不能继续——下方 removeOutputs() 会先删「旧输出」，同名即删源文件 */
+  if (args7z.hasInputConflict(items, outPath)) {
+    return { ok: false, error: '输出路径与待压缩内容相同，已阻止执行（防止源文件被覆盖删除）' };
   }
   const volumeMB = Math.round(+payload.volumeMB || 0);
   /* 精确清理输出产物：非分卷删 outPath 本身；分卷删 out.7z.NNN 编号卷

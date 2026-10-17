@@ -95,12 +95,17 @@ if (!exe) {
     await win.click('#soon-photo-back');
     assert(await win.$eval('#photo-soon', (el) => el.hidden) && await win.$eval('#photo-menu', (el) => !el.hidden),
       '占位页返回子功能菜单正常');
-    await win.click('.module-tab[data-module="print"]');
-    await win.click('#print-open-idphoto');
-    assert(await win.$eval('#print-soon', (el) => !el.hidden), '打印工具「证照打印」占位页可见');
+    await win.click('#photo-open-idphotoprint');
+    assert(await win.$eval('#print-soon', (el) => !el.hidden), '照片工具「证照打印」占位页可见');
     await win.click('#soon-print-back');
-    assert(await win.$eval('#print-soon', (el) => el.hidden) && await win.$eval('#print-menu', (el) => !el.hidden),
+    assert(await win.$eval('#print-soon', (el) => el.hidden) && await win.$eval('#photo-menu', (el) => !el.hidden),
       '证照打印占位页返回菜单正常');
+    await win.click('.module-tab[data-module="print"]');
+    assert(await win.$eval('#print-menu', (el) => !el.hidden), '文档工具子功能菜单可见');
+    await win.click('#print-open-docs');
+    assert(await win.$eval('#pd-doc', (el) => !el.hidden), '文档打印面板可见');
+    await win.click('#pd-back');
+    assert(await win.$eval('#print-menu', (el) => !el.hidden), '文档打印返回菜单正常');
     assert(pageErrors.length === 0,
       '全程无页面脚本错误' + (pageErrors.length ? '：' + pageErrors.join(' | ') : ''));
   } finally {

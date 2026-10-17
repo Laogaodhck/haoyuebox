@@ -221,6 +221,25 @@ const at = global.window.App.archive;
   t.assert(T.resolveOutPath('same', two, '7z') === 'C:\\f\\压缩包.7z', 'resolveOutPath 源目录+自动命名');
   t.assert(T.resolveOutPath('same', one, 'zip') === 'C:\\a\\照片.zip', 'resolveOutPath 单项沿用名称与父目录');
   t.assert(T.resolveOutPath('dialog', two, '7z') === '', 'resolveOutPath dialog 模式走另存为');
+
+  /* 自压防护：自动命名与源文件同名时追加 _1 后缀（bumpOutName） */
+  t.assert(T.bumpOutName('C:\\a\\report.7z', { 'c:\\a\\report.7z': 1 }) === 'C:\\a\\report_1.7z',
+    'bumpOutName 同名冲突 → report_1.7z');
+  t.assert(T.bumpOutName('C:\\a\\report.7z', { 'c:\\a\\report.7z': 1, 'c:\\a\\report_1.7z': 1 }) === 'C:\\a\\report_2.7z',
+    'bumpOutName 连续冲突递增 → report_2.7z');
+  t.assert(T.bumpOutName('C:\\a\\report', { 'c:\\a\\report': 1 }) === 'C:\\a\\report_1',
+    'bumpOutName 无扩展名 → report_1');
+  t.assert(T.bumpOutName('C:\\a\\photo.jpg', {}) === 'C:\\a\\photo_1.jpg',
+    'bumpOutName 无冲突时仍给出候选（调用方仅在冲突时使用）');
+  t.assert(T.bumpOutName('', null) === '', 'bumpOutName 空输入兜底');
+
+  /* 主进程硬防护：hasInputConflict 输出与输入相同判定（大小写/分隔符不敏感） */
+  t.assert(args7z.hasInputConflict(['C:\\a\\report.7z'], 'C:\\a\\report.7z'), 'hasInputConflict 完全相同');
+  t.assert(args7z.hasInputConflict(['c:\\A\\REPORT.7z'], 'C:\\a\\report.7z'), 'hasInputConflict 大小写不敏感');
+  t.assert(args7z.hasInputConflict(['C:\\a\\report.7z'], 'C:\\a\\.\\report.7z'), 'hasInputConflict 归一化相对段');
+  t.assert(!args7z.hasInputConflict(['C:\\a\\report.7z'], 'C:\\a\\report_1.7z'), 'hasInputConflict 不同名放行');
+  t.assert(!args7z.hasInputConflict(['C:\\a\\照片.jpg'], 'C:\\a\\照片.7z'), 'hasInputConflict 仅扩展名不同放行');
+  t.assert(!args7z.hasInputConflict([], '') && !args7z.hasInputConflict(['C:\\x'], ''), 'hasInputConflict 空输出放行');
 })();
 
 /* ---------- 3. 真实 7z 冒烟（压缩 → 解压全链路） ---------- */

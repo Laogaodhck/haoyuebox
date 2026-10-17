@@ -2,6 +2,65 @@
 
 本项目所有显著变更记录于此。版本号遵循语义化版本（主版本.次版本.修订号）。
 
+## [1.3.0] - 2026-10-18
+
+### 清理
+- 移除遗留的一次性实验 / 探针脚本：tools/_probe-import.cjs、tools/_probe-pager.cjs（临时真机探针）、
+  tools/layout-a4.cjs、tools/layout-preview.cjs（版面调研脚本）、tools/shot-responsive.cjs（硬编码本机路径的截图脚本）
+- index.html 清理已移除功能（打印机管理，1.2.2 下线）的残留注释
+- README 同步菜单重组后的模块地图、功能表与操作流程，移除已下线的打印机管理章节，补压缩包图标关联说明
+
+### 新增
+- **压缩包图标关联**：为没装任何压缩软件的电脑解决 .7z / .zip 显示白板图标的问题。压缩工具菜单新增「压缩包图标」卡片，可一键注册 / 恢复：
+  - 原理：资源管理器图标由文件关联决定。本程序以用户级（HKCU，无需管理员）注册 ProgID，把 DefaultIcon 指向随包分发的 7z.dll 内置格式图标（索引 0=7z、1=zip，与 7-Zip 官方安装器注册值一致），图标即随包分发、无需系统安装任何软件
+  - 安全边界：只写 HKCU\Software\Classes；扩展名已有关联（HKCR 有 ProgID 或存在 UserChoice）时绝不覆盖，只在完全无关联时接管；不注册打开方式，双击行为不变；接管前备份原默认值，可一键精确还原
+  - 注册后经 ie4uinit -show 刷新图标缓存，未生效时 F5 或重开资源管理器窗口即可
+- electron/archive-icons.js 主进程模块（probe / apply / restore IPC + zunhongArchiveIcons 渲染桥接）
+
+### 修复
+- **压缩「所选内容所在目录（自动命名）」模式下，单个压缩包文件（如 report.7z 选 7z 格式）自动命名与源文件同名，清理旧产物步骤会先删除源文件再压缩，导致源文件丢失**。三层防护：
+  - 主进程 compress() 在删除旧产物前经 hasInputConflict（electron/7z-args.js，大小写/分隔符归一）校验输出与任一输入相同则拒绝执行
+  - 渲染层自动命名与待压缩内容同名时自动追加 _1/_2 后缀（bumpOutName）
+  - 同目录自动命名模式下输出已存在时先弹确认框，不再静默覆盖（另存为弹窗模式本有系统确认，行为对齐）
+- 内容浏览（7z l）：check7z 引擎检测增加 15s 超时兜底，防异常挂起
+- 7z 引擎检测失败后执行按钮不再被任务结束时的恢复逻辑重新启用（engineOk 状态纳入 bridgeOk）
+- 浏览器环境下解压面板「内容浏览」按钮未禁用（此前无监听器点击无反应，现在与其它入口一致禁用）
+- **批量打印（图片面板）任务异常会永久锁死执行按钮**：runImages 生成页画布与发送打印的整个链路缺异常兜底，任一 drawImage / toDataURL 抛错（坏图、内存不足等）后 printing 标志永远为 true，pb-run / pd-run 从此不可用。已与文档打印路径一致补 try / catch / finally 兜底
+- **批量去水印「覆盖原文件」模式不弹确认直接覆盖**：这是全项目唯一不可逆覆盖用户数据的路径，现执行前经统一确认框（App.ui.confirm）二次确认，取消即不处理
+- **排版工具清空导入照片后预览不刷新**：预览画布与页码停留在旧排版，需碰任意参数才恢复；现清空后立即重置预览
+- **图片压缩从批量工具「体积优化」进入后，返回按钮错落回照片工具菜单**：compress 模块现记录进入来源（photo / batch），返回时回到来源处
+- 批量打印图片解码失败路径未释放 blob URL（每张失败图泄漏一个直到清空列表）；文档重复添加时对仍在解析中的条目可能重复触发预解析（新增 parsing 标志去重）
+- **批量打印（图片面板）双重边距**：画布生成页时先烤入 5mm 白边，发送时又选 marginType:printableArea 让驱动按可打印区再收缩一次，实际白边约 10mm（UI 标注「约 5mm」）。现画布整页铺满、边距只交给打印驱动，白边回到约 5mm 且图片明显更大
+- **排版（layoutBatch）满页时底边距缩水到约 3mm 有裁切风险**：容量按 paper.h − 2×5mm 计算行数，但首行锚点钉在 7mm，满页时底边 = 7 + (h − 10)。首行锚点改回 MARGIN_Y(5mm)，满页底边距恢复 5mm，多页首行位置一致性与分页逻辑不变
+- **图片格式转换运行期间不锁控件**：转换中仍可改格式/质量/底色或增删列表（批量打印与压缩均有锁定，此模块漏了）；现与 compress.js 一致补 setControlsLocked
+
+### 性能
+- **批量去水印涂抹笔迹 O(n²) 卡顿**：旧实现每次 pointermove 把当前笔迹临时入列并全量重放所有动作重建蒙版（长笔迹时每帧成本随总点数线性增长，二次方累计）。改为 pointerdown 建好蒙版底色、pointermove 只增量绘制新增一段（O(1)/次），提交/取消时整帧重放一次兜底；蒙版色不透明 + 圆头笔帽保证分段绘制与整笔重放视觉等价。顺带修复首笔涂抹时实时反馈不可见（预览叠加条件补上涂抹中状态）
+
+### 调整
+- **工具箱菜单重组**：「打印工具」更名为**文档工具**，原两个子功能全部迁出并各归其位：
+  - **批量打印（图片）→ 批量工具**：面板整体迁入批量工具视图并纳入其子页体系（返回按钮回批量菜单，进入时自动刷新打印机列表）；原「图片打印 / 文档打印」标签页拆除，图片与文档两个面板各自独立成子功能
+  - **文档打印 → 文档工具**（新菜单的首个可用子功能）：原批量打印的文档面板（PDF / DOCX / TXT 列队 / 合并打印）独立为「文档打印」
+  - **证照打印（占位）→ 照片工具**：占位页迁入照片工具子页体系，与证照生成同处一个菜单
+  - 文档工具新增「文档转换」占位卡（PDF ↔ 图片互转 · Word 转 PDF，开发中）；首页卡片与顶栏标签同步更名
+  - 顺带修复：文档打印面板因外壳样式未随迁移调整被塞入 340px 窄列（#print-docs 缺 display:block 覆盖导致面板超高不可滚动）；verify-print-batch（43 断言）与 verify-packaged E2E 已按新导航结构更新
+
+### 安全加固
+- **依赖漏洞清零（npm audit 0 vulnerabilities，此前 12 项：11 high + 1 critical）**：
+  - electron-builder 25.1.8 → 26.15.3（vulnerabilities 全部位于其构建工具链 @electron/rebuild → node-gyp → tar/cacache；仅构建期使用、不进安装包，但属于真实依赖风险）
+  - 新增 overrides 将 app-builder-lib 依赖的 @electron/get 钉到 5.1.0（该包 3.x 引入的 global-agent → sprintf-js 链存在全版本 DoS 漏洞 GHSA-hp3w-g68c-fv3c 且无修复版本，5.x 已移除该依赖）
+  - 验证：升级后 `--dir` 打包成功，verify-packaged 打包版 E2E 16 断言全过；npm test 17 套件全绿；lint 0 告警
+- **archive-icons IPC 入口白名单**：渲染层传入的 exts 现经 sanitizeExts 过滤（只允许 7z/zip、去点、小写归一），杜绝任意注册表键路径拼接（此前 probeExt 在 applyExt 校验之前就拿原始值拼键路径）
+- **系统工具绝对路径解析**：reg / rundll32 / ie4uinit / powershell 一律经 System32 绝对路径调用（sysExe），消除 PATH（或工作目录）被劫持时执行到假冒可执行文件的风险
+- **打印属性对话框超时**：print:showProperties 的 rundll32 调用加 15s 超时（此前无超时，rundll32 异常挂起会拖死 IPC promise）
+- **日志防伪造**：appendDiag 落盘前把 CR/LF 展平为 ↵，渲染层上报的错误信息无法再伪造多行日志条目干扰排障
+- **打印路由 token 改用 crypto.randomUUID**：此前为 Date.now + Math.random（可预测），避免本机其他进程猜中 token 抢读内存中待打印文档
+
+### 测试
+- test-archive.cjs 新增 11 条断言：bumpOutName 冲突递增/无扩展名/空输入兜底，hasInputConflict 大小写不敏感/相对段归一/不同名与空输出放行
+- test-archive-icons.cjs 新增 20 条断言：图标索引表与官方注册值一致、reg 输出解析、关联决策（ours/userchoice/associated/available）、备份标记编解码、DefaultIcon 值构建、7z.dll 定位；test-dom 同步压缩工具菜单 4 卡片与图标卡片控件断言
+- 安全加固补测：sanitizeExts 合法保留/归一/非法剔除/非数组拒绝 5 条断言（共 25 条）
+
 ## [1.2.5] - 2026-10-17
 
 ### 改进

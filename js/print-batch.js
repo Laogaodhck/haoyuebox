@@ -1,8 +1,10 @@
 /* ============================================================
- * print-batch.js — 批量打印：图片 + 文档
+ * print-batch.js — 批量打印（图片，批量工具内） + 文档打印（文档工具内）
  * 图片：多选 → 单张旋转（0/90/180/270）→ 按纸张适配统一打印；
  * 文档：多选 PDF / TXT / DOCX → 列队顺序打印（每文档一个任务）
  *       或合并打印（全部页合并为一个任务），支持单双面。
+ * 面板归属：print-batch 在批量工具视图内（返回交批量工具菜单），
+ *           print-docs / docs-soon 在文档工具视图内。
  * PDF 渲染用 pdf.js（vendor/print），DOCX 用 mammoth 提取文本简化排版，
  * TXT 原生排版分页；全部离线本地执行。
  * 浏览器模式下 window.zunhongPrint 不存在，面板提示并禁用。
@@ -192,11 +194,12 @@ window.App.printBatch = (function () {
   }
 
   async function loadImage(item) {
+    var url = '';
     try {
       var res = await printApi.readFile(item.path);
       if (!res || !res.ok) throw new Error((res && res.error) || '读取失败');
       var blob = new Blob([res.data]);
-      var url = URL.createObjectURL(blob);
+      url = URL.createObjectURL(blob);
       var img = new Image();
       await new Promise(function (resolve, reject) {
         img.onload = function () { resolve(); };
@@ -209,6 +212,8 @@ window.App.printBatch = (function () {
       item.h = img.naturalHeight || img.height;
       item.status = 'ready';
     } catch (e) {
+      /* 解码失败等异常路径：释放已创建的 blob URL，避免泄漏 */
+      if (url) { try { URL.revokeObjectURL(url); } catch (e2) { /* 忽略 */ } }
       item.status = 'error';
       item.error = e.message;
     }
@@ -346,50 +351,58 @@ window.App.printBatch = (function () {
     var paper = window.App.print.PAPERS[$('pb-paper').value] || window.App.print.PAPERS.A4;
     var landscape = $('pb-orient').value === '1';
     var mm = landscape ? { w: paper.h, h: paper.w } : { w: paper.w, h: paper.h };
-    var marginMm = $('pb-margin').value === 'printableArea' ? 5 : 0;
+    /* 边距完全交给打印驱动（marginType:printableArea），画布整页铺满——
+       画布再烤 5mm 白边会与驱动可打印边距叠加成约 10mm 双重边距 */
     var W = Math.round(mm.w * PX_PER_MM);
     var H = Math.round(mm.h * PX_PER_MM);
-    var m = Math.round(marginMm * PX_PER_MM);
 
     var btn = $('pb-run');
     var status = $('pb-status');
     btn.disabled = true;
     setPrinting(true, 'img');
     status.textContent = '正在生成打印页面…';
-    var urls = ready.map(function (it) {
-      var c = document.createElement('canvas');
-      c.width = W; c.height = H;
-      var ctx = c.getContext('2d');
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, W, H);
-      var dp = drawParams(it.w, it.h, it.rot, W - 2 * m, H - 2 * m);
-      if (dp.k > 0) {
-        ctx.save();
-        ctx.translate(W / 2, H / 2);
-        ctx.rotate(it.rot * Math.PI / 180);
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(it.img, -dp.dw / 2, -dp.dh / 2, dp.dw, dp.dh);
-        ctx.restore();
-      }
-      return c.toDataURL('image/jpeg', 0.92);
-    });
+    try {
+      var urls = ready.map(function (it) {
+        var c = document.createElement('canvas');
+        c.width = W; c.height = H;
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, W, H);
+        var dp = drawParams(it.w, it.h, it.rot, W, H);
+        if (dp.k > 0) {
+          ctx.save();
+          ctx.translate(W / 2, H / 2);
+          ctx.rotate(it.rot * Math.PI / 180);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(it.img, -dp.dw / 2, -dp.dh / 2, dp.dw, dp.dh);
+          ctx.restore();
+        }
+        return c.toDataURL('image/jpeg', 0.92);
+      });
 
-    status.textContent = '正在发送打印任务…';
-    var params = printParams('pb-printer', 'pb-copies', 'pb-duplex');
-    var res = await sendPrint(Object.assign({
-      dataUrls: urls,
-      pageSize: paper.electron,
-      landscape: landscape,
-      marginType: marginMm ? 'printableArea' : 'none'
-    }, params));
-    setPrinting(false, 'img');
-    if (res && res.ok) {
-      status.textContent = '已发送打印任务 ✓（' + urls.length + ' 页 × ' + params.copies + ' 份）';
-      toast('已发送到打印机 ✓');
-    } else {
-      status.textContent = '打印失败：' + ((res && res.error) || '未知错误');
-      toast('打印失败：' + ((res && res.error) || '未知错误'), true);
+      status.textContent = '正在发送打印任务…';
+      var params = printParams('pb-printer', 'pb-copies', 'pb-duplex');
+      var res = await sendPrint(Object.assign({
+        dataUrls: urls,
+        pageSize: paper.electron,
+        landscape: landscape,
+        marginType: $('pb-margin').value === 'printableArea' ? 'printableArea' : 'none'
+      }, params));
+      if (res && res.ok) {
+        status.textContent = '已发送打印任务 ✓（' + urls.length + ' 页 × ' + params.copies + ' 份）';
+        toast('已发送到打印机 ✓');
+      } else {
+        status.textContent = '打印失败：' + ((res && res.error) || '未知错误');
+        toast('打印失败：' + ((res && res.error) || '未知错误'), true);
+      }
+    } catch (e) {
+      /* 画布生成/编码抛错（坏图、内存不足等）：与 runDocs 一致兜底，
+         不能让 printing 卡死锁住执行按钮 */
+      status.textContent = '打印失败：' + ((e && e.message) || '未知错误');
+      toast('打印失败：' + ((e && e.message) || '未知错误'), true);
+    } finally {
+      setPrinting(false, 'img');
     }
   }
 
@@ -563,13 +576,15 @@ window.App.printBatch = (function () {
       docs.push({ path: m.path, name: m.name, size: m.size, type: type, pages: null, checked: true, status: 'pending', error: '' });
     });
     renderDocList();
-    /* 逐个预解析页数（异步，不阻塞选择） */
+    /* 逐个预解析页数（异步，不阻塞选择）；parsing 标记防同批/跨批重复解析 */
     docs.forEach(function (d) {
-      if (d.status === 'pending') preparseDoc(d);
+      if (d.status === 'pending' && !d.parsing) preparseDoc(d);
     });
   }
 
   async function preparseDoc(d) {
+    if (d.parsing) return;
+    d.parsing = true;
     try {
       if (d.type === 'pdf') {
         var pdfjs = window.pdfjsLib;
@@ -599,6 +614,8 @@ window.App.printBatch = (function () {
     } catch (e) {
       d.status = 'error';
       d.error = e.message;
+    } finally {
+      d.parsing = false;
     }
     renderDocList();
   }
@@ -788,22 +805,19 @@ window.App.printBatch = (function () {
 
   /* ================= 面板与模式切换 ================= */
 
-  /* showOnly 模式：仅显示指定面板（与批量/压缩工具一致；print-soon 为开发中占位页） */
+  /* showOnly 模式：仅显示指定面板（与批量/压缩工具一致）。
+     面板归属：print-batch（批量工具·图片批量打印）| print-docs（文档工具·文档打印）
+     | docs-soon（文档工具·文档转换占位）| null = 回各自子功能菜单 */
   function showOnly(panelId) {
-    $('print-menu').hidden = !!panelId;
+    $('batch-menu').hidden = panelId === 'print-batch';
+    $('print-menu').hidden = panelId === 'print-docs' || panelId === 'docs-soon';
     $('print-batch').hidden = panelId !== 'print-batch';
-    $('print-soon').hidden = panelId !== 'print-soon';
+    $('print-docs').hidden = panelId !== 'print-docs';
+    $('pd-doc').hidden = panelId !== 'print-docs';
+    $('docs-soon').hidden = panelId !== 'docs-soon';
   }
 
   function enter() { showOnly(null); }
-
-  function switchTab(which) {
-    var isImg = which !== 'doc';
-    $('pb-tab-img').classList.toggle('active', isImg);
-    $('pb-tab-doc').classList.toggle('active', !isImg);
-    $('pb-img').hidden = !isImg;
-    $('pd-doc').hidden = isImg;
-  }
 
   /* 打印机下拉填充（桌面版）；浏览器模式隐藏面板显示提示 */
   async function refreshPrinters() {
@@ -831,12 +845,11 @@ window.App.printBatch = (function () {
     $('pd-run').addEventListener('click', runDocs);
     $('pd-copies').addEventListener('change', function () { this.value = clampCopies(this.value); });
 
-    $('pb-tab-img').addEventListener('click', function () { switchTab('img'); });
-    $('pb-tab-doc').addEventListener('click', function () { switchTab('doc'); });
     $('pb-check-all').addEventListener('change', function () { toggleAllImgs(this.checked); });
     $('pd-check-all').addEventListener('change', function () { toggleAllDocs(this.checked); });
 
-    $('pb-back').addEventListener('click', function () { showOnly(null); });
+    /* 批量打印面板在批量工具内：返回交给批量工具的菜单管理 */
+    $('pb-back').addEventListener('click', function () { window.App.batch.showOnly(null); });
     $('pd-back').addEventListener('click', function () { showOnly(null); });
   }
 
@@ -844,7 +857,6 @@ window.App.printBatch = (function () {
     init: init,
     enter: enter,
     showOnly: showOnly,
-    switchTab: switchTab,
     refreshPrinters: refreshPrinters,
     _test: {
       IMG_EXTS: IMG_EXTS,

@@ -319,6 +319,7 @@
       sheetFiles = [];
       $('sheet-file-name').textContent = '已清空';
       $('sheet-import-progress').hidden = true;
+      renderLaySheet();   // 同步重置预览画布与页码，避免停留在旧排版
       toast('已清空导入的照片');
     });
 

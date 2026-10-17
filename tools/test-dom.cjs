@@ -77,11 +77,11 @@ withServer(PORT, async () => {
   assert(doc.querySelectorAll('#steps-nav .step').length === 4, '照片模块步骤指示器 4 个');
   assert(!!doc.getElementById('photo-menu'), '照片工具子功能菜单存在');
   assert(!!doc.getElementById('photo-flow'), '证照生成流程容器存在');
-  assert(doc.querySelectorAll('#photo-menu .home-card').length === 5, '子功能菜单 5 张卡片（4 可用 + 1 敬请期待）');
+  assert(doc.querySelectorAll('#photo-menu .home-card').length === 6, '照片工具菜单 6 张卡片（4 可用 + 2 敬请期待，含证照打印）');
   assert(doc.getElementById('photo-open-idphoto') && doc.getElementById('photo-open-convert') && doc.getElementById('photo-open-compose'),
     '证照生成 / 图片转换 / 图片合成入口存在');
   assert(!!doc.getElementById('photo-convert') && !!doc.getElementById('photo-compose'), '图片转换 / 图片合成面板存在');
-  assert(doc.querySelectorAll('#batch-menu .home-card').length === 5, '批量工具菜单 5 张卡片（4 可用 + 1 敬请期待）');
+  assert(doc.querySelectorAll('#batch-menu .home-card').length === 6, '批量工具菜单 6 张卡片（5 可用 + 1 敬请期待，含批量打印）');
   assert(doc.getElementById('batch-open-rename') && doc.getElementById('batch-open-watermark') && doc.getElementById('batch-open-format'),
     '批量重命名 / 去除水印 / 格式转换入口存在');
   assert(!!doc.getElementById('batch-format') && !!doc.getElementById('batch-watermark'), '格式转换 / 去除水印面板存在');
@@ -89,12 +89,13 @@ withServer(PORT, async () => {
   ['bf-pick', 'bf-run', 'bf-back', 'bf-quality', 'bf-bg', 'bf-pdf-merge', 'bf-out', 'bf-list', 'bf-empty',
    'bw-pick', 'bw-run', 'bw-back', 'bw-mode', 'bw-strength', 'bw-color', 'bw-out', 'bw-undo', 'bw-clear', 'bw-clear-all', 'wm-chips',
    'bw-files', 'bw-tools', 'bw-tool-rect', 'bw-tool-brush', 'bw-tool-erase', 'bw-brush-row', 'bw-brush-size',
-   'photo-open-restore', 'soon-photo-back', 'batch-open-addwm', 'soon-batch-back', 'print-open-idphoto', 'soon-print-back'
+   'photo-open-restore', 'soon-photo-back', 'photo-open-idphotoprint', 'soon-print-back',
+   'batch-open-printbatch', 'batch-open-addwm', 'soon-batch-back', 'print-open-docs', 'print-open-convert', 'soon-docs-back'
   ].forEach(function (id) {
     assert(!!doc.getElementById(id), '控件 #' + id + ' 存在');
   });
   assert(!!doc.getElementById('wm-canvas') && !!doc.getElementById('wm-empty'), '水印预览画布与空态存在');
-  ['photo-soon', 'batch-soon', 'print-soon'].forEach(function (id) {
+  ['photo-soon', 'print-soon', 'batch-soon', 'docs-soon'].forEach(function (id) {
     var el = doc.getElementById(id);
     assert(!!el && el.hidden, '占位页 #' + id + ' 存在且默认隐藏');
   });
@@ -107,7 +108,9 @@ withServer(PORT, async () => {
     '拖拽框位于内容区列表上方');
   assert(doc.querySelector('#bw-tool-rect.active') && !doc.querySelector('#bw-tool-brush.active'),
     '水印工具默认选中「框选」');
-  assert(doc.querySelectorAll('#archive-menu .home-card').length === 3, '压缩工具菜单 3 张卡片（2 可用 + 1 敬请期待）');
+  assert(doc.querySelectorAll('#archive-menu .home-card').length === 4, '压缩工具菜单 4 张卡片（3 可用 + 1 敬请期待）');
+  assert(!!doc.getElementById('ai-card') && !!doc.getElementById('ai-badge') && !!doc.getElementById('ai-apply') && !!doc.getElementById('ai-restore'),
+    '压缩包图标卡片与按钮存在');
   assert(doc.getElementById('archive-open-compress') && doc.getElementById('archive-open-extract'),
     '压缩文件 / 解压文件入口存在');
   assert(!!doc.getElementById('archive-compress') && !!doc.getElementById('archive-extract'), '压缩 / 解压面板存在');
@@ -123,11 +126,12 @@ withServer(PORT, async () => {
     '输出格式下拉含 7z / ZIP');
   assert(doc.querySelector('#ac-level option[value="normal"]') && doc.querySelector('#ax-out option[value="sub"]'),
     '压缩等级 / 解压位置选项齐备');
-  assert(doc.querySelectorAll('#print-menu .home-card').length === 2, '打印工具菜单 2 张卡片（1 可用 + 1 敬请期待）');
-  assert(!!doc.getElementById('print-open-batch'), '批量打印入口存在');
+  assert(doc.querySelectorAll('#print-menu .home-card').length === 2, '文档工具菜单 2 张卡片（1 可用 + 1 敬请期待）');
+  assert(!!doc.getElementById('print-open-docs') && !!doc.getElementById('batch-open-printbatch'),
+    '文档打印入口与批量打印（批量工具）入口存在');
   assert(!!doc.getElementById('print-batch') && !!doc.getElementById('pb-img') && !!doc.getElementById('pd-doc'),
     '批量打印面板与 图片/文档 两子面板存在');
-  ['pb-tab-img', 'pb-tab-doc', 'pb-pick', 'pb-count', 'pb-unsupported', 'pb-printer', 'pb-paper', 'pb-orient',
+  ['pb-pick', 'pb-count', 'pb-unsupported', 'pb-printer', 'pb-paper', 'pb-orient',
    'pb-margin', 'pb-duplex', 'pb-copies', 'pb-clear', 'pb-run', 'pb-status', 'pb-back', 'pb-grid', 'pb-empty', 'pb-check-all',
    'pd-pick', 'pd-count', 'pd-unsupported', 'pd-mode', 'pd-printer', 'pd-duplex', 'pd-copies', 'pd-note',
    'pd-clear', 'pd-run', 'pd-status', 'pd-back', 'pd-list', 'pd-table', 'pd-empty', 'pd-check-all'

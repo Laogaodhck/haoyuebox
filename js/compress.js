@@ -312,14 +312,24 @@
     });
     $('cmp-clear').addEventListener('click', clearAll);
     $('cmp-run').addEventListener('click', run);
-    $('cmp-back').addEventListener('click', function () { window.App.photo.showPhotoSub('menu'); });
+    $('cmp-back').addEventListener('click', function () {
+      if (enterFrom === 'batch') {
+        window.App.showModule('batch');          // 从批量工具进入 → 回批量工具
+      } else {
+        window.App.photo.showPhotoSub('menu');   // 从照片工具进入 → 回照片子功能菜单
+      }
+    });
     bindDrop('photo-compress');
   }
+
+  /* 进入来源：photo=照片工具菜单（默认）；batch=批量工具「体积优化」入口。
+     返回按钮据此回到来源处，避免从批量进来后被落回照片菜单 */
+  var enterFrom = 'photo';
 
   window.App = window.App || {};
   window.App.compress = {
     init: init,
-    enter: function () { renderAll(); },
+    enter: function (from) { enterFrom = (from === 'batch') ? 'batch' : 'photo'; renderAll(); },
     // 以下导出仅供测试
     _test: {
       clampQuality: clampQuality,
