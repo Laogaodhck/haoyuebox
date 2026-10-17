@@ -387,6 +387,19 @@ button:disabled, .btn-col button:disabled, .btn-row button:disabled {
   gap: 12px;
 }
 .stage-tip { color: var(--text-dim); font-size: 12px; text-align: center; }
+/* 压缩 / 解压面板的可拖拽框（空态提示兼作投放区） */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 34px 16px;
+  line-height: 1.9;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.drop-zone b { color: var(--text); }
+.drop-zone.dz-over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
 
 .matte-wrap canvas, .crop-wrap canvas { touch-action: none; }
 

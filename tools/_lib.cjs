@@ -58,25 +58,37 @@ async function launchBrowser() {
   }
 }
 
-/* 起零依赖静态服务，等它真正可访问后再执行 fn，结束时关掉子进程 */
+/* 起零依赖静态服务，等它真正可访问后再执行 fn，结束时关掉子进程。
+ * 端口被无关进程的临时连接（如 CLOSE_WAIT）占住时自动换下一个端口重试
+ * （最多试 5 个），实际端口以参数形式传给 fn，页内 URL 一律用该参数 */
 async function withServer(port, fn) {
-  const server = spawn(process.execPath, [path.join(ROOT, 'tools', 'server.js')], {
-    env: Object.assign({}, process.env, { PORT: String(port) }),
-    stdio: 'ignore'
-  });
-  let exited = false;
-  server.on('exit', () => { exited = true; });
+  let server = null;
+  let realPort = port;
+  for (let t = 0; t < 5 && !server; t++) {
+    const child = spawn(process.execPath, [path.join(ROOT, 'tools', 'server.js')], {
+      env: Object.assign({}, process.env, { PORT: String(realPort) }),
+      stdio: 'ignore'
+    });
+    const okBind = await new Promise((resolve) => {
+      let exited = false;
+      child.on('exit', () => { exited = true; });
+      setTimeout(() => resolve(!exited), 400); // EADDRINUSE 会立即退出
+    });
+    if (okBind) { server = child; break; }
+    try { child.kill(); } catch (e) { /* 已退出 */ }
+    realPort++;
+  }
+  if (!server) throw new Error('静态服务启动失败（端口 ' + port + '-' + realPort + ' 均被占用）');
   try {
     for (let i = 0; i < 100; i++) {
-      if (exited) throw new Error('静态服务进程意外退出（端口 ' + port + ' 可能被占用）');
       try {
-        const res = await fetch('http://127.0.0.1:' + port + '/', { signal: AbortSignal.timeout(500) });
+        const res = await fetch('http://127.0.0.1:' + realPort + '/', { signal: AbortSignal.timeout(500) });
         if (res.ok) break;
       } catch (e) { /* 还没起来 */ }
       await sleep(100);
-      if (i === 99) throw new Error('静态服务启动超时（端口 ' + port + '）');
+      if (i === 99) throw new Error('静态服务启动超时（端口 ' + realPort + '）');
     }
-    return await fn();
+    return await fn(realPort);
   } finally {
     server.kill();
   }

@@ -93,6 +93,9 @@ withServer(PORT, async () => {
     assert(!!doc.getElementById(id), '控件 #' + id + ' 存在');
   });
   assert(!!doc.getElementById('wm-canvas') && !!doc.getElementById('wm-empty'), '水印预览画布与空态存在');
+  assert(doc.getElementById('ac-empty').classList.contains('drop-zone')
+    && doc.getElementById('ax-empty').classList.contains('drop-zone'),
+    '压缩/解压空态为可拖拽框');
   assert(doc.querySelector('#bw-tool-rect.active') && !doc.querySelector('#bw-tool-brush.active'),
     '水印工具默认选中「框选」');
   assert(doc.querySelectorAll('#archive-menu .home-card').length === 3, '压缩工具菜单 3 张卡片（2 可用 + 1 敬请期待）');

@@ -45,7 +45,7 @@ function buildPdf(text) {
   const pdfB64 = fs.readFileSync(path.join(tmp, '文档A.pdf')).toString('base64');
   const txtB64 = fs.readFileSync(path.join(tmp, '文档B.txt')).toString('base64');
 
-  await withServer(8614, async () => {
+  await withServer(8614, async (port) => {
     const browser = await launchBrowser();
     try {
       const ctx = await browser.newContext();
@@ -79,7 +79,7 @@ function buildPdf(text) {
       const page = await ctx.newPage();
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
-      await page.goto('http://127.0.0.1:8614/', { waitUntil: 'load' });
+      await page.goto('http://127.0.0.1:' + port + '/', { waitUntil: 'load' });
 
       /* ---------- 1. 模块导航 ---------- */
       await page.click('#home-print');
@@ -234,7 +234,7 @@ function buildPdf(text) {
       /* ---------- 4. 浏览器降级 ---------- */
       const page2 = await ctx.newPage();
       await page2.addInitScript(() => { delete window.zunhongPrint; });
-      await page2.goto('http://127.0.0.1:8614/', { waitUntil: 'load' });
+      await page2.goto('http://127.0.0.1:' + port + '/', { waitUntil: 'load' });
       await page2.click('#home-print');
       await page2.click('#print-open-batch');
       assert(await page2.$eval('#pb-unsupported', (el) => !el.hidden), '浏览器模式显示不支持提示');

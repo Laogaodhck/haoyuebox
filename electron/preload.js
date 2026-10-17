@@ -4,7 +4,7 @@
  * ============================================================ */
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 let progressCallback = null;  // archive:progress 回调（单注册，可替换）
 
@@ -23,6 +23,13 @@ contextBridge.exposeInMainWorld('zunhongArchive', {
   isDesktop: true,
   check7z: () => ipcRenderer.invoke('archive:check7z'),
   pickPaths: (kind) => ipcRenderer.invoke('archive:pickPaths', kind),
+  /* 拖拽支持：File 对象 → 本机真实路径（非本机文件 / 虚拟文件返回 ''） */
+  pathForFile: (file) => {
+    try { return webUtils.getPathForFile(file) || ''; }
+    catch (e) { return ''; }
+  },
+  /* 拖拽路径 → 条目元数据（主进程 stat，返回 [{path,name,isDir,size,mtime}]） */
+  statPaths: (paths) => ipcRenderer.invoke('archive:statPaths', paths),
   saveDialog: (defaultName) => ipcRenderer.invoke('archive:saveDialog', defaultName),
   compress: (payload) => ipcRenderer.invoke('archive:compress', payload),
   extract: (payload) => ipcRenderer.invoke('archive:extract', payload),

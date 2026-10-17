@@ -102,6 +102,15 @@ async function pickPaths(getWin, kind) {
   return metas.filter(Boolean);
 }
 
+/* 拖拽落盘路径 → 条目元数据（渲染层经 webUtils.getPathForFile 拿到真实路径后调用）
+ * 与 pickPaths 返回相同形状 [{path,name,isDir,size,mtime}]；非法/不存在路径静默剔除 */
+async function statPaths(paths) {
+  const list = (Array.isArray(paths) ? paths : [])
+    .filter((p) => typeof p === 'string' && p && path.isAbsolute(p));
+  const metas = await Promise.all(list.map(statEntry));
+  return metas.filter(Boolean);
+}
+
 /* 另存为对话框（确定压缩包输出路径） */
 async function saveDialog(getWin, defaultName) {
   const win = getWin();
@@ -308,6 +317,7 @@ async function listArchive(payload) {
 function registerArchiveIpc(ipcMain, getWin) {
   ipcMain.handle('archive:check7z', () => check7z());
   ipcMain.handle('archive:pickPaths', (e, kind) => pickPaths(getWin, kind));
+  ipcMain.handle('archive:statPaths', (e, paths) => statPaths(paths));
   ipcMain.handle('archive:saveDialog', (e, defaultName) => saveDialog(getWin, defaultName));
   ipcMain.handle('archive:compress', (e, payload) => compress(getWin, payload));
   ipcMain.handle('archive:extract', (e, payload) => extract(getWin, payload));

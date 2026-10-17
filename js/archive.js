@@ -261,6 +261,57 @@
     }).catch(function (e) { toast('选择失败：' + (e.message || e), true); });
   }
 
+  /* ================= 拖拽选择（桌面版） ================= */
+
+  /* drop 事件 → 拖入 File 对象转本机路径 → 主进程 stat 出元数据，
+   * onList 收到 [{path,name,isDir,size}]（与 pickPaths 相同形状） */
+  function dropFiles(e, onList) {
+    e.preventDefault();
+    if (running || !bridgeOk()) return;
+    var files = Array.prototype.slice.call((e.dataTransfer && e.dataTransfer.files) || []);
+    if (!files.length) return;
+    var paths = [];
+    files.forEach(function (f) {
+      var p = '';
+      try { p = bridge.pathForFile(f); } catch (err) { p = ''; }
+      if (p) paths.push(p);
+    });
+    if (!paths.length) { toast('无法获取拖拽内容的本地路径', true); return; }
+    bridge.statPaths(paths).then(function (list) {
+      onList(list || []);
+    }).catch(function (err) { toast('读取拖拽内容失败：' + (err.message || err), true); });
+  }
+
+  /* 在指定区域绑定拖拽高亮与 drop 处理 */
+  function bindDropZone(zone, onList) {
+    zone.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      zone.classList.add('dz-over');
+    });
+    zone.addEventListener('dragleave', function () { zone.classList.remove('dz-over'); });
+    zone.addEventListener('drop', function (e) {
+      zone.classList.remove('dz-over');
+      dropFiles(e, onList);
+    });
+  }
+
+  function addDroppedCompress(list) {
+    if (!list.length) { toast('拖拽的内容不可读取', true); return; }
+    items = mergeItems(items, list);
+    renderCompressList();
+    toast('已添加 ' + list.length + ' 项');
+  }
+
+  function addDroppedArchives(list) {
+    var filtered = list.filter(function (it) { return !it.isDir && isArchiveName(it.name); });
+    if (!filtered.length) { toast('拖拽内容中没有可识别的压缩包', true); return; }
+    archives = mergeItems(archives, filtered);
+    $('ax-result').textContent = '';
+    renderExtractList();
+    toast('已添加 ' + filtered.length + ' 个压缩包');
+  }
+
   function runCompress() {
     if (running || !items.length) return;
     if (!bridgeOk()) { toast('压缩功能需要在桌面版中使用', true); return; }
@@ -510,6 +561,9 @@
     /* 压缩面板 */
     $('ac-pick-files').addEventListener('click', function () { pickCompress('file'); });
     $('ac-pick-dir').addEventListener('click', function () { pickCompress('dir'); });
+    /* 拖拽框：内容区（空态 / 列表所在画布）均可拖入文件与文件夹 */
+    bindDropZone($('ac-empty').parentElement, addDroppedCompress);
+    bindDropZone($('ax-empty').parentElement, addDroppedArchives);
     $('ac-clear').addEventListener('click', function () {
       if (running) return;
       items = [];

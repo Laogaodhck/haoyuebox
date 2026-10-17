@@ -3,9 +3,10 @@
  * 桥接层 stub（模拟 Electron preload 的 window.zunhongArchive），
  * 走真实渲染层交互链路：
  *   1. 首页入口 / 顶栏切换 / 面板显隐 / 返回菜单
- *   2. 压缩：选文件+选文件夹 → 去重 → 参数联动 → 执行 payload 校验
- *      → 进度回调 → 完成文案 → 清空
- *   3. 解压：非压缩包过滤 → 解压到联动 → 成功/失败结果渲染
+ *   2. 压缩：选文件+选文件夹 → 拖拽文件+文件夹 → 去重 → 参数联动
+ *      → 执行 payload 校验 → 进度回调 → 完成文案 → 清空
+ *   3. 解压：非压缩包过滤 → 拖拽压缩包入列（非压缩包过滤）→ 解压到联动
+ *      → 成功/失败结果渲染
  *   4. 浏览器环境（无桥接）：提示可见、按钮禁用
  * ============================================================ */
 'use strict';
@@ -68,7 +69,14 @@ withServer(PORT, async () => {
           };
         },
         check7z: async () => ({ ok: true, version: '7-Zip 26.03 (x64)', path: 'C:\\fake\\7z.exe' }),
-        onProgress: (cb) => { bridge._cb = cb; }
+        onProgress: (cb) => { bridge._cb = cb; },
+        /* 拖拽支持 stub：File.name → 本机路径；statPaths 按名称给元数据（无扩展名视为文件夹） */
+        pathForFile: (f) => 'C:\\drop\\' + ((f && f.name) || ''),
+        statPaths: async (paths) => (paths || []).map((p) => {
+          const name = p.split('\\').pop();
+          const isDir = !/\.[^.]+$/.test(name);
+          return { path: p, name, isDir, size: isDir ? 0 : 777 };
+        })
       };
       Object.defineProperty(window, 'zunhongArchive', { value: bridge });
     });
@@ -193,6 +201,22 @@ withServer(PORT, async () => {
       && await page.$eval('#ac-run', el => el.disabled), '清空后表格清空、执行禁用');
     assert(await page.$eval('#ac-empty', el => !el.hidden), '清空后显示空态提示');
 
+    // ---------- 拖拽选择（压缩面板）：文件 + 文件夹混合拖入 ----------
+    await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.items.add(new File(['a'], '拖拽文档.txt'));
+      dt.items.add(new File(['b'], '拖拽目录'));
+      document.getElementById('ac-empty').parentElement
+        .dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    });
+    await page.waitForFunction(() => document.querySelectorAll('#ac-table tbody tr').length === 2);
+    const dropRow = await page.$eval('#ac-table tbody tr:last-child', tr => tr.textContent);
+    assert(/拖拽目录/.test(dropRow) && /文件夹/.test(dropRow) && /—/.test(dropRow),
+      '拖拽文件夹入列并标类型');
+    assert(await page.$eval('#ac-count', el => /已勾选 2 项/.test(el.textContent)),
+      '拖拽文件+文件夹后计数与勾选正确');
+    assert(await page.$eval('#ac-run', el => !el.disabled), '拖拽后执行按钮可用');
+
     // ---------- 解压面板 ----------
     await page.click('#ac-back');
     assert(await page.$eval('#archive-menu', el => !el.hidden), '返回按钮回到菜单');
@@ -228,6 +252,28 @@ withServer(PORT, async () => {
     assert(/失败：密码错误/.test(badRow), '失败行展示错误原因');
     assert(await page.$eval('#ax-table tbody tr:last-child', tr => tr.classList.contains('st-bad')),
       '失败行标红（st-bad）');
+
+    // ---------- 拖拽选择（解压面板）：压缩包入列、非压缩包过滤 ----------
+    await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.items.add(new File(['c'], '拖拽包.rar'));
+      dt.items.add(new File(['d'], '图片.jpg'));
+      document.getElementById('ax-empty').parentElement
+        .dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    });
+    await page.waitForFunction(() => /拖拽包\.rar/.test(document.getElementById('ax-table').textContent));
+    assert(await page.$$eval('#ax-table tbody tr', trs => trs.length) === 3,
+      '拖拽压缩包入列，同拖的非压缩包被过滤');
+
+    await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.items.add(new File(['e'], '纯图片.png'));
+      document.getElementById('ax-empty').parentElement
+        .dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    });
+    await sleep(200);
+    assert(await page.$$eval('#ax-table tbody tr', trs => trs.length) === 3,
+      '仅拖入非压缩包时不入列');
     await page.evaluate(() => window.zunhongArchive._cb({ task: 'extract', index: 0, total: 1, name: 'b.7z', pct: 66 }));
     assert(await page.$eval('#ax-progress', el => el.textContent === '解压中（1/1）：b.7z — 66%'),
       '解压进度文案带序号与文件名');
