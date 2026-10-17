@@ -50,7 +50,7 @@
   <aside class="home-declare">
     <img class="home-logo" src="assets/icon.png" alt="尊泓工具箱">
     <h2 class="home-name">尊泓工具箱</h2>
-    <div class="home-version">桌面离线版 v1.2.4</div>
+    <div class="home-version">桌面离线版 v1.2.5</div>
     <div class="home-divider"></div>
     <h3 class="home-h3">软件声明</h3>
     <ul class="home-declare-list">
@@ -1047,6 +1047,10 @@
 
     <div class="stage">
       <div class="canvas-wrap batch-table-wrap">
+        <div id="ac-drop" class="drop-zone">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+          <span>将文件或文件夹<b>拖拽到此处</b>添加 · 也可点击左侧按钮选择（可多选、可混合）</span>
+        </div>
         <div class="preview-title">待压缩内容</div>
         <div class="batch-scroll" id="ac-list" hidden>
           <table id="ac-table" class="batch-table">
@@ -1054,7 +1058,7 @@
             <tbody></tbody>
           </table>
         </div>
-        <div id="ac-empty" class="stage-tip drop-zone">将文件或文件夹<b>拖拽到此处</b><br>也可点击左侧按钮选择（可多选、可混合）</div>
+        <div id="ac-empty" class="stage-tip">暂未选择内容 · 拖入或点击左侧按钮添加</div>
       </div>
     </div>
   </section>
@@ -1095,6 +1099,10 @@
 
     <div class="stage">
       <div class="canvas-wrap batch-table-wrap">
+        <div id="ax-drop" class="drop-zone">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>将压缩包<b>拖拽到此处</b>添加 · 7z / ZIP / RAR / TAR 等常见格式均可</span>
+        </div>
         <div class="preview-title">待解压文件</div>
         <div class="batch-scroll" id="ax-list" hidden>
           <table id="ax-table" class="batch-table">
@@ -1102,7 +1110,7 @@
             <tbody></tbody>
           </table>
         </div>
-        <div id="ax-empty" class="stage-tip drop-zone">将压缩包<b>拖拽到此处</b><br>也可点击左侧按钮选择（7z / ZIP / RAR / TAR 等常见格式均可）</div>
+        <div id="ax-empty" class="stage-tip">暂未选择压缩包 · 拖入或点击左侧按钮添加</div>
         <div id="ax-result" class="hint-text"></div>
       </div>
     </div>

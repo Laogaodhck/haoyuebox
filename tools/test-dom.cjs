@@ -98,9 +98,13 @@ withServer(PORT, async () => {
     var el = doc.getElementById(id);
     assert(!!el && el.hidden, '占位页 #' + id + ' 存在且默认隐藏');
   });
-  assert(doc.getElementById('ac-empty').classList.contains('drop-zone')
-    && doc.getElementById('ax-empty').classList.contains('drop-zone'),
-    '压缩/解压空态为可拖拽框');
+  assert(doc.getElementById('ac-drop').classList.contains('drop-zone')
+    && doc.getElementById('ax-drop').classList.contains('drop-zone'),
+    '压缩/解压面板顶部为实体拖拽框');
+  assert(doc.getElementById('ac-drop').previousElementSibling === null
+    && /待压缩内容/.test(doc.getElementById('ac-drop').nextElementSibling.textContent)
+    && /待解压文件/.test(doc.getElementById('ax-drop').nextElementSibling.textContent),
+    '拖拽框位于内容区列表上方');
   assert(doc.querySelector('#bw-tool-rect.active') && !doc.querySelector('#bw-tool-brush.active'),
     '水印工具默认选中「框选」');
   assert(doc.querySelectorAll('#archive-menu .home-card').length === 3, '压缩工具菜单 3 张卡片（2 可用 + 1 敬请期待）');
@@ -108,9 +112,9 @@ withServer(PORT, async () => {
     '压缩文件 / 解压文件入口存在');
   assert(!!doc.getElementById('archive-compress') && !!doc.getElementById('archive-extract'), '压缩 / 解压面板存在');
   ['ac-pick-files', 'ac-pick-dir', 'ac-count', 'ac-unsupported', 'ac-fmt', 'ac-level', 'ac-pass-btn', 'ac-encnames',
-   'ac-encnames-row', 'ac-note', 'ac-clear', 'ac-run', 'ac-progress', 'ac-back', 'ac-list', 'ac-table', 'ac-empty',
+   'ac-encnames-row', 'ac-note', 'ac-clear', 'ac-run', 'ac-progress', 'ac-back', 'ac-list', 'ac-table', 'ac-empty', 'ac-drop',
    'ax-pick', 'ax-count', 'ax-unsupported', 'ax-out', 'ax-pass-btn', 'ax-clear', 'ax-run', 'ax-progress',
-   'ax-back', 'ax-list', 'ax-table', 'ax-empty', 'ax-result',
+   'ax-back', 'ax-list', 'ax-table', 'ax-empty', 'ax-result', 'ax-drop',
    'pass-dlg', 'pass-dlg-input', 'pass-dlg-ok', 'pass-dlg-cancel', 'pass-dlg-clear'
   ].forEach(function (id) {
     assert(!!doc.getElementById(id), '压缩工具控件 #' + id + ' 存在');

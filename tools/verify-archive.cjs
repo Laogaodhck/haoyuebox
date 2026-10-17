@@ -206,7 +206,7 @@ withServer(PORT, async () => {
       const dt = new DataTransfer();
       dt.items.add(new File(['a'], '拖拽文档.txt'));
       dt.items.add(new File(['b'], '拖拽目录'));
-      document.getElementById('ac-empty').parentElement
+      document.getElementById('ac-drop')
         .dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
     });
     await page.waitForFunction(() => document.querySelectorAll('#ac-table tbody tr').length === 2);
@@ -258,7 +258,7 @@ withServer(PORT, async () => {
       const dt = new DataTransfer();
       dt.items.add(new File(['c'], '拖拽包.rar'));
       dt.items.add(new File(['d'], '图片.jpg'));
-      document.getElementById('ax-empty').parentElement
+      document.getElementById('ax-drop')
         .dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
     });
     await page.waitForFunction(() => /拖拽包\.rar/.test(document.getElementById('ax-table').textContent));
@@ -268,7 +268,7 @@ withServer(PORT, async () => {
     await page.evaluate(() => {
       const dt = new DataTransfer();
       dt.items.add(new File(['e'], '纯图片.png'));
-      document.getElementById('ax-empty').parentElement
+      document.getElementById('ax-drop')
         .dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
     });
     await sleep(200);

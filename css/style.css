@@ -387,18 +387,25 @@ button:disabled, .btn-col button:disabled, .btn-row button:disabled {
   gap: 12px;
 }
 .stage-tip { color: var(--text-dim); font-size: 12px; text-align: center; }
-/* 压缩 / 解压面板的可拖拽框（空态提示兼作投放区） */
+/* 压缩 / 解压面板内容区顶部的实体拖拽框（常驻投放区） */
 .drop-zone {
-  border: 2px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 2px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 34px 16px;
-  line-height: 1.9;
+  padding: 13px 16px;
+  color: var(--text-dim);
+  font-size: 13px;
   transition: border-color .15s, background .15s, color .15s;
 }
+.drop-zone .icon { width: 20px; height: 20px; flex: none; color: var(--accent); }
 .drop-zone b { color: var(--text); }
 .drop-zone.dz-over {
   border-color: var(--accent);
   background: var(--accent-soft);
+  color: var(--text);
 }
 
 .matte-wrap canvas, .crop-wrap canvas { touch-action: none; }

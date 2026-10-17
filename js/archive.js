@@ -562,8 +562,8 @@
     $('ac-pick-files').addEventListener('click', function () { pickCompress('file'); });
     $('ac-pick-dir').addEventListener('click', function () { pickCompress('dir'); });
     /* 拖拽框：内容区（空态 / 列表所在画布）均可拖入文件与文件夹 */
-    bindDropZone($('ac-empty').parentElement, addDroppedCompress);
-    bindDropZone($('ax-empty').parentElement, addDroppedArchives);
+    bindDropZone($('ac-drop'), addDroppedCompress);
+    bindDropZone($('ax-drop'), addDroppedArchives);
     $('ac-clear').addEventListener('click', function () {
       if (running) return;
       items = [];
