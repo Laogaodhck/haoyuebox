@@ -703,6 +703,7 @@ window.App = (function () {
     $('photo-convert').hidden = name !== 'convert';
     $('photo-compose').hidden = name !== 'compose';
     $('photo-compress').hidden = name !== 'compress';
+    $('photo-soon').hidden = name !== 'soon';   // 老照片修复（开发中占位）
   }
 
   /* ============ 入口注册表（声明式） ============
@@ -723,6 +724,13 @@ window.App = (function () {
     { card: 'batch-open-format',     run: function () { window.App.batchFormat.enter(); } },
     /* 批量体积优化复用照片工具的压缩子功能 */
     { card: 'batch-open-optimize',   run: function () { showModule('photo'); window.App.compress.enter(); showPhotoSub('compress'); } },
+    /* 未开发子功能占位页（进入 / 返回） */
+    { card: 'photo-open-restore',    run: function () { showPhotoSub('soon'); } },
+    { card: 'soon-photo-back',       run: function () { showPhotoSub('menu'); } },
+    { card: 'batch-open-addwm',      run: function () { window.App.batch.showOnly('batch-soon'); } },
+    { card: 'soon-batch-back',       run: function () { window.App.batch.showOnly(null); } },
+    { card: 'print-open-idphoto',    run: function () { window.App.printBatch.showOnly('print-soon'); } },
+    { card: 'soon-print-back',       run: function () { window.App.printBatch.showOnly(null); } },
     { card: 'print-open-batch',      run: function () { window.App.printBatch.showOnly('print-batch'); } }
   ];
   /* boot 时逐个调用的模块 init 列表（与 window.App 键名一致） */

@@ -50,7 +50,7 @@
   <aside class="home-declare">
     <img class="home-logo" src="assets/icon.png" alt="尊泓工具箱">
     <h2 class="home-name">尊泓工具箱</h2>
-    <div class="home-version">桌面离线版 v1.2.3</div>
+    <div class="home-version">桌面离线版 v1.2.4</div>
     <div class="home-divider"></div>
     <h3 class="home-h3">软件声明</h3>
     <ul class="home-declare-list">
@@ -142,7 +142,33 @@
       </span>
       <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
+    <button class="home-card" id="photo-open-restore" type="button">
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 21 9-9"/><path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="M17.8 11.8 19 13"/><path d="M17.8 6.2 19 5"/><path d="m12.2 6.2 3-3"/></svg></span>
+      <span class="hc-body">
+        <span class="hc-title">老照片修复 <span class="hc-badge soon">敬请期待</span></span>
+        <span class="hc-desc">AI 修复划痕与折痕 · 黑白照一键上色 · 画质增强（开发中）</span>
+      </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+    </button>
   </div>
+
+  <!-- ========== 子功能：老照片修复（开发中占位） ========== -->
+  <section id="photo-soon" class="subpage" hidden>
+    <div class="soon-wrap">
+      <div class="soon-card">
+        <span class="soon-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 21 9-9"/><path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="M17.8 11.8 19 13"/><path d="M17.8 6.2 19 5"/><path d="m12.2 6.2 3-3"/></svg></span>
+        <div class="soon-title">老照片修复</div>
+        <div class="soon-desc">AI 修复划痕与折痕 · 黑白照一键上色 · 清晰度增强与放大</div>
+        <ul class="soon-list">
+          <li>划痕 / 折痕 / 污渍智能修复</li>
+          <li>黑白照片一键上色，肤色自然还原</li>
+          <li>模糊老照片画质增强与高清放大</li>
+        </ul>
+        <span class="soon-badge">功能开发中 · 敬请期待</span>
+        <button id="soon-photo-back" class="ghost soon-back">← 返回照片工具</button>
+      </div>
+    </div>
+  </section>
 
   <!-- ========== 子功能：证照生成 ========== -->
   <section id="photo-flow" hidden>
@@ -677,7 +703,33 @@
       </span>
       <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
+    <button class="home-card" id="batch-open-addwm" type="button">
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 22h14"/><path d="M19.27 13.73A2.5 2.5 0 0 0 17.5 13h-11A2.5 2.5 0 0 0 4 15.5V17a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1.5c0-.66-.26-1.3-.73-1.77Z"/><path d="M14 13V8.5C14 7 15 7 15 5a3 3 0 0 0-6 0c0 2 1 2 1 3.5V13"/></svg></span>
+      <span class="hc-body">
+        <span class="hc-title">批量加水印 <span class="hc-badge soon">敬请期待</span></span>
+        <span class="hc-desc">文字 / 图片水印批量添加 · 位置与透明度可调（开发中）</span>
+      </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+    </button>
   </div>
+
+  <!-- ========== 子功能：批量加水印（开发中占位） ========== -->
+  <section id="batch-soon" class="subpage" hidden>
+    <div class="soon-wrap">
+      <div class="soon-card">
+        <span class="soon-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 22h14"/><path d="M19.27 13.73A2.5 2.5 0 0 0 17.5 13h-11A2.5 2.5 0 0 0 4 15.5V17a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1.5c0-.66-.26-1.3-.73-1.77Z"/><path d="M14 13V8.5C14 7 15 7 15 5a3 3 0 0 0-6 0c0 2 1 2 1 3.5V13"/></svg></span>
+        <div class="soon-title">批量加水印</div>
+        <div class="soon-desc">文字 / 图片水印批量添加 · 位置、透明度与平铺方式可调</div>
+        <ul class="soon-list">
+          <li>文字水印：内容、字号、颜色、透明度自由设置</li>
+          <li>图片水印：PNG 透明标支持缩放与九宫位置预设</li>
+          <li>单角 / 居中 / 平铺铺满，整个文件夹一键处理</li>
+        </ul>
+        <span class="soon-badge">功能开发中 · 敬请期待</span>
+        <button id="soon-batch-back" class="ghost soon-back">← 返回批量工具</button>
+      </div>
+    </div>
+  </section>
 
   <!-- 重命名面板 -->
   <section id="batch-rename" class="batch-rename" hidden>
@@ -1071,15 +1123,34 @@
         </span>
         <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
       </button>
-      <button class="home-card disabled" type="button" disabled>
+      <button class="home-card" id="print-open-idphoto" type="button">
         <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
         <span class="hc-body">
-          <span class="hc-title">证照打印</span>
-          <span class="hc-desc">常用规格直出打印 · 敬请期待</span>
+          <span class="hc-title">证照打印 <span class="hc-badge soon">敬请期待</span></span>
+          <span class="hc-desc">常用规格直出打印 · 六寸相纸排版 · 与证照生成打通（开发中）</span>
         </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
       </button>
     </div>
   </div>
+
+  <!-- ========== 子功能：证照打印（开发中占位） ========== -->
+  <section id="print-soon" class="subpage" hidden>
+    <div class="soon-wrap">
+      <div class="soon-card">
+        <span class="soon-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+        <div class="soon-title">证照打印</div>
+        <div class="soon-desc">一寸 / 二寸 / 护照等常用规格直出打印 · 六寸相纸排版</div>
+        <ul class="soon-list">
+          <li>常用证照规格免设置直出打印</li>
+          <li>六寸相纸多张排版，自动裁切线</li>
+          <li>与证照生成打通，成品一键送打印</li>
+        </ul>
+        <span class="soon-badge">功能开发中 · 敬请期待</span>
+        <button id="soon-print-back" class="ghost soon-back">← 返回打印工具</button>
+      </div>
+    </div>
+  </section>
 
   <!-- ========== 批量打印 ========== -->
   <section id="print-batch" class="subpage" hidden>

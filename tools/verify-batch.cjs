@@ -72,6 +72,18 @@ withServer(PORT, async () => {
       await w.close();
     });
 
+    // ---------- 未开发占位页：批量加水印（进入 / 返回） ----------
+    await page.click('#home-batch');
+    await page.click('#batch-open-addwm');
+    assert(await page.$eval('#batch-soon', el => !el.hidden), '「批量加水印」占位页可见');
+    assert(await page.$eval('#batch-menu', el => el.hidden), '进入占位页后菜单收纳');
+    assert(/功能开发中/.test(await page.$eval('#batch-soon .soon-badge', el => el.textContent)),
+      '占位页显示「功能开发中」徽标');
+    await page.click('#soon-batch-back');
+    assert(await page.$eval('#batch-soon', el => el.hidden)
+      && await page.$eval('#batch-menu', el => !el.hidden), '占位页返回后菜单恢复');
+    await page.click('.module-tab[data-module="home"]');
+
     // ---------- 格式转换：扫描 ----------
     await page.click('#home-batch');
     await page.click('#batch-open-format');

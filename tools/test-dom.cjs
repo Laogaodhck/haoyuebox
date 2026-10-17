@@ -77,22 +77,27 @@ withServer(PORT, async () => {
   assert(doc.querySelectorAll('#steps-nav .step').length === 4, '照片模块步骤指示器 4 个');
   assert(!!doc.getElementById('photo-menu'), '照片工具子功能菜单存在');
   assert(!!doc.getElementById('photo-flow'), '证照生成流程容器存在');
-  assert(doc.querySelectorAll('#photo-menu .home-card').length === 4, '子功能菜单 4 张卡片（3 可用 + 1 敬请期待）');
+  assert(doc.querySelectorAll('#photo-menu .home-card').length === 5, '子功能菜单 5 张卡片（4 可用 + 1 敬请期待）');
   assert(doc.getElementById('photo-open-idphoto') && doc.getElementById('photo-open-convert') && doc.getElementById('photo-open-compose'),
     '证照生成 / 图片转换 / 图片合成入口存在');
   assert(!!doc.getElementById('photo-convert') && !!doc.getElementById('photo-compose'), '图片转换 / 图片合成面板存在');
-  assert(doc.querySelectorAll('#batch-menu .home-card').length === 4, '批量工具菜单 4 张卡片（3 可用 + 1 敬请期待）');
+  assert(doc.querySelectorAll('#batch-menu .home-card').length === 5, '批量工具菜单 5 张卡片（4 可用 + 1 敬请期待）');
   assert(doc.getElementById('batch-open-rename') && doc.getElementById('batch-open-watermark') && doc.getElementById('batch-open-format'),
     '批量重命名 / 去除水印 / 格式转换入口存在');
   assert(!!doc.getElementById('batch-format') && !!doc.getElementById('batch-watermark'), '格式转换 / 去除水印面板存在');
   assert(doc.querySelectorAll('#batch-format select, #batch-watermark select').length === 5, '两个新面板下拉共 5 个');
   ['bf-pick', 'bf-run', 'bf-back', 'bf-quality', 'bf-bg', 'bf-pdf-merge', 'bf-out', 'bf-list', 'bf-empty',
    'bw-pick', 'bw-run', 'bw-back', 'bw-mode', 'bw-strength', 'bw-color', 'bw-out', 'bw-undo', 'bw-clear', 'bw-clear-all', 'wm-chips',
-   'bw-files', 'bw-tools', 'bw-tool-rect', 'bw-tool-brush', 'bw-tool-erase', 'bw-brush-row', 'bw-brush-size'
+   'bw-files', 'bw-tools', 'bw-tool-rect', 'bw-tool-brush', 'bw-tool-erase', 'bw-brush-row', 'bw-brush-size',
+   'photo-open-restore', 'soon-photo-back', 'batch-open-addwm', 'soon-batch-back', 'print-open-idphoto', 'soon-print-back'
   ].forEach(function (id) {
     assert(!!doc.getElementById(id), '控件 #' + id + ' 存在');
   });
   assert(!!doc.getElementById('wm-canvas') && !!doc.getElementById('wm-empty'), '水印预览画布与空态存在');
+  ['photo-soon', 'batch-soon', 'print-soon'].forEach(function (id) {
+    var el = doc.getElementById(id);
+    assert(!!el && el.hidden, '占位页 #' + id + ' 存在且默认隐藏');
+  });
   assert(doc.getElementById('ac-empty').classList.contains('drop-zone')
     && doc.getElementById('ax-empty').classList.contains('drop-zone'),
     '压缩/解压空态为可拖拽框');

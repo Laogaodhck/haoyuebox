@@ -788,10 +788,11 @@ window.App.printBatch = (function () {
 
   /* ================= 面板与模式切换 ================= */
 
-  /* showOnly 模式：仅显示指定面板（与批量/压缩工具一致） */
+  /* showOnly 模式：仅显示指定面板（与批量/压缩工具一致；print-soon 为开发中占位页） */
   function showOnly(panelId) {
     $('print-menu').hidden = !!panelId;
     $('print-batch').hidden = panelId !== 'print-batch';
+    $('print-soon').hidden = panelId !== 'print-soon';
   }
 
   function enter() { showOnly(null); }

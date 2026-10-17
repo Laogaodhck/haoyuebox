@@ -86,10 +86,21 @@ if (!exe) {
       null, { timeout: 15000 });
     assert(true, '主进程真实 IPC：打包内 7z 引擎检测通过');
 
-    /* ---------- 模块切换回归 + 无页面错误 ---------- */
+    /* ---------- 模块切换回归 + 未开发占位页 + 无页面错误 ---------- */
     await win.click('#ac-back');
     await win.click('.module-tab[data-module="photo"]');
     assert(await win.$eval('#view-photo', (el) => el.style.display !== 'none'), '顶栏切回照片工具正常');
+    await win.click('#photo-open-restore');
+    assert(await win.$eval('#photo-soon', (el) => !el.hidden), '照片工具「老照片修复」占位页可见');
+    await win.click('#soon-photo-back');
+    assert(await win.$eval('#photo-soon', (el) => el.hidden) && await win.$eval('#photo-menu', (el) => !el.hidden),
+      '占位页返回子功能菜单正常');
+    await win.click('.module-tab[data-module="print"]');
+    await win.click('#print-open-idphoto');
+    assert(await win.$eval('#print-soon', (el) => !el.hidden), '打印工具「证照打印」占位页可见');
+    await win.click('#soon-print-back');
+    assert(await win.$eval('#print-soon', (el) => el.hidden) && await win.$eval('#print-menu', (el) => !el.hidden),
+      '证照打印占位页返回菜单正常');
     assert(pageErrors.length === 0,
       '全程无页面脚本错误' + (pageErrors.length ? '：' + pageErrors.join(' | ') : ''));
   } finally {
