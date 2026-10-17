@@ -830,17 +830,26 @@
   <!-- 去除水印面板 -->
   <section id="batch-watermark" class="subpage" hidden>
     <aside class="panel">
-      <h3>选择文件夹</h3>
+      <h3>选择图片</h3>
       <div class="btn-col">
-        <button id="bw-pick" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg> 选择文件夹…</button>
+        <button id="bw-pick" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9"/><path d="M3 15l5.6-5.6a2 2 0 0 1 2.8 0L17 15"/><circle cx="15.5" cy="8.5" r="1.2"/></svg> 选择图片…</button>
       </div>
-      <div id="bw-folder" class="hint-text">未选择文件夹</div>
-      <div id="bw-unsupported" class="hint-text st-bad" hidden>当前浏览器不支持文件夹写入，请使用桌面版（安装版 / start.bat）或 Chrome / Edge 打开</div>
+      <div id="bw-files" class="hint-text">未选择图片</div>
+      <div id="bw-unsupported" class="hint-text st-bad" hidden>当前浏览器不支持图片文件读写，请使用桌面版（安装版 / start.bat）或 Chrome / Edge 打开</div>
 
       <h3>水印区域</h3>
-      <div class="hint-text">在右侧预览图上<b>按住拖拽框选</b>水印位置，选区按比例应用到文件夹内全部图片</div>
+      <div class="hint-text">在右侧预览图上<b>拖拽框选</b>，或用<b>涂抹</b>笔刷手动刷出水印蒙版（可擦除修正）；处理时按比例应用到全部已选图片</div>
+      <div class="btn-row wm-tools" id="bw-tools">
+        <button id="bw-tool-rect" class="active">框选</button>
+        <button id="bw-tool-brush">涂抹</button>
+        <button id="bw-tool-erase">擦除</button>
+      </div>
+      <div class="field" id="bw-brush-row" hidden>
+        <label>笔刷大小 <span id="bw-brush-val">40</span></label>
+        <input type="range" id="bw-brush-size" min="8" max="120" value="40">
+      </div>
       <div class="btn-row">
-        <button id="bw-undo" class="ghost">撤销一处</button>
+        <button id="bw-undo" class="ghost">撤销一步</button>
         <button id="bw-clear" class="ghost">清空选区</button>
       </div>
       <div id="wm-chips" class="wm-chips"></div>
@@ -862,25 +871,25 @@
 
       <h3>输出</h3>
       <select id="bw-out" class="select">
-        <option value="suffix" selected>另存为「原文件名-无水印」（推荐）</option>
+        <option value="suffix" selected>另存「原文件名-无水印」副本（推荐，需选择保存位置）</option>
         <option value="overwrite">覆盖原文件</option>
       </select>
 
       <div class="btn-row bottom">
         <button id="bw-clear-all" class="ghost">重置</button>
-        <button id="bw-run" class="primary" disabled>批量去除水印</button>
+        <button id="bw-run" class="primary" disabled>去除水印</button>
       </div>
-      <div id="bw-note" class="hint-text">GIF 仅处理第一帧；HEIC / TIFF 等特殊格式暂不支持，将自动跳过</div>
+      <div id="bw-note" class="hint-text">GIF 仅处理第一帧；蒙版 / 选区按比例适配每张图片；HEIC / TIFF 等特殊格式暂不支持，将自动跳过</div>
       <button id="bw-back" class="ghost batch-back">← 返回批量工具</button>
     </aside>
 
     <div class="stage">
       <div class="canvas-wrap">
         <div class="preview-title">水印处理预览（第 1 张图片）</div>
-        <div id="wm-empty" class="empty-state" role="button" tabindex="0" aria-label="选择文件夹">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
-          <div class="es-title">还没有选择文件夹</div>
-          <div class="es-hint">点击此处选择文件夹<br>预览第一张图片，拖拽框选水印位置</div>
+        <div id="wm-empty" class="empty-state" role="button" tabindex="0" aria-label="选择图片">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9"/><path d="M3 15l5.6-5.6a2 2 0 0 1 2.8 0L17 15"/><circle cx="15.5" cy="8.5" r="1.2"/></svg>
+          <div class="es-title">还没有选择图片</div>
+          <div class="es-hint">点击此处选择图片<br>预览第一张，框选或涂抹水印位置</div>
         </div>
         <canvas id="wm-canvas" hidden></canvas>
         <div id="wm-info" class="hint-text"></div>

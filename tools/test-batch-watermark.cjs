@@ -80,5 +80,32 @@ assert(T.buildOutName('scan.bmp', 'overwrite', 'png') === 'scan.png', 'BMP 强�
 assert(T.buildOutName('动图.gif', 'suffix', 'png') === '动图-无水印.png', 'GIF 强制转 PNG（suffix 模式）');
 assert(T.buildOutName('web.webp', 'suffix') === 'web-无水印.webp', 'WebP 保持原格式');
 
+/* ---------- 7. 蒙版环采（涂抹蒙版的周边取色） ---------- */
+// 12×12 图，像素值 = [x, y, 0, 255]；蒙版为 (3,3)-(8,8) 的 6×6 实心块
+{
+  const MW = 12, MH = 12;
+  const mdata = new Uint8ClampedArray(MW * MH * 4);
+  const maskA = new Uint8Array(MW * MH);
+  for (let y = 0; y < MH; y++) {
+    for (let x = 0; x < MW; x++) {
+      const i = (y * MW + x) * 4;
+      mdata[i] = x; mdata[i + 1] = y; mdata[i + 2] = 0; mdata[i + 3] = 255;
+      if (x >= 3 && x <= 8 && y >= 3 && y <= 8) maskA[y * MW + x] = 255;
+    }
+  }
+  const ring = 2;
+  const mc = T.collectMaskRingColors(mdata, MW, MH, maskA, ring);
+  assert(mc.length > 0, '蒙版环采采到颜色');
+  const has2 = (x, y) => mc.some(c => c[0] === x && c[1] === y);
+  // 步长 3 网格采到蒙版内点 (3,3)/(6,3)/(3,6)；(6,6) 距边缘 3px > ring=2，8 方向全在蒙版内（符合预期，跳过）
+  assert(has2(1, 3) && has2(6, 1) && has2(1, 6),
+    '蒙版内采样点向 8 方向取首个蒙版外像素');
+  assert(mc.every(c => maskA[c[1] * MW + c[0]] <= 128), '全部采样点来自蒙版外');
+  assert(!has2(5, 5) && !has2(4, 4), '蒙版内部颜色不采集');
+  assert(T.collectMaskRingColors(mdata, MW, MH, maskA, 0).length === 0, '非法 ring 返回空');
+  const emptyA = new Uint8Array(MW * MH);
+  assert(T.collectMaskRingColors(mdata, MW, MH, emptyA, 2).length === 0, '空蒙版返回空');
+}
+
 console.log('\n结果： ' + pass + ' 通过， ' + fail + ' 失败');
 process.exit(fail ? 1 : 0);

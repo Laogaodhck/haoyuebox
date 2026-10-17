@@ -87,11 +87,14 @@ withServer(PORT, async () => {
   assert(!!doc.getElementById('batch-format') && !!doc.getElementById('batch-watermark'), '格式转换 / 去除水印面板存在');
   assert(doc.querySelectorAll('#batch-format select, #batch-watermark select').length === 5, '两个新面板下拉共 5 个');
   ['bf-pick', 'bf-run', 'bf-back', 'bf-quality', 'bf-bg', 'bf-pdf-merge', 'bf-out', 'bf-list', 'bf-empty',
-   'bw-pick', 'bw-run', 'bw-back', 'bw-mode', 'bw-strength', 'bw-color', 'bw-out', 'bw-undo', 'bw-clear', 'bw-clear-all', 'wm-chips'
+   'bw-pick', 'bw-run', 'bw-back', 'bw-mode', 'bw-strength', 'bw-color', 'bw-out', 'bw-undo', 'bw-clear', 'bw-clear-all', 'wm-chips',
+   'bw-files', 'bw-tools', 'bw-tool-rect', 'bw-tool-brush', 'bw-tool-erase', 'bw-brush-row', 'bw-brush-size'
   ].forEach(function (id) {
     assert(!!doc.getElementById(id), '控件 #' + id + ' 存在');
   });
   assert(!!doc.getElementById('wm-canvas') && !!doc.getElementById('wm-empty'), '水印预览画布与空态存在');
+  assert(doc.querySelector('#bw-tool-rect.active') && !doc.querySelector('#bw-tool-brush.active'),
+    '水印工具默认选中「框选」');
   assert(doc.querySelectorAll('#archive-menu .home-card').length === 3, '压缩工具菜单 3 张卡片（2 可用 + 1 敬请期待）');
   assert(doc.getElementById('archive-open-compress') && doc.getElementById('archive-open-extract'),
     '压缩文件 / 解压文件入口存在');

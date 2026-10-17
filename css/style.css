@@ -961,6 +961,25 @@ body[data-module="print"] #sheet-steps-nav { display: none; }
   padding: 1px 9px;
   background: var(--accent-soft);
 }
+/* 框选 / 涂抹 / 擦除 工具三档切换 */
+.wm-tools button {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.wm-tools button:hover { border-color: var(--text-dim); color: var(--text); }
+.wm-tools button.active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--accent-soft);
+}
 
 /* ---------- 响应式 ---------- */
 /* 中屏（≤860px）：左右分栏改上下堆叠，画布优先展示（内容优先级：先看到操作对象） */

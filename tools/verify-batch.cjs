@@ -1,10 +1,12 @@
 /* ============================================================
  * verify-batch.cjs — 批量工具「格式转换 / 去除水印」真机验证
- * 用 addInitScript 把 showDirectoryPicker stub 成返回 OPFS 内的
- * 测试文件夹句柄，走真实扫描 / 转换 / 写盘 / 读回校验链路：
+ * 用 addInitScript 把 showDirectoryPicker / showOpenFilePicker
+ * stub 成返回 OPFS 内测试文件句柄，走真实选择 / 扫描 / 转换 /
+ * 写盘 / 读回校验链路：
  *   1. OPFS 准备 3 张图片（png/jpg/webp）+ 1 个 txt + 1 个子文件夹
  *   2. 格式转换：JPG / PNG / WebP（含同名跳过）/ PDF 合并与单页
- *   3. 去除水印：canvas 拖拽框选 → 纯色填充 → 逐图读回像素验证
+ *   3. 去除水印：选择图片 → 拖拽框选 → 纯色填充另存副本 →
+ *      涂抹蒙版 → 蒙版填充覆盖原文件 → 逐图读回像素验证
  * ============================================================ */
 'use strict';
 const { createChecker, sleep, launchBrowser, withServer } = require('./_lib.cjs');
@@ -24,6 +26,14 @@ withServer(PORT, async () => {
       window.showDirectoryPicker = function () {
         return navigator.storage.getDirectory()
           .then(root => root.getDirectoryHandle('photo-tool-test', { create: true }));
+      };
+      // stub：图片选择返回 OPFS 内的 a.png / b.jpg / c.webp（真实 FileSystemFileHandle）
+      window.showOpenFilePicker = function () {
+        return navigator.storage.getDirectory()
+          .then(root => root.getDirectoryHandle('photo-tool-test', { create: true }))
+          .then(dir => Promise.all([
+            dir.getFileHandle('a.png'), dir.getFileHandle('b.jpg'), dir.getFileHandle('c.webp')
+          ]));
       };
     });
 
@@ -160,13 +170,15 @@ withServer(PORT, async () => {
     });
     assert(pdfCnt === 4, '单页模式追加 3 个 PDF（累计 4 个 pdf 文件）');
 
-    // ---------- 去除水印：拖拽框选 ----------
+    // ---------- 去除水印：选择图片 + 拖拽框选 ----------
     await page.click('#bf-back');
     await page.click('#batch-open-watermark');
     await page.waitForSelector('#batch-watermark:not([hidden])');
     await page.click('#bw-pick');
     await page.waitForFunction(() => !document.getElementById('wm-canvas').hidden, { timeout: 20000 });
     await sleep(300);
+    const filesText = await page.$eval('#bw-files', el => el.textContent);
+    assert(/已选择 3 张图片/.test(filesText), '选择图片后提示 3 张');
 
     // a.png 水印块在 (140,10)-(190,40)；拖拽 (0.68,0.05)-(0.97,0.28) 完整覆盖
     const cb = await page.$eval('#wm-canvas', c => {
@@ -181,7 +193,7 @@ withServer(PORT, async () => {
     const chips = await page.$$eval('#wm-chips .wm-chip', els => els.map(e => e.textContent));
     assert(chips.length === 1 && /区域 1/.test(chips[0]), '拖拽框选生成「区域 1」标签');
 
-    // ---------- 纯色填充 + 后缀输出 ----------
+    // ---------- 纯色填充 + 另存副本（保存位置 stub 回同一 OPFS 文件夹） ----------
     await page.selectOption('#bw-mode', 'fill');
     await page.evaluate(() => { document.getElementById('bw-color').value = '#000000'; });
     await page.selectOption('#bw-out', 'suffix');
@@ -219,18 +231,56 @@ withServer(PORT, async () => {
     assert(wmRes.bMark[0] < 20 && wmRes.bMark[2] < 20, 'b 同比例水印区域已填充（JPEG 容差内）');
     assert(wmRes.bBody[2] > 230 && wmRes.bBody[0] < 20, 'b 蓝色背景未受影响');
 
+    // ---------- 手动涂抹蒙版 + 覆盖原文件 ----------
+    await page.click('#bw-tool-brush');
+    assert(await page.$eval('#bw-tool-brush', el => el.classList.contains('active')), '涂抹工具已激活');
+    assert(await page.$eval('#bw-brush-row', el => !el.hidden), '涂抹模式显示笔刷大小');
+    // 笔迹从 (0.70,0.08) 到 (0.95,0.25)，默认笔刷 40px，覆盖水印块主体
+    await page.mouse.move(cb.x + cb.w * 0.70, cb.y + cb.h * 0.08);
+    await page.mouse.down();
+    await page.mouse.move(cb.x + cb.w * 0.95, cb.y + cb.h * 0.25, { steps: 6 });
+    await page.mouse.up();
+    await sleep(200);
+    const brushChips = await page.$$eval('#wm-chips .wm-chip', els => els.map(e => e.textContent));
+    assert(brushChips.some(t => /手动涂抹蒙版/.test(t)), '涂抹后生成「手动涂抹蒙版」标签');
+
+    await page.selectOption('#bw-out', 'overwrite');
+    await page.click('#bw-run');
+    await page.waitForFunction(() => !document.getElementById('bw-run').disabled, { timeout: 30000 });
+    await sleep(200);
+    const ovRes = await page.evaluate(async () => {
+      const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('photo-tool-test');
+      async function px(name, x, y) {
+        const fh = await dir.getFileHandle(name);
+        const bmp = await createImageBitmap(await fh.getFile());
+        const c = document.createElement('canvas');
+        c.width = bmp.width; c.height = bmp.height;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(bmp, 0, 0);
+        return Array.from(ctx.getImageData(x, y, 1, 1).data.slice(0, 3));
+      }
+      return { aMark: await px('a.png', 165, 25), aBody: await px('a.png', 100, 100) };
+    });
+    assert(ovRes.aMark[0] < 10 && ovRes.aMark[1] < 10 && ovRes.aMark[2] < 10,
+      '涂抹蒙版覆盖处已填充（覆盖原文件）');
+    assert(ovRes.aBody[0] > 240 && ovRes.aBody[1] < 10 && ovRes.aBody[2] < 10,
+      '蒙版外红色背景未受影响');
+
     // ---------- 撤销 / 清空 / 重置 ----------
-    await page.click('#bw-undo');
+    await page.click('#bw-undo'); // 撤销涂抹笔迹
+    const afterUndoStroke = await page.$$eval('#wm-chips .wm-chip', els => els.length);
+    assert(afterUndoStroke === 1, '撤销一步后仅剩框选区域');
+    await page.click('#bw-undo'); // 撤销框选
     const afterUndo = await page.$$eval('#wm-chips .wm-chip', els => els.length);
-    assert(afterUndo === 0, '撤销后选区清空');
+    assert(afterUndo === 0, '再次撤销后选区清空');
     assert(await page.$eval('#bw-run', el => el.disabled), '无选区时执行按钮禁用');
 
     await page.click('#bw-clear-all');
     const afterReset = await page.evaluate(() => ({
-      folder: document.getElementById('bw-folder').textContent,
+      files: document.getElementById('bw-files').textContent,
       empty: !document.getElementById('wm-empty').hidden
     }));
-    assert(/未选择文件夹/.test(afterReset.folder) && afterReset.empty, '重置后回到初始状态');
+    assert(/未选择图片/.test(afterReset.files) && afterReset.empty, '重置后回到初始状态');
 
     await browser.close();
   } finally {

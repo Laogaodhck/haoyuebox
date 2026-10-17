@@ -1,19 +1,29 @@
 /* 批量工具子功能：去除水印
- * 纯本地实现：选择文件夹后在第一张图片上拖拽框选水印区域（比例坐标），
- * 选区按比例应用到文件夹内全部图片，支持模糊 / 像素化 / 纯色覆盖 / 周边取色填充，
- * 结果直接写回磁盘，不上传任何数据。
+ * 纯本地实现：选择图片后框选或涂抹水印区域，
+ *  - 框选：拖拽矩形（比例坐标），可叠加多处；
+ *  - 涂抹：笔刷手动刷出蒙版，可擦除修正，笔刷大小可调；
+ * 选区 / 蒙版按比例应用到全部已选图片，支持模糊 / 像素化 / 纯色覆盖 / 周边取色填充，
+ * 结果写回原文件或另存副本，不上传任何数据。
  */
 (function () {
   'use strict';
 
   var IMG_EXTS = { jpg: 1, jpeg: 1, png: 1, webp: 1, bmp: 1, gif: 1 };
   var MODES = ['blur', 'block', 'fill', 'median'];
+  var MASK_COLOR = '#2563eb';       // 蒙版画布填充色（仅用于显示，处理只取 alpha）
+  var MASK_ALPHA = 0.45;            // 预览时蒙版叠加透明度
+  var HISTORY_MAX = 80;             // 动作历史上限（超出丢弃最旧并重建蒙版）
 
-  var dirHandle = null;   // 当前文件夹句柄
-  var items = [];         // [{name, handle, file, w, h, url}]
-  var regions = [];       // 水印区域（比例坐标 0-1）[{x, y, w, h}]
+  var items = [];         // [{name, handle}] 当前选择的图片句柄
+  var actions = [];       // 操作历史：{type:'rect', rect} | {type:'stroke', erase, size, points}
+  var tool = 'rect';      // rect | brush | erase
+  var maskCanvas = null;  // 蒙版离屏画布（与预览图同尺寸）
+  var maskInk = false;    // 蒙版上是否有效果（涂抹过）
   var previewBmp = null;  // 预览位图（第一张图片）
-  var drag = null;        // 当前拖拽中的选区
+  var drag = null;        // 框选拖拽中 {x0,y0,x1,y1}
+  var stroking = null;    // 涂抹中 {erase, size, points}
+  var hoverPt = null;     // 笔刷悬停位置（画布坐标）
+  var saveDir = null;     // 另存副本时的保存文件夹句柄
   var running = false;
 
   var $ = window.App.ui.$;
@@ -87,6 +97,37 @@
     return colors;
   }
 
+  // 采集蒙版边缘一圈的像素颜色（涂抹蒙版的「周边取色填充」）：
+  // maskA 为 W*H 的 alpha 数组（>128 视为蒙版内）；从蒙版内采样点向 8 方向探测，
+  // 取第一个蒙版外像素的颜色，保证采样全部来自未涂抹区域。
+  function collectMaskRingColors(data, W, H, maskA, ring) {
+    var colors = [];
+    if (!data || !maskA || W < 1 || H < 1 || ring < 1) return colors;
+    // 先按粗步长统计蒙版量，再定采样步长，控制总采样数
+    var count = 0, sx0 = 3, sy0 = 3, x, y;
+    for (y = 0; y < H; y += sy0) {
+      for (x = 0; x < W; x += sx0) {
+        if (maskA[y * W + x] > 128) count++;
+      }
+    }
+    var stride = Math.max(3, Math.round(Math.sqrt(count / 1500)) * 3);
+    var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+    for (y = 0; y < H; y += stride) {
+      for (x = 0; x < W; x += stride) {
+        if (maskA[y * W + x] <= 128) continue;
+        for (var d = 0; d < dirs.length; d++) {
+          var px = x + dirs[d][0] * ring, py = y + dirs[d][1] * ring;
+          if (px < 0 || py < 0 || px >= W || py >= H) continue;
+          if (maskA[py * W + px] > 128) continue;
+          var i = (py * W + px) * 4;
+          colors.push([data[i], data[i + 1], data[i + 2]]);
+          break;
+        }
+      }
+    }
+    return colors;
+  }
+
   // 输出文件名：suffix 模式加「-无水印」后缀；targetExt 用于 BMP/GIF 等无法原格式编码时替换扩展名
   function buildOutName(name, mode, targetExt) {
     var dot = name.lastIndexOf('.');
@@ -97,7 +138,7 @@
 
   /* ================= 区域处理（canvas 绘制） ================= */
 
-  // 模糊：clip 后带 filter 自绘两次，强度越大模糊半径越大
+  // 模糊：clip 后带 filter 自绘两次，强度越大模糊半径越大（仅框选路径）
   function blurRegion(ctx, W, H, r, strength) {
     var radius = Math.max(2, Math.round(Math.min(r.w, r.h) * (strength / 10) * 0.5));
     ctx.save();
@@ -127,7 +168,7 @@
     ctx.restore();
   }
 
-  // 对画布应用全部水印区域处理
+  // 对画布应用全部矩形水印区域处理（无涂抹蒙版时的纯框选路径）
   function processCanvas(canvas, rects, mode, strength, color) {
     var ctx = canvas.getContext('2d');
     var W = canvas.width, H = canvas.height;
@@ -151,87 +192,106 @@
     });
   }
 
-  /* ================= 文件扫描 ================= */
+  // 蒙版路径：把蒙版（含框选+涂抹）羽化后拉伸到当前图片尺寸，
+  // 生成整图处理层（模糊 / 像素化 / 纯色 / 取色填充），再用蒙版 alpha 裁切贴回。
+  function applyMasked(canvas, mode, strength, color) {
+    var W = canvas.width, H = canvas.height;
+    var ctx = canvas.getContext('2d');
 
-  function naturalCmp(x, y) {
-    var i = 0, j = 0;
-    var D = /\d/;
-    while (i < x.length && j < y.length) {
-      if (D.test(x[i]) && D.test(y[j])) {
-        var s = i, t = j;
-        while (i < x.length && D.test(x[i])) i++;
-        while (j < y.length && D.test(y[j])) j++;
-        var nx = x.slice(s, i), ny = y.slice(t, j);
-        var c = (parseInt(nx, 10) || 0) - (parseInt(ny, 10) || 0) || (nx.length - ny.length);
-        if (c) return c;
-      } else {
-        if (x[i] !== y[j]) return x[i] < y[j] ? -1 : 1;
-        i++; j++;
-      }
+    // 1) 蒙版：拉伸适配 + 轻微羽化，边界过渡更自然
+    var mask = document.createElement('canvas');
+    mask.width = W; mask.height = H;
+    var mctx = mask.getContext('2d');
+    mctx.filter = 'blur(' + Math.max(1, Math.round(Math.min(W, H) / 300)) + 'px)';
+    mctx.drawImage(maskCanvas, 0, 0, W, H);
+    mctx.filter = 'none';
+
+    // 2) 整图处理层
+    var layer = document.createElement('canvas');
+    layer.width = W; layer.height = H;
+    var lctx = layer.getContext('2d');
+    if (mode === 'fill') {
+      lctx.fillStyle = color;
+      lctx.fillRect(0, 0, W, H);
+    } else if (mode === 'median') {
+      var img = ctx.getImageData(0, 0, W, H);
+      var ma = mctx.getImageData(0, 0, W, H).data;
+      var alpha = new Uint8Array(W * H);
+      for (var i = 0, p = 3; i < alpha.length; i++, p += 4) alpha[i] = ma[p];
+      var ring = Math.max(4, Math.round(Math.min(W, H) * 0.02));
+      var c = medianColor(collectMaskRingColors(img.data, W, H, alpha, ring));
+      lctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+      lctx.fillRect(0, 0, W, H);
+    } else if (mode === 'blur') {
+      var radius = Math.max(2, Math.round(Math.min(W, H) * (strength / 10) * 0.12));
+      lctx.filter = 'blur(' + radius + 'px)';
+      lctx.drawImage(canvas, 0, 0);
+      lctx.drawImage(canvas, 0, 0);
+      lctx.filter = 'none';
+    } else { // block
+      var factor = Math.max(4, Math.round(40 - strength * 3.5));
+      var sw = Math.max(1, Math.round(W / factor));
+      var sh = Math.max(1, Math.round(H / factor));
+      var small = document.createElement('canvas');
+      small.width = sw; small.height = sh;
+      small.getContext('2d').drawImage(canvas, 0, 0, W, H, 0, 0, sw, sh);
+      lctx.imageSmoothingEnabled = false;
+      lctx.drawImage(small, 0, 0, sw, sh, 0, 0, W, H);
     }
-    return x.length - y.length;
+
+    // 3) 蒙版裁切处理层，再贴回原图
+    lctx.globalCompositeOperation = 'destination-in';
+    lctx.drawImage(mask, 0, 0);
+    lctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(layer, 0, 0);
   }
+
+  /* ================= 文件选择 ================= */
 
   function extOf(name) {
     var dot = name.lastIndexOf('.');
     return dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
   }
 
-  async function scanFolder() {
-    var candidates = [];
-    var total = 0;
-    for await (var it of dirHandle.values()) {  
-      if (it.kind !== 'file') continue;
-      total++;
-      if (!IMG_EXTS[extOf(it.name)]) continue;
-      candidates.push({ name: it.name, handle: it });
-    }
-    candidates.sort(function (a, b) { return naturalCmp(a.name, b.name); });
-
-    var list = [];
-    var skipped = 0;
-    for (var i = 0; i < candidates.length; i++) {  
-      var c = candidates[i];
-      try {
-        var file = await c.handle.getFile();
-        var bmp = await createImageBitmap(file);
-        list.push({
-          name: c.name, handle: c.handle, file: file,
-          w: bmp.width, h: bmp.height,
-          url: (typeof URL !== 'undefined' && URL.createObjectURL) ? URL.createObjectURL(file) : ''
-        });
-        if (bmp.close) bmp.close();
-      } catch (e) {
-        skipped++;
-      }
-    }
-    return { list: list, skipped: skipped, total: total };
+  function pickOptions() {
+    return {
+      multiple: true,
+      types: [{
+        description: '图片',
+        accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'] }
+      }]
+    };
   }
 
-  async function pickFolder() {
-    if (typeof window.showDirectoryPicker !== 'function') {
+  async function pickImages() {
+    if (typeof window.showOpenFilePicker !== 'function') {
       $('bw-unsupported').hidden = false;
       return;
     }
+    var handles;
     try {
-      dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      handles = await window.showOpenFilePicker(Object.assign({ mode: 'readwrite' }, pickOptions()));
     } catch (e) {
-      return; // 用户取消
+      if (e && e.name === 'TypeError') { // 旧实现不支持 mode 选项，退化为只读选择
+        try {
+          handles = await window.showOpenFilePicker(pickOptions());
+        } catch (e2) { return; }
+      } else {
+        return; // 用户取消
+      }
     }
-    window.App.ui.showLoading('正在扫描文件夹…');
-    var res = { list: [], skipped: 0, total: 0 };
-    try {
-      res = await scanFolder();
-    } catch (e) {
-      toast('读取文件夹失败：' + e.message, true);
+    var list = [];
+    var skipped = 0;
+    for (var i = 0; i < handles.length; i++) {
+      if (!IMG_EXTS[extOf(handles[i].name)]) { skipped++; continue; }
+      list.push({ name: handles[i].name, handle: handles[i] });
     }
-    window.App.ui.hideLoading();
-    releaseUrls();
-    items = res.list;
-    var extra = res.skipped ? ' · 跳过 ' + res.skipped + ' 个（无法解码）' : '';
-    $('bw-folder').textContent = dirHandle.name + '（共 ' + res.total + ' 个文件' + extra + '）';
+    resetActions();
+    items = list;
+    $('bw-files').textContent = '已选择 ' + items.length + ' 张图片' +
+      (skipped ? ' · 跳过 ' + skipped + ' 个非图片文件' : '');
     if (!items.length) {
-      toast('该文件夹中没有可处理的图片', true);
+      toast('未选择可处理的图片', true);
       resetPreview();
     } else {
       await loadPreview();
@@ -240,17 +300,13 @@
     updateRun();
   }
 
-  function releaseUrls() {
-    if (typeof URL !== 'undefined' && URL.revokeObjectURL) {
-      items.forEach(function (it) { try { URL.revokeObjectURL(it.url); } catch (e) { /* 忽略 */ } });
-    }
-  }
-
-  /* ================= 预览与框选 ================= */
+  /* ================= 预览与蒙版 ================= */
 
   function resetPreview() {
     previewBmp = null;
     drag = null;
+    stroking = null;
+    hoverPt = null;
     var canvas = $('wm-canvas');
     canvas.hidden = true;
     canvas.width = 0;
@@ -259,11 +315,21 @@
     $('wm-info').textContent = '';
   }
 
+  function resetActions() {
+    actions = [];
+    maskInk = false;
+    if (maskCanvas && maskCanvas.getContext) {
+      maskCanvas.width = 1;
+      maskCanvas.height = 1;
+    }
+  }
+
   async function loadPreview() {
     resetPreview();
+    resetActions();
     if (!items.length) return;
     try {
-      previewBmp = await createImageBitmap(items[0].file || await items[0].handle.getFile());
+      previewBmp = await createImageBitmap(await items[0].handle.getFile());
     } catch (e) {
       previewBmp = null;
     }
@@ -277,27 +343,117 @@
     canvas.hidden = false;
     $('wm-empty').hidden = true;
     $('wm-info').textContent = items[0].name + '（' + previewBmp.width + '×' + previewBmp.height +
-      '）· 共 ' + items.length + ' 张图片将按此选区批量处理';
+      '）· 共 ' + items.length + ' 张图片将按此选区 / 蒙版批量处理';
     drawPreview();
   }
 
-  // 绘制预览：原图 + 已框选区域 + 拖拽中的区域
+  // 把笔迹（涂抹 / 擦除）重放到指定 2D 上下文
+  function replayStrokes(ctx, W, H) {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    actions.forEach(function (a) {
+      if (a.type !== 'stroke') return;
+      ctx.globalCompositeOperation = a.erase ? 'destination-out' : 'source-over';
+      ctx.strokeStyle = MASK_COLOR;
+      ctx.lineWidth = a.size;
+      ctx.beginPath();
+      var pts = a.points;
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      if (pts.length === 1) ctx.lineTo(pts[0][0] + 0.01, pts[0][1]); // 单点成圆点
+      else for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+    });
+  }
+
+  // 蒙版上是否有效果（矩形实心填充 + 笔刷描边 / 擦除）
+  function buildMask() {
+    var canvas = $('wm-canvas');
+    if (!canvas.width) return;
+    if (!maskCanvas) maskCanvas = document.createElement('canvas');
+    maskCanvas.width = canvas.width;
+    maskCanvas.height = canvas.height;
+    var ctx = maskCanvas.getContext('2d');
+    ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+    actions.forEach(function (a) {
+      if (a.type === 'rect') {
+        var r = rectToPx(a.rect, maskCanvas.width, maskCanvas.height);
+        ctx.fillStyle = MASK_COLOR;
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+      }
+    });
+    replayStrokes(ctx, maskCanvas.width, maskCanvas.height);
+  }
+
+  // 检查画布 alpha 是否有内容（64×64 降采样读，避免大图全量读取）
+  function canvasHasInk(canvas) {
+    if (!canvas || !canvas.width) return false;
+    var t = document.createElement('canvas');
+    t.width = 64; t.height = 64;
+    var ctx = t.getContext('2d');
+    ctx.drawImage(canvas, 0, 0, 64, 64);
+    var d = ctx.getImageData(0, 0, 64, 64).data;
+    for (var i = 3; i < d.length; i += 4) {
+      if (d[i] > 10) return true;
+    }
+    return false;
+  }
+
+  // 笔迹是否留有墨量（只看 stroke 动作，与框选矩形无关；
+  // 决定处理路径与「手动涂抹蒙版」标签）
+  function strokesHaveInk() {
+    var hasStroke = false;
+    for (var i = 0; i < actions.length; i++) {
+      if (actions[i].type === 'stroke') { hasStroke = true; break; }
+    }
+    if (!hasStroke) return false;
+    var canvas = $('wm-canvas');
+    if (!canvas.width) return false;
+    var t = document.createElement('canvas');
+    t.width = canvas.width;
+    t.height = canvas.height;
+    replayStrokes(t.getContext('2d'), t.width, t.height);
+    return canvasHasInk(t);
+  }
+
+  function brushSize() {
+    return Math.round(+$('bw-brush-size').value || 40);
+  }
+
+  // 绘制预览：原图 + 蒙版叠加 + 已框选区域 + 拖拽中区域 + 笔刷光标
   function drawPreview(dragRect) {
     var canvas = $('wm-canvas');
     if (canvas.hidden || !canvas.width) return;
     var ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (previewBmp) ctx.drawImage(previewBmp, 0, 0);
+    if (maskInk && maskCanvas) {
+      ctx.save();
+      ctx.globalAlpha = MASK_ALPHA;
+      ctx.drawImage(maskCanvas, 0, 0);
+      ctx.restore();
+    }
     var lw = Math.max(2, Math.round(canvas.width / 300));
     ctx.lineWidth = lw;
     ctx.font = Math.max(12, Math.round(lw * 6)) + 'px sans-serif';
-    regions.forEach(function (r, i) {
-      strokeRegion(ctx, rectToPx(r, canvas.width, canvas.height), 'rgba(37, 99, 235, 0.35)', '#2563eb', String(i + 1));
+    var rectIdx = 0;
+    actions.forEach(function (a) {
+      if (a.type !== 'rect') return;
+      rectIdx++;
+      strokeRegion(ctx, rectToPx(a.rect, canvas.width, canvas.height),
+        'rgba(37, 99, 235, 0.35)', '#2563eb', String(rectIdx));
     });
     if (dragRect) {
       var dr = normalizeRect(dragRect.x0 / canvas.width, dragRect.y0 / canvas.height,
         dragRect.x1 / canvas.width, dragRect.y1 / canvas.height);
       strokeRegion(ctx, rectToPx(dr, canvas.width, canvas.height), 'rgba(37, 99, 235, 0.2)', '#f59e0b', '');
+    }
+    if ((tool === 'brush' || tool === 'erase') && hoverPt && !drag) {
+      ctx.beginPath();
+      ctx.arc(hoverPt.x, hoverPt.y, brushSize() / 2, 0, Math.PI * 2);
+      ctx.strokeStyle = tool === 'erase' ? '#ef4444' : '#f59e0b';
+      ctx.lineWidth = Math.max(1, Math.round(canvas.width / 400));
+      ctx.stroke();
     }
   }
 
@@ -329,17 +485,24 @@
   function renderChips() {
     var box = $('wm-chips');
     box.textContent = '';
-    regions.forEach(function (r, i) {
-      var chip = document.createElement('span');
-      chip.className = 'wm-chip';
-      chip.textContent = '区域 ' + (i + 1) + ' · ' + Math.round(r.w * 100) + '%×' + Math.round(r.h * 100) + '%';
-      box.appendChild(chip);
+    function chip(text) {
+      var el = document.createElement('span');
+      el.className = 'wm-chip';
+      el.textContent = text;
+      box.appendChild(el);
+    }
+    var rectIdx = 0;
+    actions.forEach(function (a) {
+      if (a.type !== 'rect') return;
+      rectIdx++;
+      chip('区域 ' + rectIdx + ' · ' + Math.round(a.rect.w * 100) + '%×' + Math.round(a.rect.h * 100) + '%');
     });
+    if (maskInk) chip('手动涂抹蒙版');
     updateRun();
   }
 
   function updateRun() {
-    $('bw-run').disabled = running || !dirHandle || !items.length || !regions.length;
+    $('bw-run').disabled = running || !items.length || !actions.length;
   }
 
   /* ================= 批量处理 ================= */
@@ -360,37 +523,70 @@
   }
 
   async function run() {
-    if (!items.length || !regions.length || running) return;
+    if (!items.length || !actions.length || running) return;
     var mode = $('bw-mode').value;
     var strength = clampStrength($('bw-strength').value);
     var color = $('bw-color').value;
     var outMode = $('bw-out').value; // suffix | overwrite
+
+    // 涂抹蒙版路径：先重建蒙版；纯框选走矩形路径
+    if (maskInk) buildMask();
+    var rectRegions = [];
+    actions.forEach(function (a) {
+      if (a.type === 'rect') rectRegions.push(a.rect);
+    });
+
+    // 另存副本需要保存位置（选一次，本会话内复用）
+    var outDir = null;
+    if (outMode === 'suffix') {
+      if (typeof window.showDirectoryPicker !== 'function') {
+        toast('当前环境不支持选择保存位置，请改用「覆盖原文件」', true);
+        return;
+      }
+      if (!saveDir) {
+        try {
+          saveDir = await window.showDirectoryPicker({ mode: 'readwrite' });
+        } catch (e) {
+          return; // 用户取消
+        }
+      }
+      outDir = saveDir;
+    }
 
     running = true;
     updateRun();
     var ok = 0;
     var failed = [];
     try {
-      for (var i = 0; i < items.length; i++) {  
+      for (var i = 0; i < items.length; i++) {
         var it = items[i];
         window.App.ui.showLoading('正在处理 ' + (i + 1) + '/' + items.length + ' …');
         try {
-          var src = it.file || await it.handle.getFile();
-          var bmp = await createImageBitmap(src); // GIF 自动取第一帧
+          var bmp = await createImageBitmap(await it.handle.getFile()); // GIF 自动取第一帧
           var canvas = document.createElement('canvas');
           canvas.width = bmp.width;
           canvas.height = bmp.height;
           var ctx = canvas.getContext('2d');
           ctx.drawImage(bmp, 0, 0);
           if (bmp.close) bmp.close();
-          processCanvas(canvas, regions, mode, strength, color);
+          if (maskInk) {
+            applyMasked(canvas, mode, strength, color);
+          } else {
+            processCanvas(canvas, rectRegions, mode, strength, color);
+          }
           var enc = encodeParams(it.name);
           var blob = await new Promise(function (res, rej) {
             canvas.toBlob(function (b) { b ? res(b) : rej(new Error('编码失败')); },
               enc.mime, enc.quality ? 0.92 : undefined);
           });
           var data = new Uint8Array(await blob.arrayBuffer());
-          await writeFile(dirHandle, buildOutName(it.name, outMode, enc.ext), data);
+          if (outMode === 'overwrite') {
+            var w = await it.handle.createWritable();
+            await w.write(data);
+            await w.close();
+          } else {
+            await writeFile(outDir, buildOutName(it.name, 'suffix', enc.ext), data);
+          }
           ok++;
         } catch (e) {
           failed.push(it.name);
@@ -402,12 +598,23 @@
       updateRun();
     }
     toast('处理完成：成功 ' + ok + ' 张' +
-      (outMode === 'suffix' ? '（文件名带「-无水印」后缀）' : '（已覆盖原文件）') +
+      (outMode === 'suffix' ? '（副本文件名带「-无水印」后缀）' : '（已覆盖原文件）') +
       (failed.length ? '；失败 ' + failed.length + ' 张（' + failed[0] + '）' : ''),
       failed.length > 0);
   }
 
   /* ================= 事件绑定 ================= */
+
+  function setTool(t) {
+    tool = t;
+    ['rect', 'brush', 'erase'].forEach(function (k) {
+      var btn = $('bw-tool-' + k);
+      if (btn) btn.classList.toggle('active', k === tool);
+    });
+    $('bw-brush-row').hidden = tool === 'rect';
+    hoverPt = null;
+    drawPreview();
+  }
 
   function bindCanvas() {
     var canvas = $('wm-canvas');
@@ -416,56 +623,100 @@
       e.preventDefault();
       canvas.setPointerCapture(e.pointerId);
       var p = toCanvasXY(e);
-      drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+      if (tool === 'rect') {
+        drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+      } else {
+        stroking = { erase: tool === 'erase', size: brushSize(), points: [[p.x, p.y]] };
+      }
     });
     canvas.addEventListener('pointermove', function (e) {
-      if (!drag) return;
       var p = toCanvasXY(e);
-      drag.x1 = p.x;
-      drag.y1 = p.y;
-      drawPreview(drag);
+      if (stroking) {
+        stroking.points.push([p.x, p.y]);
+        // 实时反馈：把当前笔迹画进蒙版再整帧重绘
+        actions.push({ type: 'stroke', erase: stroking.erase, size: stroking.size, points: stroking.points });
+        buildMask();
+        actions.pop();
+        drawPreview();
+        return;
+      }
+      if (drag) {
+        drag.x1 = p.x;
+        drag.y1 = p.y;
+        drawPreview(drag);
+        return;
+      }
+      if (tool === 'brush' || tool === 'erase') {
+        hoverPt = p;
+        drawPreview();
+      }
     });
     function finish(commit) {
-      if (!drag) return;
-      var d = drag;
-      drag = null;
-      if (commit) {
-        var r = normalizeRect(d.x0 / canvas.width, d.y0 / canvas.height,
-          d.x1 / canvas.width, d.y1 / canvas.height);
-        // 过滤误触：小于 8×8 像素的选区忽略
-        if (r.w * canvas.width >= 8 && r.h * canvas.height >= 8) regions.push(r);
+      if (drag) {
+        var d = drag;
+        drag = null;
+        if (commit) {
+          var r = normalizeRect(d.x0 / canvas.width, d.y0 / canvas.height,
+            d.x1 / canvas.width, d.y1 / canvas.height);
+          // 过滤误触：小于 8×8 像素的选区忽略
+          if (r.w * canvas.width >= 8 && r.h * canvas.height >= 8) {
+            actions.push({ type: 'rect', rect: r });
+            if (actions.length > HISTORY_MAX) { actions.shift(); }
+          }
+        }
+      }
+      if (stroking) {
+        var s = stroking;
+        stroking = null;
+        if (commit) {
+          actions.push({ type: 'stroke', erase: s.erase, size: s.size, points: s.points });
+          if (actions.length > HISTORY_MAX) { actions.shift(); buildMask(); }
+          buildMask();
+          maskInk = strokesHaveInk();
+        }
       }
       renderChips();
       drawPreview();
     }
     canvas.addEventListener('pointerup', function () { finish(true); });
     canvas.addEventListener('pointercancel', function () { finish(false); });
-    canvas.addEventListener('pointerleave', function () { if (drag) finish(true); });
+    canvas.addEventListener('pointerleave', function () {
+      hoverPt = null;
+      if (drag || stroking) finish(true);
+      else drawPreview();
+    });
   }
 
   function init() {
-    if (typeof window.showDirectoryPicker !== 'function') {
+    if (typeof window.showOpenFilePicker !== 'function') {
       $('bw-unsupported').hidden = false;
       $('bw-pick').disabled = true;
     }
-    $('bw-pick').addEventListener('click', pickFolder);
+    $('bw-pick').addEventListener('click', pickImages);
     var empty = $('wm-empty');
-    empty.addEventListener('click', pickFolder);
+    empty.addEventListener('click', pickImages);
     empty.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        pickFolder();
+        pickImages();
       }
     });
     bindCanvas();
 
+    $('bw-tool-rect').addEventListener('click', function () { setTool('rect'); });
+    $('bw-tool-brush').addEventListener('click', function () { setTool('brush'); });
+    $('bw-tool-erase').addEventListener('click', function () { setTool('erase'); });
     $('bw-undo').addEventListener('click', function () {
-      regions.pop();
+      var a = actions.pop();
+      if (a && a.type === 'stroke') {
+        buildMask();
+        maskInk = strokesHaveInk();
+      }
       renderChips();
       drawPreview();
     });
     $('bw-clear').addEventListener('click', function () {
-      regions = [];
+      resetActions();
       renderChips();
       drawPreview();
     });
@@ -478,14 +729,20 @@
     $('bw-strength').addEventListener('input', function () {
       $('bw-strength-val').textContent = this.value;
     });
-    $('bw-out').addEventListener('change', updateRun);
+    $('bw-brush-size').addEventListener('input', function () {
+      $('bw-brush-val').textContent = this.value;
+      if (tool !== 'rect') drawPreview();
+    });
+    $('bw-out').addEventListener('change', function () {
+      if (this.value === 'overwrite') saveDir = null; // 覆盖模式不需要保存位置
+      updateRun();
+    });
     $('bw-clear-all').addEventListener('click', function () {
-      dirHandle = null;
-      regions = [];
-      releaseUrls();
       items = [];
+      saveDir = null;
+      resetActions();
       resetPreview();
-      $('bw-folder').textContent = '未选择文件夹';
+      $('bw-files').textContent = '未选择图片';
       renderChips();
     });
     $('bw-run').addEventListener('click', run);
@@ -509,6 +766,7 @@
       rectToPx: rectToPx,
       medianColor: medianColor,
       collectRingColors: collectRingColors,
+      collectMaskRingColors: collectMaskRingColors,
       buildOutName: buildOutName,
       processCanvas: processCanvas
     }
