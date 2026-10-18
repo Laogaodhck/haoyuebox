@@ -176,9 +176,14 @@ withServer(PORT, async () => {
     await page.click('#ac-check-all'); // 半选状态点击 → 全选
     assert(await page.$eval('#ac-count', el => /已勾选 3 项/.test(el.textContent)), '压缩到模式前恢复全选');
     await page.click('#ac-run');
+    // v1.3.0 起：同目录自动命名输出已存在时先弹覆盖确认（stub 的 statPaths 视一切路径存在 → 必弹）
+    await page.waitForFunction(() => !document.getElementById('confirm-dlg').hidden);
+    assert(/覆盖它吗/.test(await page.$eval('#confirm-msg', el => el.textContent)),
+      '同目录输出已存在时弹出覆盖确认');
+    await page.click('#confirm-ok');
     await page.waitForFunction(() => {
       const c = window.zunhongArchive.calls.filter(c => c[0] === 'compress');
-      return c.length >= 2;
+      return c.length >= 3;   // 此前已有 2 次（弹窗模式两轮），须等到第 3 次真实到达
     });
     const payload2 = await page.evaluate(() => {
       const c = window.zunhongArchive.calls.filter(c => c[0] === 'compress');

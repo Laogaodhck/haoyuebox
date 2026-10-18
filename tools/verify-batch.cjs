@@ -258,6 +258,11 @@ withServer(PORT, async () => {
 
     await page.selectOption('#bw-out', 'overwrite');
     await page.click('#bw-run');
+    // 1.2.1 起：覆盖原文件先弹统一确认框，须应答后任务才真正开始
+    await page.waitForFunction(() => !document.getElementById('confirm-dlg').hidden);
+    assert(/不可撤销/.test(await page.$eval('#confirm-msg', el => el.textContent)),
+      '覆盖原文件前弹出不可撤销确认');
+    await page.click('#confirm-ok');
     await page.waitForFunction(() => !document.getElementById('bw-run').disabled, { timeout: 30000 });
     await sleep(200);
     const ovRes = await page.evaluate(async () => {
