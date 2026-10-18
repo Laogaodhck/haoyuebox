@@ -33,27 +33,28 @@ jobs:
           cache: npm
 
       # electron 与 electron-builder 的下载缓存（NSIS 工具链、winCodeSign、electron zip）
+      # Windows 上两者缓存在 ~/AppData/Local 下（~/.cache 是 Linux 约定）
       - uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/electron
-            ~/.cache/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
           key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
           restore-keys: ${{ runner.os }}-electron-
 
       - run: npm ci
 
-      # npm 的 install-scripts 策略可能跳过 electron 的 postinstall，
-      # 那样 electron-builder 会在打包第一步就找不到 Electron 二进制。
-      - name: 确认 Electron 二进制已下载
+      # electron 44.8.0 起 npm 包不再带 postinstall（scripts 为空，npm rebuild 无效），
+      # 二进制需用官方入口 install.js 显式安装（bin: install-electron）
+      - name: 安装 Electron 二进制
         shell: bash
         run: |
           if [ ! -f node_modules/electron/path.txt ]; then
-            echo "postinstall 未执行，重建 electron"
-            npm rebuild electron
+            echo "安装 Electron 二进制（node node_modules/electron/install.js）"
+            node node_modules/electron/install.js
           fi
           test -f node_modules/electron/path.txt
-          node -p "'Electron ' + require('electron').version + ' -> ' + require('electron')"
+          node -p "'Electron ' + require('./node_modules/electron/package.json').version + ' -> ' + require('electron')"
 
       # 发布目标：tag push 用自身引用；手动触发时可指定补发到已有 tag
       - name: 计算发布标签
