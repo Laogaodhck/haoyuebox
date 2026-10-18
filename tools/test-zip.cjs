@@ -1,4 +1,4 @@
-/* zip.js 单元测试：ZIP(store) 结构 / CRC32 向量 / 真实解压回归（Win: Expand-Archive / 其他: unzip） */
+/* zip.js 单元测试：ZIP(store) 结构 / CRC32 向量 / 真实解压回归（Win: Expand-Archive / 其他: python zipfile） */
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -71,9 +71,11 @@ function assert(cond, name) {
   }
   assert(pos === cdOffset + cdSize, '中央目录实际大小与 EOCD 记录一致');
 
-  /* ---------- 5. 真实解压回归：Windows Expand-Archive / 其他平台 unzip ----------
-     CI 的 ubuntu runner 没有 powershell（spawnSync ENOENT），非 Windows 改用
-     系统自带 unzip；两者都不可用时跳过本步（结构/CRC 断言已覆盖正确性）。 */
+  /* ---------- 5. 真实解压回归：Windows Expand-Archive / 其他平台 python zipfile ----------
+     CI 的 ubuntu runner 没有 powershell（spawnSync ENOENT）；而 Info-ZIP unzip 对
+     UTF-8 文件名标志位的处理不稳（CI 实测中文条目名被改写），故非 Windows 用
+     python3 -m zipfile（独立实现，实测兼容本打包器输出），两者都不可用时跳过
+     （ZIP 结构 / CRC32 断言已覆盖正确性）。 */
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zunhong-zip-'));
   try {
     const zipPath = path.join(tmp, 'test.zip');
@@ -85,12 +87,23 @@ function assert(cond, name) {
         "Expand-Archive -LiteralPath '" + zipPath + "' -DestinationPath '" + outDir + "' -Force"]);
       extracted = true;
     } else {
-      try {
-        execFileSync('unzip', ['-o', zipPath, '-d', outDir]);
-        extracted = true;
-      } catch (e) {
-        if (e && e.code !== 'ENOENT') throw e;
-        console.log('  skip - 未找到 unzip，跳过真实解压回归（非 Windows 平台）');
+      const attempts = [
+        ['python3', ['-X', 'utf8', '-m', 'zipfile', '-e', zipPath, outDir]],
+        ['unzip', ['-o', zipPath, '-d', outDir]]
+      ];
+      const missing = [];
+      for (const pair of attempts) {
+        try {
+          execFileSync(pair[0], pair[1]);
+          extracted = true;
+          break;
+        } catch (e) {
+          if (e && e.code === 'ENOENT') { missing.push(pair[0]); continue; } // 未安装 → 换下一个
+          throw e;                                                          // 解压真失败 → 上抛
+        }
+      }
+      if (!extracted) {
+        console.log('  skip - 未找到解压器（' + missing.join(' / ') + '），跳过真实解压回归（非 Windows 平台）');
       }
     }
     if (extracted) {
