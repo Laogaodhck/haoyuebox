@@ -2,7 +2,7 @@
 
 本项目所有显著变更记录于此。版本号遵循语义化版本（主版本.次版本.修订号）。
 
-## [未发布]
+## [1.3.1] - 2026-10-18
 
 ### 新增
 - **证照生成 · 人像倾斜校正**：抠图换底步骤新增「人像倾斜校正」滑块（±15°、0.5° 步进）与「回正」按钮，头像拍歪时旋转人像使其摆正，无需重拍
@@ -17,6 +17,9 @@
 - **electron/main.js**：Windows 下设置 `app.setAppUserModelId('com.zunhong.toolbox')`，进程身份与应用绑定（此前任务栏进程无 AUMID，身份模糊不利于安全软件归类）
 - **package.json**（build.win）：`requestedExecutionLevel: "asInvoker"` 显式声明不要求管理员提权（提权类软件是主动防御重点盯防对象）；`legalTrademarks: "尊泓工具箱"` 补全 exe 版本资源商标字段
 - 确认无加壳/无混淆/无外联/不写 HKLM 等有利项，形成「刻意避开的高危特征」清单供后续功能开发遵守
+
+### 修复（CI 跨平台）
+- GitHub Actions Billing 解除后 CI 恢复执行，修复 3 个历史遗留的平台问题，windows + ubuntu 双矩阵全绿：test-zip 非 Windows 解压回归改用 python3 zipfile（Info-ZIP unzip 会改写 UTF-8 中文名）；test-archive 非 Windows 跳过 7z.exe 冒烟、GZ 冒烟只校验内容不假定还原文件名（7z 按 ANSI 代码页写 gzip 头）；7z-args.js normPathKey 固定 `path.win32.resolve`（Windows 运行时行为零变化）
 
 ## [1.3.0] - 2026-10-18
 
