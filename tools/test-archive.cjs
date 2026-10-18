@@ -313,9 +313,14 @@ function run7z(args) {
     t.assert(args7z.isOkExitCode(r.code), '真实 GZ：gzip 压缩成功');
     const exGz = path.join(tmp, 'out-gz');
     r = await run7z(args7z.buildExtractArgs({ archive: arcGz, outDir: exGz, pass: '' }));
-    t.assert(args7z.isOkExitCode(r.code)
-      && fs.readFileSync(path.join(exGz, '你好.txt'), 'utf8') === '尊泓工具箱 7z 冒烟测试 ✓',
-      '真实 GZ：gzip 解压且内容一致');
+    /* gzip 头里记录的原始文件名随 7z 的 ANSI 代码页写入（en-US runner 无法表示
+       「你好」，还原名会被改写）；内容则字节级无损。故此处校验唯一解压产物的
+       内容一致，不假定还原后的文件名。 */
+    const gzFiles = args7z.isOkExitCode(r.code)
+      ? fs.readdirSync(exGz).filter(f => fs.statSync(path.join(exGz, f)).isFile()) : [];
+    t.assert(args7z.isOkExitCode(r.code) && gzFiles.length === 1
+      && fs.readFileSync(path.join(exGz, gzFiles[0]), 'utf8') === '尊泓工具箱 7z 冒烟测试 ✓',
+      '真实 GZ：gzip 解压且内容一致（还原名随代码页，不校验文件名）');
 
     /* 内容浏览：普通包 l -slt 列表解析 */
     r = await run7z(args7z.buildListArgs({ archive: arc7z, pass: '' }));
