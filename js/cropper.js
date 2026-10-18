@@ -7,11 +7,37 @@
 
 window.Cropper = (function () {
 
+  /* 倾斜校正坐标映射：work 坐标 → 倾斜后坐标（绕工作图中心旋转 θ）。
+     transform（缩放/平移）作用在倾斜后的内容上，
+     自动对齐测得的特征点须先过此映射再求位移。 */
+  function tiltPoint(st, x, y) {
+    var t = (st.tilt || 0) * Math.PI / 180;
+    if (!t) return { x: x, y: y };
+    var cx = st.workCanvas.width / 2, cy = st.workCanvas.height / 2;
+    var cos = Math.cos(t), sin = Math.sin(t);
+    var dx = x - cx, dy = y - cy;
+    return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+  }
+
+  /* 最小缩放：倾斜后能水平/垂直铺满画框的内容宽度收窄（内接矩形），
+     minScale 相应放大，保证任意平移位置画框都不会露出底色楔形 */
+  function minScaleFor(st) {
+    var work = st.workCanvas;
+    var w = work.width, h = work.height;
+    var rot = Math.abs((st.tilt || 0) * Math.PI / 180);
+    if (rot) {
+      var cos = Math.cos(rot), sin = Math.sin(rot);
+      w = Math.max(1, w * cos - h * sin);
+      h = Math.max(1, h * cos - w * sin);
+    }
+    return Math.max(st.outW / w, st.outH / h);
+  }
+
   function clampTransform(st) {
     var tf = st.transform;
     var work = st.workCanvas;
     var outW = st.outW, outH = st.outH;
-    var minScale = Math.max(outW / work.width, outH / work.height);
+    var minScale = minScaleFor(st);
     tf.scale = Math.max(minScale, Math.min(minScale * 6, tf.scale));
     var dw = work.width * tf.scale;
     var dh = work.height * tf.scale;
@@ -21,9 +47,10 @@ window.Cropper = (function () {
 
   function fitCenter(st) {
     var work = st.workCanvas;
-    var scale = Math.max(st.outW / work.width, st.outH / work.height);
+    var scale = Math.max(st.outW / work.width, st.outH / work.height) * 1.08;
+    if (st.tilt) scale = Math.max(scale, minScaleFor(st) * 1.08);
     st.transform = {
-      scale: scale * 1.08,
+      scale: scale,
       tx: 0, ty: 0
     };
     clampTransform(st);
@@ -99,13 +126,14 @@ window.Cropper = (function () {
     // 头高 ≈ 头宽 × 1.45（含发型的统计平均）
     var headPx = a.headW * 1.45;
     var scale = (targetChin - targetTop) / headPx;
-    var work = st.workCanvas;
-    var minScale = Math.max(st.outW / work.width, st.outH / work.height);
+    var minScale = minScaleFor(st);
     scale = Math.max(minScale, Math.min(minScale * 6, scale));
+    /* 倾斜校正下特征点先映射到倾斜后坐标（transform 作用在倾斜内容上） */
+    var head = tiltPoint(st, a.centerX, a.top);
     st.transform = {
       scale: scale,
-      tx: st.outW / 2 - a.centerX * scale,
-      ty: targetTop - a.top * scale
+      tx: st.outW / 2 - head.x * scale,
+      ty: targetTop - head.y * scale
     };
     clampTransform(st);
   }

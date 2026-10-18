@@ -41,6 +41,8 @@ window.Brush = (function () {
     /* 拖动期间缓存画布矩形与坐标比例，避免每次 pointermove 强制重排（卡顿主因） */
     var rectCache = null;
     var sx = 1, sy = 1, ox = 0, oy = 0, sizeWork = 2;
+    /* 倾斜视图下的逆映射仿射分量（work = M·q + b，M 为 R(−θ)/scale） */
+    var m11 = 0, m12 = 0, m21 = 0, m22 = 0, mtx = 0, mty = 0, tilted = false;
     /* 笔画平滑状态：last=上一个原始点，lastMid=上一段中点（二次贝塞尔平滑用） */
     var last = null, lastMid = null;
     /* 数位板压感：pointerType === 'pen' 时线宽随 e.pressure 变化 */
@@ -61,12 +63,15 @@ window.Brush = (function () {
       return st._maskCtx;
     }
 
-    /* CSS px → 工作图坐标；存在缩放视图（st.viewTf：work→画布 px）时取逆变换 */
+    /* CSS px → 工作图坐标；存在缩放视图（st.viewTf：work→画布 px）时取逆变换；
+       视图带倾斜（tf.rot）时再叠加绕工作图中心的逆旋转（预分解为仿射，逐点计算） */
     function workPoint(e) {
-      return {
-        x: (e.clientX - rectCache.left) * sx + ox,
-        y: (e.clientY - rectCache.top) * sy + oy
-      };
+      var x = (e.clientX - rectCache.left) * sx + ox;
+      var y = (e.clientY - rectCache.top) * sy + oy;
+      if (tilted) {
+        return { x: m11 * x + m12 * y + mtx, y: m21 * x + m22 * y + mty };
+      }
+      return { x: x, y: y };
     }
 
     /* ---------- 画笔光标环 ---------- */
@@ -193,10 +198,23 @@ window.Brush = (function () {
         sy = kc / tf.scale;
         ox = -tf.tx / tf.scale;
         oy = -tf.ty / tf.scale;
+        if (tf.rot) {
+          /* 倾斜视图：p = R(−θ)·u + (c − R(−θ)·c)，u = (画布点 − t)/scale */
+          tilted = true;
+          var cos = Math.cos(tf.rot), sin = Math.sin(tf.rot);
+          var cx = st.workCanvas.width / 2, cy = st.workCanvas.height / 2;
+          m11 = cos; m12 = sin;
+          m21 = -sin; m22 = cos;
+          mtx = cx - (m11 * cx + m12 * cy);
+          mty = cy - (m21 * cx + m22 * cy);
+        } else {
+          tilted = false;
+        }
       } else {
         sx = st.workCanvas.width / (rectCache.width || 1);
         sy = st.workCanvas.height / (rectCache.height || 1);
         ox = 0; oy = 0;
+        tilted = false;
       }
       // brushSize 缺失/非法时回退默认 30px（app.js State 初始值），防 NaN 被静默忽略
       sizeWork = Math.max(2, (st.brushSize > 0 ? st.brushSize : 30) * sx);

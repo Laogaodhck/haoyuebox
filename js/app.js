@@ -14,6 +14,7 @@ window.App = (function () {
     baseCanvas: null,       // 分割原始基准图（美白重算的来源，只读）
     skin: null,             // 皮肤置信度 Float32Array（工作图尺寸；多分类模型才有）
     whiten: 0,              // 皮肤美白强度 0..100
+    tilt: 0,                // 人像倾斜校正角度（度，±15；绕工作图中心旋转）
     maskCanvas: null,
     initialMask: null,      // 自动抠图初始蒙版（Brush.snapMask 快照）
     bg: '#FFFFFF',
@@ -149,8 +150,10 @@ window.App = (function () {
       State.undoStack = [];
       State.initialMask = window.Brush.snapMask(State);
       State.bg = '#FFFFFF';
+      State.tilt = 0;                                  // 新照片重置倾斜校正
       State.matteView = { zoom: 1, panX: 0, panY: 0 }; // 新照片重置视图
       initWhitenUI();
+      syncTiltUI();
       applyWhiten();                     // 按已保存的美白偏好重算（0 值时零开销直通）
       if (matteViewApi) matteViewApi.fit();
       syncBgSwatches();
@@ -242,6 +245,22 @@ window.App = (function () {
     $('whiten-val').textContent = State.whiten;
   }
 
+  /* ---------- 人像倾斜校正：合成管线级旋转（不改工作图与蒙版数据） ---------- */
+  var tiltPending = false;
+  function scheduleTiltRender() {
+    /* 滑块拖动高频触发：rAF 合帧，一帧只全量重绘一次（倾斜影响全图） */
+    if (tiltPending) return;
+    tiltPending = true;
+    requestAnimationFrame(function () {
+      tiltPending = false;
+      renderMatteView();
+    });
+  }
+  function syncTiltUI() {
+    $('tilt-range').value = State.tilt;
+    $('tilt-val').textContent = State.tilt + '°';
+  }
+
   function matteViewSize() {
     var work = State.workCanvas;
     var maxV = 900;
@@ -259,7 +278,7 @@ window.App = (function () {
     }
     var mv = State.matteView || { zoom: 1, panX: 0, panY: 0 };
     var k = size.w / State.workCanvas.width;
-    var tf = { scale: k * mv.zoom, tx: mv.panX, ty: mv.panY };
+    var tf = { scale: k * mv.zoom, tx: mv.panX, ty: mv.panY, rot: (State.tilt || 0) * Math.PI / 180 };
     State.viewTf = tf;
     var ctx = canvas.getContext('2d');
 
@@ -281,15 +300,21 @@ window.App = (function () {
       Object.assign({}, State, { transform: tf }),
       dirty
     );
-    // 缩放/平移后用虚线标出照片边界（视口外的区域与底色同色，需边界提示）
+    // 缩放/平移/倾斜后用虚线标出照片边界（视口外的区域与底色同色，需边界提示）
     // 脏区局部重绘时跳过虚线（笔画结束后会做一次全量重绘补齐）
-    if (!dirty && (mv.zoom > 1 || mv.panX || mv.panY)) {
+    if (!dirty && (mv.zoom > 1 || mv.panX || mv.panY || State.tilt)) {
       ctx.save();
       ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-      ctx.setLineDash([6, 4]);
-      ctx.lineWidth = 1;
-      ctx.strokeRect(tf.tx + 0.5, tf.ty + 0.5,
-        State.workCanvas.width * tf.scale - 1, State.workCanvas.height * tf.scale - 1);
+      ctx.lineWidth = 1 / tf.scale;
+      ctx.setLineDash([6 / tf.scale, 4 / tf.scale]);
+      ctx.translate(tf.tx, tf.ty);
+      ctx.scale(tf.scale, tf.scale);
+      if (tf.rot) {
+        ctx.translate(State.workCanvas.width / 2, State.workCanvas.height / 2);
+        ctx.rotate(tf.rot);
+        ctx.translate(-State.workCanvas.width / 2, -State.workCanvas.height / 2);
+      }
+      ctx.strokeRect(0.5, 0.5, State.workCanvas.width - 1, State.workCanvas.height - 1);
       ctx.restore();
     }
   }
@@ -386,6 +411,21 @@ window.App = (function () {
     });
     $('whiten-range').addEventListener('change', function () {
       window.App.settings.save();
+    });
+
+    // 人像倾斜校正：实时预览；若已进入过规格步骤，同步钳制裁剪变换防露底色
+    $('tilt-range').addEventListener('input', function () {
+      State.tilt = Math.min(15, Math.max(-15, Math.round((+this.value || 0) * 2) / 2));
+      this.value = State.tilt;
+      syncTiltUI();
+      scheduleTiltRender();
+      if (State.transform) window.Cropper.clampTransform(State);
+    });
+    $('btn-tilt-reset').addEventListener('click', function () {
+      if (!State.tilt) return;
+      State.tilt = 0;
+      syncTiltUI();
+      renderMatteView();
     });
 
     $('btn-undo').addEventListener('click', undoMask);

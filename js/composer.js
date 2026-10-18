@@ -1,6 +1,8 @@
 /* ============================================================
  * composer.js — 换底合成引擎
  * 变换模型：work 坐标 → 输出坐标  x_out = x_work * scale + tx
+ *           人像倾斜校正（st.tilt）在缩放平移之前绕 work 中心旋转，
+ *           work 与蒙版同用一套变换，笔刷/美白/蒙版仍工作于原始 work 坐标。
  * 合成流程：底色 → 原图（按变换绘制）→ 用遮罩做 destination-in
  * 预览与导出共用同一管线，仅画布尺寸不同。
  * ============================================================ */
@@ -26,46 +28,91 @@ window.Composer = (function () {
     return c;
   }
 
+  /* ---------- 人像倾斜校正 ----------
+   * st.tilt（度，±15）：绕工作图中心旋转的校正角，作用于 work 与蒙版两层，
+   * 在 transform（缩放/平移）之前应用，因此笔刷/美白/蒙版仍以原始 work 坐标工作。
+   * 前向映射（work → 输出）：out = s·(c + R(θ)·(p − c)) + t
+   * 逆映射（输出 → work）：p = c + R(−θ)·((q − t)/s − c) */
+  function tiltRad(st) { return (st.tilt || 0) * Math.PI / 180; }
+  function tiltFwd(st, x, y) {
+    var t = tiltRad(st);
+    if (!t) return { x: x, y: y };
+    var cx = st.workCanvas.width / 2, cy = st.workCanvas.height / 2;
+    var cos = Math.cos(t), sin = Math.sin(t);
+    var dx = x - cx, dy = y - cy;
+    return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+  }
+  function tiltInv(st, x, y) {
+    var t = tiltRad(st);
+    if (!t) return { x: x, y: y };
+    var cx = st.workCanvas.width / 2, cy = st.workCanvas.height / 2;
+    var cos = Math.cos(t), sin = Math.sin(t);
+    var dx = x - cx, dy = y - cy;
+    return { x: cx + dx * cos + dy * sin, y: cy - dx * sin + dy * cos };
+  }
+
+  /* 在 ctx 上铺开「缩放平移 + 绕中心倾斜」的完整变换（drawImage 前调用） */
+  function applyTf(ctx, st, tf) {
+    ctx.translate(tf.tx, tf.ty);
+    ctx.scale(tf.scale, tf.scale);
+    var rot = tiltRad(st);
+    if (rot) {
+      var cx = st.workCanvas.width / 2, cy = st.workCanvas.height / 2;
+      ctx.translate(cx, cy);
+      ctx.rotate(rot);
+      ctx.translate(-cx, -cy);
+    }
+  }
+
   /* 工作图层缓存：work 按 tf 绘制到 outW×outH（透明底，不含底色 → 换底色无需失效）。
-     key 含变换与尺寸：换图 / 缩放 / 平移 / 目标尺寸变化自动重建。 */
+     key 含变换、倾斜角与尺寸：换图 / 缩放 / 平移 / 倾斜 / 目标尺寸变化自动重建。 */
   var _layerC = null, _layerWork = null, _layerKey = '';
   function workLayer(st, outW, outH, tf) {
     /* key 含 _workRev：皮肤美白等就地重写工作图后缓存自动重建 */
-    var key = outW + 'x' + outH + '|' + tf.scale + '|' + tf.tx + '|' + tf.ty + '|w' + (st._workRev || 0);
+    var key = outW + 'x' + outH + '|' + tf.scale + '|' + tf.tx + '|' + tf.ty
+      + '|w' + (st._workRev || 0) + '|t' + (st.tilt || 0);
     if (_layerC && _layerWork === st.workCanvas && _layerKey === key) return _layerC;
     var c = ensureSize(_layerC, outW, outH);
     _layerC = c; _layerWork = st.workCanvas; _layerKey = key;
     var x = ctxOf(c);
+    x.setTransform(1, 0, 0, 1, 0, 0);
     x.clearRect(0, 0, outW, outH);
     x.imageSmoothingEnabled = true;
     x.imageSmoothingQuality = 'high';
-    x.drawImage(st.workCanvas, tf.tx, tf.ty,
-      st.workCanvas.width * tf.scale, st.workCanvas.height * tf.scale);
+    x.save();
+    applyTf(x, st, tf);
+    x.drawImage(st.workCanvas, 0, 0);
+    x.restore();
     return c;
   }
 
-  /* 缩放蒙版缓存：mask 按 tf 绘制到 outW×outH。
+  /* 缩放蒙版缓存：mask 按 tf（含倾斜）绘制到 outW×outH。
      脏区拖拽时只增量重绘对应小块（源侧外扩 2/scale+1px，覆盖缩放采样邻域与
-     源矩形边缘滤波效应），替代每帧整幅高分辨率蒙版的缩放采样。
+     源矩形边缘滤波效应），替代每帧整幅高分辨率蒙版的缩放采样；
+     倾斜时把目标区域四角逆映射回工作图坐标取包围盒后按完整变换重绘。
      key 含 _maskRev：undo / 重置蒙版等整幅重写后自动全量重建；
      整幅渲染（region=null）时也全量重绘，兜底保证缓存与蒙版一致。 */
   var _smC = null, _smMask = null, _smKey = '';
   function scaledMask(st, outW, outH, tf, region) {
     var key = outW + 'x' + outH + '|' + tf.scale + '|' + tf.tx + '|' + tf.ty
-      + '|r' + (st._maskRev || 0);
+      + '|r' + (st._maskRev || 0) + '|t' + (st.tilt || 0);
     if (!(_smC && _smMask === st.maskCanvas && _smKey === key)) {
       var c0 = ensureSize(_smC, outW, outH);
       _smC = c0; _smMask = st.maskCanvas; _smKey = key;
       var x0 = ctxOf(c0);
+      x0.setTransform(1, 0, 0, 1, 0, 0);
       x0.clearRect(0, 0, outW, outH);
       x0.imageSmoothingEnabled = true;
       x0.imageSmoothingQuality = 'high';
-      x0.drawImage(st.maskCanvas, tf.tx, tf.ty,
-        st.maskCanvas.width * tf.scale, st.maskCanvas.height * tf.scale);
+      x0.save();
+      applyTf(x0, st, tf);
+      x0.drawImage(st.maskCanvas, 0, 0);
+      x0.restore();
       return c0;
     }
     var x = ctxOf(_smC);
-    if (region) {
+    var rot = tiltRad(st);
+    if (region && !rot) {
       var pad = 2 / tf.scale + 1;
       var sx = (region.x - tf.tx) / tf.scale - pad;
       var sy = (region.y - tf.ty) / tf.scale - pad;
@@ -76,12 +123,45 @@ window.Composer = (function () {
       x.imageSmoothingQuality = 'high';
       x.drawImage(st.maskCanvas, sx, sy, sw, sh,
         tf.tx + sx * tf.scale, tf.ty + sy * tf.scale, sw * tf.scale, sh * tf.scale);
+    } else if (region) {
+      /* 倾斜下的区域增量重绘：目标区域四角逆映射回工作图坐标，
+         取包围盒（外扩采样邻域）后在完整倾斜变换下重绘该源矩形。
+         重绘范围可能略超出清除区，但内容与全量绘制逐像素一致，无副作用。 */
+      var pad2 = 2 / tf.scale + 1;
+      var corners = [[region.x, region.y], [region.x + region.w, region.y],
+                     [region.x, region.y + region.h], [region.x + region.w, region.y + region.h]];
+      var sx0 = Infinity, sy0 = Infinity, sx1 = -Infinity, sy1 = -Infinity;
+      for (var ci = 0; ci < 4; ci++) {
+        var p = tiltInv(st, (corners[ci][0] - tf.tx) / tf.scale,
+                           (corners[ci][1] - tf.ty) / tf.scale);
+        if (p.x < sx0) sx0 = p.x;
+        if (p.x > sx1) sx1 = p.x;
+        if (p.y < sy0) sy0 = p.y;
+        if (p.y > sy1) sy1 = p.y;
+      }
+      sx0 = Math.max(0, Math.floor(sx0 - pad2));
+      sy0 = Math.max(0, Math.floor(sy0 - pad2));
+      sx1 = Math.min(st.maskCanvas.width, Math.ceil(sx1 + pad2));
+      sy1 = Math.min(st.maskCanvas.height, Math.ceil(sy1 + pad2));
+      var sw2 = sx1 - sx0, sh2 = sy1 - sy0;
+      if (sw2 > 0 && sh2 > 0) {
+        x.clearRect(region.x, region.y, region.w, region.h);
+        x.imageSmoothingEnabled = true;
+        x.imageSmoothingQuality = 'high';
+        x.save();
+        applyTf(x, st, tf);
+        x.drawImage(st.maskCanvas, sx0, sy0, sw2, sh2, sx0, sy0, sw2, sh2);
+        x.restore();
+      }
     } else {
+      x.setTransform(1, 0, 0, 1, 0, 0);
       x.clearRect(0, 0, outW, outH);
       x.imageSmoothingEnabled = true;
       x.imageSmoothingQuality = 'high';
-      x.drawImage(st.maskCanvas, tf.tx, tf.ty,
-        st.maskCanvas.width * tf.scale, st.maskCanvas.height * tf.scale);
+      x.save();
+      applyTf(x, st, tf);
+      x.drawImage(st.maskCanvas, 0, 0);
+      x.restore();
     }
     return _smC;
   }
@@ -416,5 +496,7 @@ window.Composer = (function () {
     return layoutSheet(cell, paperKey, opts);
   }
 
-  return { compositeInto: compositeInto, buildSheet: buildSheet, bestLayout: bestLayout, layoutSheet: layoutSheet, layoutGroups: layoutGroups, layoutExact: layoutExact, layoutBatch: layoutBatch, sheetCapacity: sheetCapacity, PAPERS: PAPERS };
+  return { compositeInto: compositeInto, buildSheet: buildSheet, bestLayout: bestLayout, layoutSheet: layoutSheet, layoutGroups: layoutGroups, layoutExact: layoutExact, layoutBatch: layoutBatch, sheetCapacity: sheetCapacity, PAPERS: PAPERS,
+    /* 倾斜映射纯函数，供 Node 冒烟测试 */
+    _test: { tiltFwd: tiltFwd, tiltInv: tiltInv, tiltRad: tiltRad } };
 })();

@@ -70,6 +70,9 @@ withServer(PORT, async () => {
   assert(!!doc.getElementById('matte-view'), '抠图画布存在');
   assert(!!doc.getElementById('whiten-range') && !!doc.getElementById('whiten-val') && !!doc.getElementById('whiten-field'),
     '皮肤美白滑块与数值标签存在');
+  assert(!!doc.getElementById('tilt-range') && !!doc.getElementById('tilt-val') && !!doc.getElementById('tilt-field'),
+    '人像倾斜校正滑块与数值标签存在');
+  assert(!!doc.getElementById('btn-tilt-reset'), '倾斜回正按钮存在');
   assert(!!doc.getElementById('mv-zoom-in') && !!doc.getElementById('mv-zoom-out') && !!doc.getElementById('mv-zoom-fit'), '缩放工具栏存在');
   assert(!!doc.getElementById('mv-zoom-label'), '缩放百分比标签存在');
   assert(!!doc.getElementById('crop-view'), '裁剪画布存在');

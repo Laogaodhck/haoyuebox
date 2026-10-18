@@ -37,8 +37,18 @@ window.MatteView = (function () {
       var work = st.workCanvas;
       if (!work || !canvas.width) return;
       var k = canvas.width / work.width;
-      var dw = work.width * k * m.zoom;
-      var dh = work.height * k * m.zoom;
+      var dw, dh;
+      var rot = Math.abs((st.tilt || 0) * Math.PI / 180);
+      if (rot) {
+        /* 倾斜后内容包围盒外扩（对角投影），按外扩范围限制平移；
+           边角露底色属于倾斜的正常表现，不做覆盖性钳制 */
+        var cos = Math.cos(rot), sin = Math.sin(rot);
+        dw = (work.width * cos + work.height * sin) * k * m.zoom;
+        dh = (work.width * sin + work.height * cos) * k * m.zoom;
+      } else {
+        dw = work.width * k * m.zoom;
+        dh = work.height * k * m.zoom;
+      }
       var W = canvas.width, H = canvas.height;
       m.panX = Math.min(Math.max(m.panX, Math.min(0, W - dw)), Math.max(0, W - dw));
       m.panY = Math.min(Math.max(m.panY, Math.min(0, H - dh)), Math.max(0, H - dh));

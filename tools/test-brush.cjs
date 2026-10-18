@@ -137,6 +137,39 @@ withServer(PORT, async () => {
   dc.dispatchEvent(PE('pointerleave', 0, 0));
   assert(ring().style.display === 'none', '指针离开画布隐藏光标环');
 
+  /* ---------- 6. 倾斜视图：落笔坐标经逆旋转映射到工作图坐标 ----------
+   * work→画布：scale 2、平移 (10,20)、绕工作图中心 (400,300) 倾斜 90°。
+   * 画布点 (150,100) → u=((150−10)/2,(100−20)/2)=(70,40)
+   * → p = R(−90°)·u + (c − R(−90°)·c) = (140, 630)。 */
+  const dc2 = doc.createElement('canvas');
+  dc2.width = 300; dc2.height = 200;
+  doc.body.appendChild(dc2);
+  dc2.getBoundingClientRect = () => ({ left: 0, top: 0, width: 300, height: 200, right: 300, bottom: 200 });
+  const mc2 = doc.createElement('canvas');
+  mc2.width = 800; mc2.height = 600;
+  const ev2 = { change: [], start: 0 };
+  const st2 = {
+    workCanvas: { width: 800, height: 600 },
+    maskCanvas: mc2,
+    brushMode: 'erase',
+    brushSize: 30,
+    mattePanActive: false,
+    viewTf: { scale: 2, tx: 10, ty: 20, rot: Math.PI / 2 }
+  };
+  win.Brush.attach(dc2, st2, {
+    onStrokeStart() { ev2.start++; },
+    onChange(rect) { ev2.change.push(rect); },
+    onStrokeEnd() {}
+  });
+  dc2.dispatchEvent(PE('pointerdown', 150, 100));
+  await new Promise((r) => setTimeout(r, 20));
+  assert(ev2.start === 1, '倾斜视图落笔触发快照');
+  const t0 = ev2.change[0];
+  assert(t0 && near(t0.x0, 140 - 7.5, 1) && near(t0.y0, 630 - 7.5, 1)
+    && near(t0.x1, 140 + 7.5, 1) && near(t0.y1, 630 + 7.5, 1),
+    '倾斜视图落笔脏区=逆旋转映射后的工作图坐标圆点包围盒');
+  dc2.dispatchEvent(PE('pointerup', 150, 100));
+
   assert(errors.length === 0, '无脚本错误: ' + errors.join(' | '));
   checker.finish();
 }).catch((e) => { console.error('测试执行失败:', e); process.exit(1); });
