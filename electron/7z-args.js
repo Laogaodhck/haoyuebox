@@ -47,11 +47,13 @@ function exitCodeText(code) {
 }
 
 /* 路径归一化键：resolve 消解相对段、统一分隔符、Windows 语义下不区分大小写
- * （本应用仅发 Windows 版；lowercase 对 Linux 极端同名场景可能误报，可接受） */
+ * （本应用仅发 Windows 版；lowercase 对 Linux 极端同名场景可能误报，可接受）。
+ * 固定用 path.win32：Windows 上与 path.resolve 等价；非 Windows（CI ubuntu）
+ * 也能按 Windows 语义消解 C:\a\.\x 这类相对段，保证测试跨平台一致 */
 function normPathKey(p) {
   let s = String(p || '').trim();
   if (!s) return '';
-  try { s = path.resolve(s); } catch (e) { /* 保持原样 */ }
+  try { s = path.win32.resolve(s); } catch (e) { /* 保持原样 */ }
   if (/^[a-zA-Z]:/.test(s)) s = s.charAt(0).toLowerCase() + s.slice(1);
   return s.replace(/\\/g, '/').toLowerCase();
 }
