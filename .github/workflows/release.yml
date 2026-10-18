@@ -108,7 +108,12 @@ jobs:
             || gh release create "$REL_TAG" \
                  --title "尊泓工具箱 $REL_TAG" \
                  --generate-notes --target "$GITHUB_SHA"
-          gh release upload "$REL_TAG" release-build/*.exe --clobber
+          # GitHub 会清洗资产名（删除非 ASCII、空格变点），上传前重命名为 ASCII
+          VER=$(node -p "require('./package.json').version")
+          mkdir -p upload
+          cp "release-build/尊泓工具箱 Setup $VER.exe" "upload/zunhong-toolbox-Setup-$VER.exe"
+          cp "release-build/尊泓工具箱_便携版.exe" "upload/zunhong-toolbox-$VER-portable.exe"
+          gh release upload "$REL_TAG" upload/*.exe --clobber
 
       # 手动触发且未指定补发 tag 时，不建 Release，只留产物供试装
       - name: 上传构建产物
