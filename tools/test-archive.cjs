@@ -259,8 +259,10 @@ function run7z(args) {
 }
 
 (async function testReal7z() {
-  if (!fs.existsSync(EXE)) {
-    console.log('\n[3] 跳过真实 7z 冒烟（未找到 electron/bin/7z.exe）');
+  /* 随包引擎是 Windows PE：非 Windows 平台（CI ubuntu）文件存在但无法执行，
+     实际会以 spawn error code=-1 收场 → 直接跳过冒烟 */
+  if (!fs.existsSync(EXE) || process.platform !== 'win32') {
+    console.log('\n[3] 跳过真实 7z 冒烟（' + (process.platform !== 'win32' ? '非 Windows 平台' : '未找到 electron/bin/7z.exe') + '）');
     t.finish();
     return;
   }

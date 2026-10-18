@@ -1,4 +1,4 @@
-/* zip.js 单元测试：ZIP(store) 结构 / CRC32 向量 / 真实解压回归（PowerShell Expand-Archive） */
+/* zip.js 单元测试：ZIP(store) 结构 / CRC32 向量 / 真实解压回归（Win: Expand-Archive / 其他: unzip） */
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -71,19 +71,35 @@ function assert(cond, name) {
   }
   assert(pos === cdOffset + cdSize, '中央目录实际大小与 EOCD 记录一致');
 
-  /* ---------- 5. 真实解压回归：Windows PowerShell Expand-Archive ---------- */
+  /* ---------- 5. 真实解压回归：Windows Expand-Archive / 其他平台 unzip ----------
+     CI 的 ubuntu runner 没有 powershell（spawnSync ENOENT），非 Windows 改用
+     系统自带 unzip；两者都不可用时跳过本步（结构/CRC 断言已覆盖正确性）。 */
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zunhong-zip-'));
   try {
     const zipPath = path.join(tmp, 'test.zip');
     fs.writeFileSync(zipPath, buf);
     const outDir = path.join(tmp, 'out');
-    execFileSync('powershell', ['-NoProfile', '-Command',
-      "Expand-Archive -LiteralPath '" + zipPath + "' -DestinationPath '" + outDir + "' -Force"]);
-    for (let i = 0; i < expected.length; i++) {
-      const fp = path.join(outDir, expected[i]);
-      assert(fs.existsSync(fp), '解压后存在文件「' + expected[i] + '」');
-      if (fs.existsSync(fp)) {
-        assert(Buffer.from(fs.readFileSync(fp)).equals(raw[i]), '解压文件「' + expected[i] + '」逐字节一致');
+    let extracted = false;
+    if (process.platform === 'win32') {
+      execFileSync('powershell', ['-NoProfile', '-Command',
+        "Expand-Archive -LiteralPath '" + zipPath + "' -DestinationPath '" + outDir + "' -Force"]);
+      extracted = true;
+    } else {
+      try {
+        execFileSync('unzip', ['-o', zipPath, '-d', outDir]);
+        extracted = true;
+      } catch (e) {
+        if (e && e.code !== 'ENOENT') throw e;
+        console.log('  skip - 未找到 unzip，跳过真实解压回归（非 Windows 平台）');
+      }
+    }
+    if (extracted) {
+      for (let i = 0; i < expected.length; i++) {
+        const fp = path.join(outDir, expected[i]);
+        assert(fs.existsSync(fp), '解压后存在文件「' + expected[i] + '」');
+        if (fs.existsSync(fp)) {
+          assert(Buffer.from(fs.readFileSync(fp)).equals(raw[i]), '解压文件「' + expected[i] + '」逐字节一致');
+        }
       }
     }
   } finally {
