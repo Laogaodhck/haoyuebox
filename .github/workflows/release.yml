@@ -27,7 +27,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          # node 22（npm 10）：npm 11 的 install-scripts allowlist 策略会拦截
+          # electron 的 postinstall 与 npm rebuild，导致打包找不到 Electron 二进制
+          node-version: 22
           cache: npm
 
       # electron 与 electron-builder 的下载缓存（NSIS 工具链、winCodeSign、electron zip）
