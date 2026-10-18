@@ -813,6 +813,7 @@ window.Matting = (function () {
 
   return {
     init: init, segment: segment, isReady: isReady,
+    whitenData: whitenData,   // 皮肤美白像素混合（app.js applyWhiten 调用）
     /* 内部纯算法函数，供 Node 冒烟测试（不依赖 DOM） */
     _test: { axisWeight: axisWeight, tileStarts: tileStarts, resampleF32: resampleF32, extractPersonConf: extractPersonConf, refineAlpha: refineAlpha, clearHairGaps: clearHairGaps, medianFilter3: medianFilter3, cleanComponents: cleanComponents, fillHoles: fillHoles, solidifyBorders: solidifyBorders, boxBlur: boxBlur, guidedFilter: guidedFilter, hysteresisBin: hysteresisBin, classBoost: classBoost, classGain: classGain, whitenData: whitenData }
   };
