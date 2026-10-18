@@ -265,6 +265,12 @@ async function createWindow() {
   }
 }
 
+/* 设置 AppUserModelID：任务栏/通知归属到 com.zunhong.toolbox，
+   也让安全软件把进程与已安装应用对应起来（无此 ID 时进程身份模糊） */
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.zunhong.toolbox');
+}
+
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
