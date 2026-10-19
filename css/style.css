@@ -253,6 +253,7 @@ main { padding: 20px; max-width: 1280px; margin: 0 auto; }
   border-radius: var(--radius);
   font-size: 14px;
 }
+.warn-banner .icon { margin-right: 6px; }
 
 /* ---------- 步骤1：上传 ---------- */
 .dropzone {
@@ -1107,6 +1108,9 @@ body[data-module="system"] #sheet-steps-nav { display: none; }
   font-size: 12px;
   line-height: 1;
   cursor: pointer;
+  display: flex;              /* 图标按钮居中（SVG 子元素） */
+  align-items: center;
+  justify-content: center;
 }
 .cmp-thumb .ops button:hover { background: var(--accent); }
 

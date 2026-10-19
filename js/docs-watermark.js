@@ -6,7 +6,7 @@
  *  - PDF 逐页栅格化（页面转为图像）后经纯 JS 生成器重建，水印不可被单独剥离；
  *  - 图片保持原格式输出（PNG 保留透明通道）；
  *  - 输出到所选文件夹的「加水印输出」子文件夹，不动原文件，不上传任何数据。
- * 依赖：App.batchFormat.buildPdf（纯 JS PDF 生成器）、window.pdfjsLib（pdf-adapter.mjs）。
+ * 依赖：App.pdfcore（pdf.js 加载渲染，6.x 只收 TypedArray）、App.batchFormat.buildPdf（纯 JS PDF 生成器）。
  * ============================================================ */
 (function (App) {
   'use strict';
@@ -24,6 +24,8 @@
   var mode = 'text';     // text | image
   var running = false;
   var previewTimer = null;
+  var previewGen = 0;    // 预览代数：拖滑块/切文件会快速连发，过期回调必须丢弃
+  var pdfCache = { file: null, pdf: null }; // 已解析 PDF 缓存（同文件反复预览不重复读盘）
 
   function toast(msg, isErr) { App.ui.toast(msg, isErr); }
 
@@ -135,14 +137,18 @@
   // PDF：逐页栅格化（长边 ≤2000px）→ 加水印 → JPEG → 纯 JS 生成器重建
   async function processPdf(file, opts) {
     var pdf = await core.loadPdf(file);
-    var pages = [];
-    for (var i = 1; i <= pdf.numPages; i++) {
-      var canvas = await core.renderPage(pdf, i, 2, 2000);
-      paintWatermark(canvas.getContext('2d'), canvas.width, canvas.height, opts);
-      var blob = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.92); });
-      pages.push({ jpeg: await blobBytes(blob), w: canvas.width, h: canvas.height });
+    try {
+      var pages = [];
+      for (var i = 1; i <= pdf.numPages; i++) {
+        var canvas = await core.renderPage(pdf, i, 2, 2000);
+        paintWatermark(canvas.getContext('2d'), canvas.width, canvas.height, opts);
+        var blob = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.92); });
+        pages.push({ jpeg: await blobBytes(blob), w: canvas.width, h: canvas.height });
+      }
+      return App.batchFormat.buildPdf(pages);
+    } finally {
+      pdf.cleanup();
     }
-    return App.batchFormat.buildPdf(pages);
   }
 
   // 图片：绘制到画布 → 加水印 → 按原格式编码（PNG 保留透明，JPEG/WebP 质量 0.92）
@@ -166,9 +172,10 @@
   function renderCount() {
     var n = items.length;
     var pdfN = items.filter(function (it) { return it.isPdf; }).length;
+    // 只报文件数与 PDF 数：it.pages 未在选文件时读取，累加它等于把图片也按 1 页计入，
+    // 显示「共 N 页」是假数据；真实页数需要逐个解析 PDF，成本过高，按文件计更诚实
     $('dw-count').textContent = n
-      ? '已选 ' + n + ' 个文件' + (pdfN ? '（含 PDF ' + pdfN + '，共 ' +
-        items.reduce(function (s, it) { return s + (it.pages || 1); }, 0) + ' 页）' : '')
+      ? '已选 ' + n + ' 个文件' + (pdfN ? '（含 PDF ' + pdfN + ' 个）' : '')
       : '';
     $('dw-empty').hidden = n > 0;
     $('dw-clear').hidden = n === 0;
@@ -208,6 +215,11 @@
 
   /* ================= 预览 ================= */
 
+  function releasePdfCache() {
+    if (pdfCache.pdf) { try { pdfCache.pdf.cleanup(); } catch (e) { /* 已销毁 */ } }
+    pdfCache = { file: null, pdf: null };
+  }
+
   async function renderPreview() {
     var canvas = $('dw-canvas');
     var hint = $('dw-preview-hint');
@@ -226,10 +238,26 @@
     hint.hidden = true;
     canvas.hidden = false;
     var it = items[0];
+    // 每次预览代数+1：异步渲染期间若又触发新预览（拖滑块/切文件），
+    // 旧回调完成后发现代数过期即丢弃，防止后完成的慢渲染覆盖新预览
+    var myGen = ++previewGen;
     try {
       if (it.isPdf) {
-        var buf = await it.file.arrayBuffer();
-        var pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+        // 同文件走缓存：pdf.js parse 大文件（百 MB 扫描件）成本高，
+        // 反复拖滑块只应读一次盘；切换文件时释放上一个文档句柄
+        if (pdfCache.file !== it.file) {
+          releasePdfCache();
+          var loaded = await core.loadPdf(it.file);
+          /* 加载期间若又触发新预览（切文件/拖滑块），本回调已过期：
+           * 过期者不占缓存（占了也会被更新者覆写，两份句柄一起漏），直接释放 */
+          if (myGen !== previewGen) {
+            try { loaded.cleanup(); } catch (e2) { /* 已销毁 */ }
+            return;
+          }
+          pdfCache = { file: it.file, pdf: loaded };
+        }
+        var pdf = pdfCache.pdf;
+        if (myGen !== previewGen) return; // 已过期：丢弃（缓存供下次复用）
         var page = await pdf.getPage(1);
         var base = page.getViewport({ scale: 1 });
         var scale = Math.min(2, Math.max(0.5, 860 / base.width));
@@ -240,9 +268,11 @@
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        if (myGen !== previewGen) return; // 渲染期间又发了新预览：丢弃结果
         paintWatermark(ctx, canvas.width, canvas.height, opts);
       } else {
         var bmp = await createImageBitmap(it.file);
+        if (myGen !== previewGen) return;
         var fit = Math.min(1, 860 / bmp.width);
         canvas.width = Math.round(bmp.width * fit);
         canvas.height = Math.round(bmp.height * fit);
@@ -251,6 +281,7 @@
         paintWatermark(c2, canvas.width, canvas.height, opts);
       }
     } catch (e) {
+      if (myGen !== previewGen) return; // 过期回调的错误不覆盖新预览的提示
       canvas.hidden = true;
       hint.hidden = false;
       hint.textContent = '预览失败：' + ((e && e.message) || e);
@@ -287,6 +318,7 @@
 
   function clearFiles() {
     items = [];
+    releasePdfCache();
     renderCount();
     schedulePreview();
     setStatus('');
@@ -312,7 +344,6 @@
     if (!f) return;
     try {
       wmImg = await createImageBitmap(f);
-      wmImg.f = f;
       $('dw-img-name').textContent = f.name;
       schedulePreview();
     } catch (e) {
@@ -350,13 +381,16 @@
       try {
         if (it.isPdf) {
           var bytes = await processPdf(it.file, opts);
-          var fh = await out.getFileHandle(it.file.name, { create: true });
+          // 同名文件（不同文件夹多选）防静默覆盖：探测已有则追加 _N 后缀
+          var outName = await core.uniqueOutName(out, it.file.name);
+          var fh = await out.getFileHandle(outName, { create: true });
           var w = await fh.createWritable();
           await w.write(bytes);
           await w.close();
         } else {
           var blob = await processImage(it.file, opts);
-          var fh2 = await out.getFileHandle(it.file.name, { create: true });
+          var outName2 = await core.uniqueOutName(out, it.file.name);
+          var fh2 = await out.getFileHandle(outName2, { create: true });
           var w2 = await fh2.createWritable();
           await w2.write(blob);
           await w2.close();
@@ -375,8 +409,9 @@
     running = false;
   }
 
-  /* 每次进入面板：清结果与状态，刷新计数与预览 */
+  /* 每次进入面板：清结果与状态，释放预览文档句柄，刷新计数与预览 */
   function enter() {
+    releasePdfCache();
     $('dw-list').innerHTML = '';
     setStatus('');
     renderCount();

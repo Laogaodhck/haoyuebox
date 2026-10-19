@@ -4,7 +4,7 @@
  * ============================================================ */
 'use strict';
 
-const { app, BrowserWindow, Menu, shell, session, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, shell, session, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { createStaticServer } = require('./static-server');
@@ -68,9 +68,13 @@ function windowsDefaultPrinter() {
   if (process.platform !== 'win32') return Promise.resolve('');
   const { execFile } = require('child_process');
   return new Promise((resolve) => {
+    // 中文 Windows 的 PowerShell 5.1 管道输出走 OEM 代码页（GBK 936），Node 按 UTF-8
+    // 解码会成乱码，与 Electron 枚举的 Unicode 打印机名永不相等（默认徽标静默失效），
+    // 故 -Command 前强制控制台输出编码为 UTF-8
     execFile(sysExe('powershell'), [
       '-NoProfile', '-Command',
-      '(Get-CimInstance Win32_Printer | Where-Object { $_.Default -eq $true } | Select-Object -First 1).Name'
+      '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;' +
+        '(Get-CimInstance Win32_Printer | Where-Object { $_.Default -eq $true } | Select-Object -First 1).Name'
     ], { windowsHide: true, timeout: 5000 }, (err, stdout) => {
       resolve(err ? '' : String(stdout || '').trim());
     });
@@ -99,14 +103,15 @@ function registerPrintIpc() {
     if (process.platform !== 'win32') {
       return { ok: false, error: '当前系统不支持打印机属性对话框' };
     }
-    const { execFile } = require('child_process');
+    const { spawn } = require('child_process');
     return new Promise((resolve) => {
       // rundll32 printui.dll,PrintUIEntry /p /n "打印机名" → 打印机属性
-      execFile(sysExe('rundll32'), ['printui.dll,PrintUIEntry', '/p', '/n', printerName],
-        { windowsHide: true, timeout: 15000 }, (err) => {
-        if (err) resolve({ ok: false, error: '无法打开打印机属性：' + (err.message || '未知错误') });
-        else resolve({ ok: true });
-      });
+      // 对话框由 rundll32 托管且用户交互期间常驻：不能用 execFile 超时杀它
+      // （到期 kill 会把用户设置到一半的对话框强关），spawn 成功即视为打开
+      const child = spawn(sysExe('rundll32'), ['printui.dll,PrintUIEntry', '/p', '/n', printerName],
+        { windowsHide: true, stdio: 'ignore' });
+      child.once('error', (err) => resolve({ ok: false, error: '无法打开打印机属性：' + (err.message || '未知错误') }));
+      child.once('spawn', () => resolve({ ok: true }));
     });
   });
 
@@ -140,9 +145,17 @@ function registerPrintIpc() {
       // 双面：simplex 单面 / longEdge 长边翻页 / shortEdge 短边翻页
       if (duplex === 'longEdge' || duplex === 'shortEdge') opts.duplexMode = duplex;
       return await new Promise((resolve) => {
+        let settled = false;
+        const done = (r) => { if (settled) return; settled = true; clearTimeout(watchdog); resolve(r); };
+        // 看门狗：print 回调永不触发（驱动挂起）时销毁隐藏窗口并返回错误，
+        // 防隐藏窗口 + printPages 路由 + IPC promise 三者一起泄漏、按钮永久禁用
+        const watchdog = setTimeout(() => {
+          try { printWin.destroy(); } catch (e) { /* 已销毁 */ }
+          done({ ok: false, error: '打印超时（60 秒）：打印机驱动可能无响应，请重试' });
+        }, 60000);
         printWin.webContents.print(opts, (ok, failureReason) => {
-          printWin.destroy();
-          resolve({ ok: !!ok, error: ok ? '' : (failureReason || '打印失败') });
+          try { printWin.destroy(); } catch (e) { /* 已销毁 */ }
+          done({ ok: !!ok, error: ok ? '' : (failureReason || '打印失败') });
         });
       });
     } catch (err) {
@@ -165,17 +178,19 @@ ipcMain.handle('archive-icons:restore', (e, exts) => archiveIcons.restore(exts))
 
 /* 打印文档/图片读取：渲染层沙箱无 fs，经此读取所选文件字节。
    文档（pdf.js / mammoth 渲染）与图片（缩略图 / 打印绘制）共用，
-   限定可打印扩展名与 200MB 上限，返回 ArrayBuffer（IPC 结构化克隆传输） */
+   限定可打印扩展名与 200MB 上限，返回 ArrayBuffer（IPC 结构化克隆传输）。
+   异步 fs.promises：大文件（可达 200MB）同步读会长时间阻塞主进程事件循环，
+   期间窗口无响应、IPC 全排队——此处改为异步读。 */
 const FILE_READ_EXTS = ['pdf', 'txt', 'docx', 'doc', 'jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'];
-ipcMain.handle('print:readFile', (e, filePath) => {
+ipcMain.handle('print:readFile', async (e, filePath) => {
   if (!filePath || typeof filePath !== 'string') return { ok: false, error: '未指定文件' };
   const ext = path.extname(filePath).replace(/^\./, '').toLowerCase();
   if (FILE_READ_EXTS.indexOf(ext) < 0) return { ok: false, error: '不支持的文件类型：' + ext };
   try {
-    const st = fs.statSync(filePath);
+    const st = await fs.promises.stat(filePath);
     if (!st.isFile()) return { ok: false, error: '不是常规文件' };
     if (st.size > 200 * 1024 * 1024) return { ok: false, error: '文档超过 200MB，无法读取' };
-    const buf = fs.readFileSync(filePath);
+    const buf = await fs.promises.readFile(filePath);
     return { ok: true, data: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength), size: st.size };
   } catch (err) {
     return { ok: false, error: '读取失败：' + (err.message || err) };
@@ -274,7 +289,12 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.zunhong.toolbox');
 }
 
-app.whenReady().then(createWindow);
+// 启动失败（如静态服务监听失败）不能静默变僵尸：落诊断日志 + 弹窗告知 + 退出
+app.whenReady().then(createWindow).catch((err) => {
+  appendDiag('createWindow-failed', (err && err.stack) || String(err));
+  dialog.showErrorBox('尊泓工具箱启动失败', '窗口初始化失败：' + ((err && err.message) || err));
+  app.quit();
+});
 
 app.on('window-all-closed', () => {
   app.quit();

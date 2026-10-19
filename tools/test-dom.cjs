@@ -200,6 +200,254 @@ withServer(PORT, async () => {
     '设置面板主题/启动模块选项齐备');
   assert(win.App.system && typeof win.App.system.enterNet === 'function'
     && typeof win.App.system.enterPrinter === 'function', 'App.system 模块已注册（网络检测/添加打印机）');
+  // system.js esc()：系统返回字符串（网卡名/IP/MAC/打印机名）进入 innerHTML 前的唯一转义关口
+  var escRef = win.App.system._test && win.App.system._test.escRef;
+  assert(typeof escRef === 'function', 'system esc 钩子已导出');
+  assert(escRef('<img src=x onerror=alert(1)>') === '&lt;img src=x onerror=alert(1)&gt;', 'esc 转义 < >');
+  assert(escRef('a&b"c\'d') === 'a&amp;b&quot;c&#39;d', 'esc 转义 & " \' 四字符');
+  assert(escRef(null) === '' && escRef(undefined) === '' && escRef(42) === '42', 'esc 空值兜底/非字符串转串');
+  // docs-pdf _test 钩子：列表排序与条目读取
+  var dpTest = win.App.docsPdf._test;
+  assert(dpTest && typeof dpTest.moveRef === 'function' && typeof dpTest.setItemsRef === 'function',
+    'docsPdf _test 钩子已导出');
+  dpTest.setItemsRef([{ file: { name: 'a.pdf' } }, { file: { name: 'b.pdf' } }]);
+  assert(dpTest.listRef().length === 2, 'docsPdf listRef 返回 2 条');
+  dpTest.moveRef(0, 1);
+  assert(dpTest.listRef()[0].file.name === 'b.pdf' && dpTest.listRef()[1].file.name === 'a.pdf',
+    'docsPdf moveRef 下移换序生效');
+  dpTest.moveRef(1, -1);
+  assert(dpTest.listRef()[0].file.name === 'a.pdf', 'docsPdf moveRef 上移复位生效');
+  dpTest.setItemsRef([]);
+  assert(dpTest.listRef().length === 0, 'docsPdf setItemsRef 清空生效');
+
+  /* ================= 文档四件套行为测试（T1/T2：修复「只测存在性」缺口） =================
+   * stub 策略：createImageBitmap / document.createElement('canvas') /
+   * pdfcore IO 层 / batchFormat.buildPdf 全部替换为内存假件，
+   * 只跑真实的控制流（per-file try/catch、状态行、结果列表、输出命名）。 */
+  const preTestErrors = errors.length; // 记录引导期错误数：行为测试故意走失败路径（console.error）
+  var $ = function (id) { return doc.getElementById(id); };
+  var core = win.App.pdfcore;
+  var origLoadPdf = core.loadPdf, origRenderPage = core.renderPage,
+    origEncodeCanvas = core.encodeCanvas, origWriteBytes = core.writeBytes;
+  var origBuildPdf = win.App.batchFormat.buildPdf;
+  var origCreate = win.document.createElement.bind(win.document);
+  /* jsdom 无 canvas 2D 实现（getContext 返回 null）：给假 canvas + 假 2D 上下文，
+   * 让走 canvas 的真实代码路径（imageToPage 绘制）可执行而非抛 TypeError */
+  var fakeCtx = {
+    fillStyle: '', font: '', textBaseline: '', globalAlpha: 1,
+    fillRect: function () { }, drawImage: function () { }, fillText: function () { },
+    measureText: function () { return { width: 10 }; },
+    save: function () { }, restore: function () { },
+    translate: function () { }, rotate: function () { },
+    strokeRect: function () { }, setLineDash: function () { },
+    imageSmoothingEnabled: true, imageSmoothingQuality: 'high'
+  };
+  var fakeCanvas = function () {
+    return {
+      width: 0, height: 0,
+      getContext: function () { return fakeCtx; },
+      toBlob: function (cb) { cb({}); }
+    };
+  };
+  win.document.createElement = function (tag) {
+    if (String(tag).toLowerCase() === 'canvas') return fakeCanvas();
+    return origCreate(tag);
+  };
+  core.encodeCanvas = async function () {
+    return { arrayBuffer: async function () { return new ArrayBuffer(8); } };
+  };
+  win.App.batchFormat.buildPdf = function () { return new Uint8Array([1, 2, 3]); };
+  win.createImageBitmap = async function (file) {
+    if (file.bad) throw new Error('decode fail'); // 坏图（改扩展名的假 JPEG）
+    return { width: 800, height: 600 };
+  };
+  /* FSA 目录句柄假件：getFileHandle(create:false) 探测存在性，语义与真实 FSA 一致 */
+  function mkDir(existing) {
+    return {
+      name: 'stub',
+      getFileHandle: function (n, opts) {
+        if (existing[n]) return Promise.resolve({ name: n });
+        if (opts && opts.create) { existing[n] = true; return Promise.resolve({ name: n }); }
+        return Promise.reject(new Error('not found'));
+      }
+    };
+  }
+
+  /* ---- docs-convert 图片→PDF 合并：坏图只记失败，不葬送整批（P1-3 回归） ---- */
+  var written = [];
+  core.writeBytes = async function (d, n) { written.push(n); };
+  var dcT = win.App.docsConvert._test;
+  assert(dcT && typeof dcT.setItemsRef === 'function' && typeof dcT.runImagesToPdfRef === 'function',
+    'docsConvert _test 钩子已导出（setItems/setMode/runImagesToPdf）');
+  dcT.setModeRef('i2p');
+  dcT.setDirRef({ name: 'stubdir' });
+  dcT.setItemsRef([{ file: { name: 'ok.jpg' } }, { file: { name: 'bad.jpg', bad: true } }]);
+  await dcT.runImagesToPdfRef(mkDir({}));
+  assert(written.indexOf('图片合并.pdf') >= 0, 'docs-convert 合并：坏图跳过后仍生成合并 PDF');
+  assert($('dc-list').querySelectorAll('.dw-list-row.bad').length === 1, 'docs-convert 合并：坏图在结果列表标记失败');
+  assert($('dc-list').querySelectorAll('.dw-list-row.ok').length === 1, 'docs-convert 合并：合并 PDF 在结果列表标记成功');
+  assert(/成功 1\/2/.test($('dc-status').textContent), 'docs-convert 合并：状态行如实报告 1/2（不卡死）');
+
+  /* ---- docs-convert PDF→图片：逐页输出 + 坏文件不中断（T1 行为覆盖） ---- */
+  var p2iCleanups = 0;
+  core.loadPdf = async function (file) {
+    if (file.name === 'broken.pdf') throw new Error('bad pdf');
+    return { numPages: 2, cleanup: function () { p2iCleanups++; } };
+  };
+  core.renderPage = async function () { return { width: 10, height: 10 }; };
+  $('dc-list').innerHTML = '';
+  dcT.setModeRef('p2i');
+  dcT.setItemsRef([{ file: { name: 'a.pdf' } }, { file: { name: 'broken.pdf' } }]);
+  written.length = 0;
+  await dcT.runPdfToImagesRef(mkDir({}));
+  assert(written.indexOf('a-p1.jpg') >= 0 && written.indexOf('a-p2.jpg') >= 0,
+    'docs-convert p2i：逐页输出 a-p1.jpg / a-p2.jpg');
+  assert($('dc-list').querySelectorAll('.dw-list-row.bad').length === 1,
+    'docs-convert p2i：坏 PDF 标记失败且不中断后续');
+  assert(p2iCleanups === 1,
+    'docs-convert p2i：每个成功解析的 PDF 均 cleanup（无文档句柄泄漏）');
+
+  /* ---- docs-pdf 合并：坏 PDF 只记失败（P1-2 回归） ---- */
+  var written2 = [];
+  core.writeBytes = async function (d, n) { written2.push(n); };
+  var mergeCleanups = 0;
+  core.loadPdf = async function (file) {
+    if (file.name === 'bad.pdf') throw new Error('bad pdf');
+    return { numPages: 1, cleanup: function () { mergeCleanups++; } };
+  };
+  var dpT2 = win.App.docsPdf._test;
+  assert(dpT2 && typeof dpT2.runMergeRef === 'function' && typeof dpT2.runSplitRef === 'function',
+    'docsPdf _test 钩子已导出（runMerge/runSplit/setMode）');
+  $('dp-results').innerHTML = '';
+  dpT2.setModeRef('merge');
+  dpT2.setDirRef({ name: 'stubdir' });
+  dpT2.setItemsRef([{ file: { name: 'good.pdf' } }, { file: { name: 'bad.pdf' } }]);
+  await dpT2.runMergeRef(mkDir({}));
+  assert(written2.indexOf('合并.pdf') >= 0, 'docs-pdf 合并：坏 PDF 跳过后仍生成合并.pdf');
+  assert($('dp-results').querySelectorAll('.dw-list-row.bad').length === 1, 'docs-pdf 合并：坏 PDF 标记失败');
+  assert($('dp-results').querySelectorAll('.dw-list-row.ok').length === 1, 'docs-pdf 合并：合并结果标记成功');
+  assert(mergeCleanups === 1,
+    'docs-pdf 合并：每个成功解析的 PDF 均 cleanup（pdfToPages 无句柄泄漏）');
+
+  /* ---- docs-pdf 拆分：页码范围提取（T2 行为覆盖） ---- */
+  core.loadPdf = async function () { return { numPages: 5, cleanup: function () { } }; };
+  $('dp-results').innerHTML = '';
+  dpT2.setModeRef('split');
+  dpT2.setItemsRef([{ file: { name: 'x.pdf' } }]);
+  doc.getElementById('dp-split-range').value = '1-2';
+  written2.length = 0;
+  await dpT2.runSplitRef(mkDir({}));
+  assert(written2.indexOf('x-提取.pdf') >= 0, 'docs-pdf 拆分：按页码范围提取生成 x-提取.pdf');
+  assert($('dp-results').querySelectorAll('.dw-list-row.ok').length === 1, 'docs-pdf 拆分：结果标记成功');
+
+  /* ---- docs-pdf 拆分：页码范围无效时不谎报「完成」 ---- */
+  doc.getElementById('dp-split-range').value = 'abc';
+  $('dp-results').innerHTML = '';
+  written2.length = 0;
+  var splitBad = await dpT2.runSplitRef(mkDir({}));
+  assert(splitBad && splitBad.noSummary === true && written2.length === 0,
+    'docs-pdf 拆分：页码范围无效返回 noSummary 且不产出文件（状态行不谎报完成）');
+
+  /* ---- pdfcore.uniqueOutName：同名输出防静默覆盖（A6 回归） ---- */
+  var existing = { 'a.pdf': true, 'a_1.pdf': true };
+  assert(await win.App.pdfcore.uniqueOutName(mkDir(existing), 'b.pdf') === 'b.pdf',
+    'uniqueOutName 无同名返回原名');
+  assert(await win.App.pdfcore.uniqueOutName(mkDir(existing), 'a.pdf') === 'a_2.pdf',
+    'uniqueOutName 原名与 _1 均被占用时跳到 _2');
+
+  /* ---- print.clampCopies：份数钳制（QA-B6 行为覆盖） ---- */
+  var clampCopies = win.App.print._test && win.App.print._test.clampCopiesRef;
+  assert(typeof clampCopies === 'function', 'print clampCopies 钩子已导出');
+  assert(clampCopies('0') === 1 && clampCopies('abc') === 1 && clampCopies('') === 1 && clampCopies('-3') === 1,
+    'clampCopies 空/非法/负值 → 1');
+  assert(clampCopies('5.7') === 5 && clampCopies('3') === 3, 'clampCopies 小数取整、正常值透传');
+  assert(clampCopies('100') === 99 && clampCopies('999') === 99, 'clampCopies 超 99 钳到 99');
+
+  /* ---- App.ui.icon + 排版符号退场（A7 回归：控件标识统一 SVG） ---- */
+  var ic = win.App.ui.icon('x');
+  assert(ic && ic.namespaceURI === 'http://www.w3.org/2000/svg'
+    && ic.getAttribute('viewBox') === '0 0 24 24' && ic.getAttribute('class') === 'icon',
+    'ui.icon 返回 24 视口、带 .icon 类的内联 SVG');
+  assert(ic.querySelector('path') !== null, 'ui.icon 含 path 子元素');
+  assert(win.App.ui.icon('up').querySelector('path').getAttribute('d')
+    !== ic.querySelector('path').getAttribute('d'), 'ui.icon 不同 name 对应不同路径');
+  var warnN = 0;
+  var origWarn = win.console.warn;
+  win.console.warn = function () { warnN++; };
+  try { win.App.ui.icon('no-such-icon'); } finally { win.console.warn = origWarn; }
+  assert(warnN === 1, 'ui.icon 未知图标名时告警（不静默产出错图标）');
+  ['js/print.js', 'js/print-batch.js', 'js/compose.js', 'js/docs-pdf.js', 'index.html'].forEach(function (rel) {
+    var src = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+    var hit = src.match(/[↑↓✕★‹›»«]/g);
+    assert(!hit, rel + ' 控件标识无排版符号残留'
+      + (hit ? '（剩 ' + hit.length + ' 处: ' + hit.join(' ') + '）' : ''));
+  });
+
+  /* ---- docsConvert.sanitizeRef：mammoth 输出清洗（A9 回归：XSS 纵深防御） ---- */
+  var san = win.App.docsConvert._test && win.App.docsConvert._test.sanitizeRef;
+  assert(typeof san === 'function', 'docsConvert sanitizeRef 钩子已导出');
+  var sanHtml = san('<p onclick="alert(1)">正文</p>'
+    + '<img src="data:image/png;base64,AAAA" alt="图">'
+    + '<a href="javascript:alert(1)">坏链接</a><a href="https://ok.example.com">好链接</a>'
+    + '<script>alert(2)</script><iframe src="https://evil.example.com"></iframe>'
+    + '<div style="background:url(javascript:alert(3))">样式</div>');
+  assert(sanHtml.indexOf('onclick') < 0, 'sanitize 剥离 on* 事件属性');
+  assert(sanHtml.indexOf('javascript:') < 0, 'sanitize 剥离 javascript: 协议 URL');
+  assert(sanHtml.indexOf('<script') < 0 && sanHtml.indexOf('<iframe') < 0, 'sanitize 移除 script/iframe 标签');
+  assert(sanHtml.indexOf('url(') < 0, 'sanitize 剥离 style 内的危险表达式');
+  assert(sanHtml.indexOf('正文') >= 0 && sanHtml.indexOf('样式') >= 0, 'sanitize 保留正常内容');
+  assert(sanHtml.indexOf('data:image/png') >= 0, 'sanitize 放行 img 的 data:image 内嵌图');
+  assert(sanHtml.indexOf('https://ok.example.com') >= 0, 'sanitize 保留 http(s) 外链文本');
+
+  /* ---- Cropper 倾斜几何：tiltPoint / minScaleFor（覆盖表缺口收尾） ---- */
+  var cropperT = win.Cropper && win.Cropper._test;
+  assert(cropperT && typeof cropperT.tiltPointRef === 'function' && typeof cropperT.minScaleForRef === 'function',
+    'Cropper _test 钩子已导出（tiltPoint/minScaleFor）');
+  var sq = { workCanvas: { width: 200, height: 200 }, tilt: 0 };
+  var p0 = cropperT.tiltPointRef(sq, 110, 90);
+  assert(p0.x === 110 && p0.y === 90, 'tiltPoint 零倾斜时恒等映射');
+  var sq90 = { workCanvas: { width: 200, height: 200 }, tilt: 90 };
+  var p90 = cropperT.tiltPointRef(sq90, 110, 100); // 中心右侧 10px → 旋转 90° 后到中心下方 10px
+  assert(Math.abs(p90.x - 100) < 1e-9 && Math.abs(p90.y - 110) < 1e-9, 'tiltPoint 90° 旋转绕工作图中心');
+  var stA = { workCanvas: { width: 400, height: 300 }, tilt: 0, outW: 200, outH: 300 };
+  assert(cropperT.minScaleForRef(stA) === Math.max(200 / 400, 300 / 300),
+    'minScaleFor 零倾斜 = max(outW/w, outH/h)');
+  var stB = { workCanvas: { width: 400, height: 300 }, tilt: 30, outW: 200, outH: 300 };
+  assert(cropperT.minScaleForRef(stB) > cropperT.minScaleForRef(stA),
+    'minScaleFor 倾斜后内接矩形收窄、最小缩放放大（防画框露楔形）');
+
+  /* ---- settings：往返 / 钳制 / 旧键迁移 / 损坏容错（QA-B5 行为覆盖） ---- */
+  var ls = win.localStorage;
+  ls.removeItem('zunhong-toolbox-settings');
+  ls.removeItem('haoyue-idphoto-settings');
+  win.App.State.quality = 0.8;
+  win.App.settings.save();
+  win.App.State.quality = 0.3;
+  win.App.settings.load();
+  assert(win.App.State.quality === 0.8, 'settings save→load 往返恢复 quality');
+  ls.setItem('zunhong-toolbox-settings', JSON.stringify({ quality: 2, whiten: -5, fmt: 'gif', theme: 'neon', startMode: 'nope' }));
+  win.App.settings.load();
+  assert(win.App.State.quality === 1, 'settings quality 钳制上限 1');
+  assert(win.App.State.whiten === 0, 'settings whiten 钳制下限 0');
+  assert(win.App.State.fmt !== 'gif' && win.App.State.theme !== 'neon' && win.App.State.startMode !== 'nope',
+    'settings 非法枚举值不采纳（fmt/theme/startMode）');
+  ls.removeItem('zunhong-toolbox-settings');
+  ls.setItem('haoyue-idphoto-settings', JSON.stringify({ quality: 0.7 }));
+  win.App.State.quality = 0.5;
+  win.App.settings.load();
+  assert(win.App.State.quality === 0.7, 'settings 旧品牌键（haoyue-idphoto-settings）迁移恢复');
+  assert(ls.getItem('zunhong-toolbox-settings') !== null, 'settings 迁移后写入新存储键');
+  ls.setItem('zunhong-toolbox-settings', '{oops');
+  win.App.settings.load();
+  assert(win.App.State.quality === 0.7, 'settings 损坏 JSON 容错不抛错且不改写当前值');
+
+  /* 还原 stub，避免污染后续断言 */
+  core.loadPdf = origLoadPdf; core.renderPage = origRenderPage;
+  core.encodeCanvas = origEncodeCanvas; core.writeBytes = origWriteBytes;
+  win.App.batchFormat.buildPdf = origBuildPdf;
+  win.document.createElement = origCreate;
+  delete win.createImageBitmap;
+  const restoreMark = errors.length; // 行为测试窗口结束：此后的 [zunhong] 错误不再豁免
   assert(doc.querySelectorAll('#sheet-steps-nav .step').length === 4, '排版模块步骤指示器 4 个');
   assert(doc.getElementById('sheetstep-print'), '排版第 4 步打印面板存在');
   const paperSel = doc.getElementById('sheet-paper');
@@ -208,8 +456,13 @@ withServer(PORT, async () => {
   assert(doc.getElementById('print-paper') && doc.getElementById('print-paper').options.length === 6, '打印纸张下拉 6 种');
   assert(doc.getElementById('step-upload').classList.contains('active'), '默认显示上传步骤');
 
-  // app.js 引导错误（排除 mediapipe 对 jsdom 缺失 API 的抱怨）
-  const appErrors = errors.filter(e => !/OffscreenCanvas|Worker|WebGL|createImageBitmap|VideoFrame|ImageDecoder|MediaStream/i.test(e));
+  // app.js 引导错误：一律豁免 mediapipe 对 jsdom 缺失 API 的抱怨；行为测试窗口内
+  // 故意走失败路径产生的 [zunhong] console.error 由上方断言逐条验证，仅该窗口豁免；
+  // 窗口之外（引导期 / stub 还原后）的 [zunhong] 错误一律计入——防止过滤器把
+  // 真实诊断错误一起吞掉（QA 审查：原实现全局豁免 [zunhong]）
+  const noise = /OffscreenCanvas|Worker|WebGL|createImageBitmap|VideoFrame|ImageDecoder|MediaStream/;
+  const appErrors = errors.slice(0, preTestErrors).concat(errors.slice(restoreMark))
+    .filter((e) => !noise.test(e));
   assert(appErrors.length === 0, '无引导期脚本错误' + (appErrors.length ? '：' + appErrors.join(' | ') : ''));
 
   win.close();

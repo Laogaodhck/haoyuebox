@@ -103,20 +103,19 @@ function buildExtractArgs(opts) {
 }
 
 /* 从 7z 进度输出片段解析百分比（0-100），无进度则返回 null
- * -bsp1 行首刷新，形如 " 42% 5 + path/to/file"（\r 同行重写），
- * 取行内首个百分比即可——% 后的数字是文件计数，不能要求其后无数字。
+ * -bsp1 行首刷新，形如 " 42% 5 + path/to/file"（\r 同行重写）。
  * 注意：一次 stdout data 事件可能携带多帧刷新（如 " 78% 14\r 99% 44 - f"），
- * 必须取最后一帧——取首帧会让进度滞留在旧值（UI 表现为「卡住」在历史百分比） */
+ * 必须取最后一帧——取首帧会让进度滞留在旧值（UI 表现为「卡住」在历史百分比）；
+ * 且进度行自带当前文件名，文件名中的「数字+%」（如 100%完成.txt）会劫持全局
+ * 匹配的结果，故按 \r|\n 切分取最后一个非空段、行首锚定匹配百分比。 */
 function parseProgress(chunk) {
   const s = String(chunk);
-  const re = /(\d{1,3})%/g;
-  let m;
-  let last = null;
-  while ((m = re.exec(s)) !== null) {
-    const n = parseInt(m[1], 10);
-    if (n >= 0 && n <= 100) last = n;
-  }
-  return last;
+  const segs = s.split(/\r|\n/).filter((x) => x.trim());
+  if (!segs.length) return null;
+  const m = /^\s*(\d{1,3})%/.exec(segs[segs.length - 1]);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return n >= 0 && n <= 100 ? n : null;
 }
 
 /* 从 stderr/stdout 尾部提取用户可读的错误行（去掉空行与进度残留） */
@@ -156,7 +155,7 @@ function parseListOutput(text) {
     else if (!cur) { /* 表头或无 Path 前的字段，忽略 */ }
     else if (key === 'Size') { cur.size = parseInt(val, 10) || 0; }
     else if (key === 'Modified') { cur.mtime = val; }
-    else if (key === 'Attributes') { cur.isDir = /\bD/.test(val); }
+    else if (key === 'Attributes') { cur.isDir = /^D/.test(val); }
   });
   flush();
   return entries;

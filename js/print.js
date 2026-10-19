@@ -20,7 +20,9 @@
     printers.forEach(function (p) {
       var opt = document.createElement('option');
       opt.value = p.name;
-      opt.textContent = (p.isDefault ? '★ ' : '') + p.displayName;
+      // 默认打印机标记用文字「（默认）」而非星形符号：<option> 内只能放文本，
+      // 且与系统工具打印机列表（js/system.js）的标记方式保持一致
+      opt.textContent = p.displayName + (p.isDefault ? '（默认）' : '');
       if (p.isDefault) opt.selected = true;
       sel.appendChild(opt);
     });
@@ -257,6 +259,7 @@
     fillPrinterSelect: fillPrinterSelect,
     /* 照片导出步骤进入时刷新列表；浏览器模式下未注册则静默跳过 */
     refreshExportList: function () { if (refreshExportPrinters) refreshExportPrinters(); },
-    isSupported: function () { return !!printApi; }
+    isSupported: function () { return !!printApi; },
+    _test: { clampCopiesRef: clampCopies }
   };
 })(window.App);

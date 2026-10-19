@@ -128,6 +128,12 @@ const args7z = require(path.join(ROOT, 'electron', '7z-args.js'));
     'parseProgress 多帧刷新取末帧');
   t.assert(args7z.parseProgress('一切正常输出') === null && args7z.parseProgress('123%') === null,
     'parseProgress 无进度/超界返回 null');
+  t.assert(args7z.parseProgress(' 78% 14 + 100%完成.txt') === 78,
+    'parseProgress 文件名含「数字+%」不劫持进度（回归：取末帧修复的副效应）');
+  t.assert(args7z.parseProgress(' 30% 2 + 20%a.txt\r 31% 2 + 20%a.txt') === 31,
+    'parseProgress 多帧且文件名含 % 时取末帧行首百分比');
+  t.assert(args7z.parseProgress('') === null && args7z.parseProgress('\r\n') === null,
+    'parseProgress 空输入/纯空白返回 null');
   t.assert(args7z.tailError(' 42%\r\n\r\nERROR: 错误的密码\r\n') === 'ERROR: 错误的密码',
     'tailError 取末行有效错误并忽略进度行');
   t.assert(args7z.tailError('') === '' && args7z.tailError(' 42%') === '', 'tailError 空输入/纯进度返回空');
@@ -332,6 +338,19 @@ function run7z(args) {
     const listed = args7z.parseListOutput(r.out);
     t.assert(listed.some(e => e.path === '你好.txt' && !e.isDir && e.size === Buffer.byteLength('尊泓工具箱 7z 冒烟测试 ✓', 'utf8')),
       '真实 7z：列表解析含中文文件名与正确大小');
+
+    /* 内容浏览：含子目录的包——验证 /^D/ 目录属性判定对真实 -slt 输出成立
+     * （单元测试里的合成属性样本曾与真实输出格式有差，此处用真实归档闭环） */
+    const subDir = path.join(tmp, '子目录');
+    fs.mkdirSync(subDir);
+    fs.writeFileSync(path.join(subDir, '深层.txt'), 'x', 'utf8');
+    const arcDir = path.join(tmp, '带目录.7z');
+    r = await run7z(args7z.buildCompressArgs({ fmt: '7z', level: 'store', inputs: [subDir], outPath: arcDir }));
+    t.assert(args7z.isOkExitCode(r.code), '真实 7z：含子目录压缩成功');
+    r = await run7z(args7z.buildListArgs({ archive: arcDir, pass: '' }));
+    const dirListed = args7z.parseListOutput(r.out);
+    t.assert(dirListed.some(e => e.isDir === true && /子目录/.test(e.path)),
+      '真实 7z：列表目录条目 isDir 判定成立（/^D/ 对真实 -slt 输出）');
 
     /* 分卷压缩：2.5MB 数据按 1MB 分卷 → 产出多卷 → 任选一卷可列表 */
     const big = path.join(tmp, 'big.dat');

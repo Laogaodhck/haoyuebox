@@ -2,6 +2,81 @@
 
 本项目所有显著变更记录于此。版本号遵循语义化版本（主版本.次版本.修订号）。
 
+## [未发布]
+
+### 修复
+- **修复中文打印机名「默认打印机」徽标永不显示**：windowsDefaultPrinter 经 execFile 调 PowerShell 未指定输出编码，中文 Windows 的 PowerShell 5.1 管道输出走 OEM 代码页（GBK 936），Node 按 UTF-8 解码成乱码，与 Electron 枚举的 Unicode 打印机名永不相等（英文名不受影响，故测试环境从未暴露）。现 `-Command` 前强制 `[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;`（electron/main.js；真机探针证实：无前缀输出 GBK 字节 bb dd c6 d5 解码为乱码，加前缀输出 e6 83 a0 e6 99 ae 正确得「惠普」）
+- **修复 7z 进度被文件名中「数字+%」劫持**：parseProgress 取 chunk 内最后一个百分比，而 -bsp1 进度行自带当前文件名（如「100%完成.txt」），含 % 的文件名会让进度跳错（41b51b3 修帧滞留时引入的回归）。现按 \r|\n 切分取最后一个非空段、行首锚定匹配百分比（electron/7z-args.js；test-archive 新增 3 断言）
+- **修复打印机属性对话框被 15 秒超时强关**：print:showProperties 的 execFile timeout 到期即 kill 子进程，而 rundll32 托管的属性对话框在用户交互期间常驻，用户设置到一半被强关且 IPC 还回失败态。现改 spawn 不设超时（electron/main.js）
+- **修复 PDF 工具合并/拆分、文档转换图片合并的批量静默中止**：runMerge/runSplit 与图片合并分支此前无 per-file try/catch，单个坏文件（损坏/加密 PDF、改扩展名的假 JPEG、0 字节图）的 rejection 直达全局兜底，状态行卡死、结果列表全空、用户无从知道哪个文件失败。现按 runShrink 范式逐文件 try/catch + 失败结果行 + 精确状态行（js/docs-pdf.js、js/docs-convert.js）
+- **修复网络检测 DNS 解析测试无超时**：dnsProbe 未设超时（tcpProbe 有 3s），系统解析器挂起时 netProbe IPC 无限期不返回。现补 3s 超时兜底（electron/system.js）
+- **修复静态服务监听失败时应用静默变僵尸**：createWindow 失败（极端端口耗尽）只落一条日志，无窗口、无退出、用户面对空白。现 whenReady 链补 .catch：诊断日志 + 弹窗告知 + app.quit()（electron/main.js）
+- 次要修复：compress/extract 入口 payload 空值防护；listArchive 取消路径补 cancelled 标记（与 run7z 一致）；js/system.js 三个打印机操作补 IPC 异常 .catch、测试页加在途标志防连点向打印机多发；docs-watermark 预览与主管线统一走 core.loadPdf 并补 pdf.cleanup() 防文档句柄泄漏；「共 N 页」假数据改为「含 PDF N 个」诚实计数（it.pages 从未在选文件时读取，reduce 把图片也按 1 页计入）；docs-convert 删死代码 okN += 0
+- **第二轮（P0/P1/P2 全清，详见 docs/bug-report-v1.3.3.md 第八节）**：
+  - **修复 Word→PDF 末页垂直拉伸变形**：切片循环末页源高不足一页时被 drawImage 拉满整页 A4 目标高度（561px → 1684px 约 3 倍拉伸，末页文字变扁长），现按源高度等比缩放（js/docs-convert.js）
+  - **修复加水印预览竞态与大 PDF 反复全量读盘**：250ms 防抖只延迟不取消，慢渲染后完成会覆盖新预览；且每次预览都对 PDF 全量重读盘（百 MB 扫描件拖一次滑块读一次）。现加 previewGen 代数丢弃过期回调 + pdfCache 同文件缓存，切文件/清空/进面板时释放文档句柄（js/docs-watermark.js）
+  - **修复 OCR 异常时按钮永久锁死**：run() 循环后 joinUnits/updateMeta/exportsEnable 若抛错会跳过 disabled=false 复位，按钮永久禁用、running 永 true。现收尾包进 try + finally 复位（js/docs-ocr.js）
+  - **修复文档三模块同名输出静默覆盖**：不同文件夹多选同名文件时后写覆盖先写且无提示。pdfcore 新增共享 uniqueOutName()（探测 FSA 目录已有则追加 _1…_99 后缀，批次内同样有效），docs-watermark / docs-convert / docs-pdf 全部写盘点改用（js/pdfcore.js 等三模块）
+  - **修复 zip + 分卷组合静默产出错误结果**：buildCompressArgs 对 zip 不追加 -v，若绕过渲染层双保险直达 IPC 会丢分卷参数并返回 {ok:true,size:0,parts:1}，UI 显示「压缩完成（0 B）」。现主进程显式拒绝（electron/archive.js）
+  - **修复 7z 失败后残留半成品**：密码错误/磁盘满/致命错误后输出位置残留截断的 .7z 或残缺分卷，与取消路径的清理策略不一致。现失败分支也 removeOutputs()（electron/archive.js）
+  - **修复 listArchive 输出累积无上限**：超大/损坏包 -slt 输出可达数百 MB 压垮主进程。现封顶 64MB，超限杀子进程并明确报错（electron/archive.js）
+  - **修复压缩/解压无并发哨兵**：渲染层 running 标志只能挡 UI 并发，IPC 可被 devtools 直连——两个 compress 并发会互相 removeOutputs 删掉对方产物。现模块级 archiveBusy 哨兵，第二个任务直接返回「已有压缩/解压任务进行中」（electron/archive.js）
+  - **修复 7z 错误信息中文 Windows 乱码且乱码行覆盖中文说明**：随包 7z.exe 若为本地化构建，错误行走 OEM 代码页（GBK），按 UTF-8 解成乱码且优先级高于 exitCodeText。现 stderr 收 Buffer，先试 GBK 解码，UTF-8 含替换符判定乱码弃用、让 exitCodeText 兜底（electron/archive.js）
+  - **修复 printImage 回调永不触发即永久泄漏**：webContents.print 回调未到（驱动挂起）时，隐藏窗口、printPages 路由、IPC promise 三者一起泄漏，渲染层按钮永久禁用。现加 60s 看门狗 destroy + 返回「打印超时」（electron/main.js）
+  - **修复目录属性判定违反项目约定**：7z-args.js 的 `/\bD/` 改 `/^D/`（当前无行为偏差，规范对齐；electron/7z-args.js）
+- **第三轮（advisory 全清，详见 docs/bug-report-v1.3.3.md）**：
+  - **修复 print:readFile 同步读盘阻塞主进程事件循环**：原 fs.statSync/readFileSync 同步读最大 200MB 文件，读盘期间窗口无响应、IPC 全排队。现改 fs.promises 异步读（electron/main.js）
+  - **修复 preload onProgress 重复绑定**：onProgress(null) 后再 onProgress(cb) 会因「callback===null 才绑定」判断重复注册 ipcRenderer 监听，每个进度事件双触发。现以独立 progressBound 标志保证监听器全局只绑一次（electron/preload.js）
+  - **修复取消竞态边缘误报「7z 启动失败」**：cancel 后子进程可能先发 'error'（kill 导致）再 'close'，用户看到的是启动失败而非任务已取消。现 error 分支优先判 killedByUser，按已取消收场（electron/archive.js）
+  - **修复对话框父窗口销毁竞态**：pickPaths/saveDialog 用 getWin() 未查 isDestroyed，窗口关闭竞态下把销毁窗口传给 dialog 会抛原生 Error。现对齐 system.js 的 isDestroyed 检查，退回无父窗口对话框（electron/archive.js）
+  - **修复 7z 版本备注带出版权行**：check7z 版本号取整行（「7-Zip 26.03 (x64) : Copyright (c) …」），UI 备注冗长。现按整行匹配后在首个 ' :' 处截断，只保留「7-Zip 26.03 (x64)」（electron/archive.js）
+- **第四轮（提交前三路独立审查补记：前端 / QA 各 1 项 blocking + 后端 advisory，全部就地修复）**：
+  - **修复 pdfToPages 文档句柄泄漏（前端审查 blocking）**：js/docs-pdf.js 的 pdfToPages（runMerge/runShrink 共用）经 core.loadPdf 加载后从不 cleanup，而检测报告 P1-2 行「runMerge/runSplit 补 pdf.cleanup()」的声称只对 runSplit 成立——审查证伪。getDocument 每次解析都拉 worker，合并/压缩整批文档时句柄与 worker 逐个泄漏。现函数体包 try/finally 保证 cleanup
+  - js/docs-convert.js runPdfToImages 与 js/docs-ocr.js PDF 分支同样补齐 pdf.cleanup()（前端审查 advisory，报告未声称，与 runSplit 范式对齐）
+  - **修复加水印预览 pdfCache 竞态**：loadPdf await 期间新预览使旧回调过期后，旧回调仍无条件覆写 pdfCache——新文件的文档句柄被覆写泄漏、旧文件的文档也无人释放。现加载完成后先判代数，过期即 cleanup 并放弃占缓存（js/docs-watermark.js）
+  - 修复 PDF 拆分页码范围无效时状态行谎报「完成：成功 0 项，已输出到…」：补 noSummary 与明确失败状态行（js/docs-pdf.js）
+  - App.ui.icon 未知图标名不再静默回退 x，补 console.warn 开发期告警（js/app.js）
+  - **修复 test-system.cjs 平台假设（QA 审查 blocking）**：7 处断言跑在真实平台上——CI ubuntu 腿上 printTestPage 首行返回 NOT_WIN，白名单内路径的 ok / spawnCalls 断言全红，且 spawnCalls[0].exe 取空数组元素 TypeError 硬崩套件（exit 2）。win32 前提路径统一切 withPlatform('win32') 假平台（Windows 上为恒等包装，行为零变化；文件内 NOT_WIN 测试早已用同机制切 'linux'）
+  - **修复 B8 cancelled 标记无渲染层消费方**（后端审查 advisory）：js/archive.js 内容浏览失败分支补 cancelled 判断，取消按中性「读取已取消」收场，不再显示为红色「读取失败：任务已取消」
+  - decodeErrTail 解码策略调整为先判 UTF-8 合法性再试 GBK（后端审查 advisory）：7z UTF-8 构建的合法非 ASCII 错误行不再被 GBK 分支解成乱码采用；中文 Windows 本地化 GBK 输出路径行为不变（electron/archive.js）
+  - listArchive 输出上限改按字节累计（后端审查 advisory）：原按 UTF-16 码元计，中文条目 1 字符 3 字节会少算约 3 倍，实际 192MB 级输出才触发 64MB 封顶（electron/archive.js）
+  - test-ipc-contract.cjs 主进程文件名单由硬编码 6 个改 electron/ 目录扫描：新增注册模块不再被静默漏检（QA 审查 advisory）
+  - test-dom 原 assert(true) 占位（settings 损坏 JSON 容错）改实质断言：quality 保持原值（QA 审查 advisory，与 QA-A1「占位全清」自相矛盾）
+  - test-dom 引导错误过滤器收窄：原全局豁免 [zunhong] 前缀会把 stub 还原后的真实诊断错误一起吞掉，现只豁免行为测试窗口内的 intentional 失败路径（QA 审查 advisory）
+
+### 改进
+- **file:// 警告条 emoji 图标改 SVG**：⚠️（U+26A0 U+FE0F，强制 emoji 呈现）替换为 Lucide 风格内联 triangle-alert 图标，与全项目描边图标体系统一（js/app.js、css/style.css 补 .warn-banner .icon 间距）
+- **交互控件标识统一为 SVG 图标**（advisory A7）：print-batch 的上移/下移/移除、compose 的前移/后移/移除、docs-pdf 的上移/下移均由排版符号文本改为 Lucide 风格内联 SVG——新增共享助手 App.ui.icon（与 file:// 警告图标同一体系，.icon 描边样式），按钮补 aria-label；默认打印机标记在 print.js 与 system.js 统一为「（默认）」文字（option 元素内无法含 SVG）；index.html 两处帮助文本改为文字描述按钮
+- **mammoth 输出 sanitize 后进 innerHTML**（advisory A9）：DOCX 转 HTML 虽由 mammoth 白名单生成，但排版容器会先挂进 document.body 再序列化，挂载阶段事件属性即可执行。新增 sanitizeDocxHtml：剥离 on* 事件属性、危险协议 URL（黑名单 javascript/vbscript/livescript/mocha/data（img 的 data:image 除外）/file，http(s) 与相对地址保留）、危险 style 表达式、script/iframe/object 等可执行与外联标签（js/docs-convert.js）
+- 清理死代码与文档漂移（advisory A8）：docs-watermark 删未使用的 wmImg.f expando；docs-pdf 删不可达的 split 多文件检查（该模式只保留首个文件，onFilesPicked 已保证）；preload 头注释从「仅暴露打印能力」更新为五组桥接的实际描述
+- 文档同步（README）：preload 桥接清单更新为五组（补 zunhongArchiveIcons / zunhongDiag）；测试小节套件数 21→24 并说明 test-system（主进程白名单假件）/ test-ipc-contract（桥接与 IPC 注册契约）/ verify-ocr（真 Tesseract 冒烟）的覆盖定位；verify 端到端清单补 OCR；开发流程新增 v1.3.3 缺陷报告链接（docs/bug-report-v1.3.3.md）
+
+### 测试
+- test-archive 新增 3 断言：parseProgress 文件名含「数字+%」不劫持进度、多帧且文件名含 % 时取末帧行首百分比、空输入/纯空白返回 null（107→110）
+- test-dom 新增 9 断言：system esc() 五字符转义与空值兜底（XSS 防护函数首次覆盖）、docsPdf _test 钩子（setItemsRef/moveRef/listRef 排序与条目读取）（310→319）
+- **第二轮（P0/P1/P2 全清）**：
+  - 新建 tools/test-system.cjs（16 断言）：electron/system.js printTestPage 四路径（非 win32 / 空名 / 白名单外 / 白名单内放行且 spawn 参数无注入面）、sysExe System32 解析、netInfo 回环过滤、dnsProbe/tcpProbe；spawn 在 require 前替换为假件，绝不真启动 rundll32。npm test 套件 22→23
+  - test-dom 319→350：docs-convert 行为测试 7 断言（坏图合并不葬送整批、p2i 逐页输出、坏 PDF 不中断、状态行如实 1/2）、docs-pdf 行为测试 6 断言（合并坏 PDF 只记失败、拆分按页码范围提取）、uniqueOutName 2 断言、print clampCopies 4 断言、settings 往返/钳制/旧键迁移/损坏容错 7 断言、Cropper 倾斜几何 4 断言（tiltPoint 零倾斜恒等 / 90° 绕中心、minScaleFor 公式与倾斜放大）
+  - 测试钩子扩展：js/docs-convert.js _test（setItemsRef/setModeRef/setDirRef/runPdfToImagesRef/runImagesToPdfRef/imageToPageRef）、js/docs-pdf.js _test（runMergeRef/runSplitRef/runShrinkRef/setModeRef/setDirRef）、js/print.js _test（clampCopiesRef）、js/cropper.js _test（tiltPointRef/minScaleForRef）、js/pdfcore.js 导出 uniqueOutName；electron/system.js 导出 printTestPage/sysExe/dnsProbe/tcpProbe
+  - 全量门禁：ESLint 0 告警；npm test 23 套件 1057 断言 0 失败（退出码直读 npm test，未经管道中转）
+- **第三轮（advisory 全清）**：
+  - 新建 tools/test-ipc-contract.cjs（3 断言）：preload 桥接的每个 invoke/send 通道必须有主进程 handle/on 注册——防「桥接名与注册名拼写不一致 / 注册漏挂」类运行时 TypeError（此前无任何覆盖，verify-packaged 只冒烟 7z 一条链路）。npm test 套件 23→24
+  - 新建 tools/verify-ocr.cjs（3 断言，挂入 npm run verify）：OCR 主链路真机冒烟——页内 canvas 生成「HELLO 123」图片，经 js/docs-ocr.js 新增的 _test.ocrRef 钩子走真实 Tesseract worker（vendor core wasm + chi_sim/eng 语言包加载 → recognize → cleanText），断言识别文本与置信度（实测一次通过：识别 "HELLO 123"，置信度 91）
+  - test-pdfcore 18→26：writeBytes/ensureSubDir/uniqueOutName 由「仅验函数存在」升级为 fs 真实落盘行为断言（os.tmpdir() + 假 FSA 句柄：字节一致性、Blob 入参、子目录创建与幂等、同名防覆盖序号递增）
+  - test-print-doc 硬编码「20 通过」改动态计数（实际 23 条，旧文案长期少报 3 条）
+  - test-zip / test-server 的 skip 显式化：无解压器 / 无局域网 IP 时记 skip 计数并在汇总行声明，不再用恒真断言冒充通过
+  - verify-print-batch / verify-packaged 的 assert(true)（共 5 处）改为对 waitForFunction 返回值的实质断言（超时检测由 throw 承担，行为不变）
+  - verify-packaged 新增系统工具 E2E：进入系统工具模块并真实调用 system:netInfo，断言返回网卡数组（system IPC 注册正确性首次有 E2E 覆盖）
+  - test-dom 350→366：docsConvert sanitizeRef 8 断言（事件属性 / 危险协议 / 危险标签 / style 表达式剥离，正文与 data:image 内嵌图、http(s) 外链保留）、App.ui.icon 3 断言、排版符号源码级退场扫描 5 文件（print/print-batch/compose/docs-pdf/index.html 零残留）
+  - 全量门禁：ESLint 0 告警；npm test 24 套件 1084 断言 0 失败（退出码直读 npm test，未经管道中转）；verify-ocr / verify-print-batch 真机通过
+- **第四轮（提交前三路独立审查补记）**：
+  - test-dom 366→370：docs-pdf 合并 / pdfToPages cleanup 间谍断言（每个成功解析的 PDF 文档均被释放）、docs-convert p2i cleanup、拆分无效区间返回 noSummary 不谎报完成、App.ui.icon 未知名告警
+  - test-system 16→17：新增 dnsProbe 解析器挂起时 3s 超时断言（stub dns.lookup 永不回调，与 tcpProbe 超时对齐）；win32 路径切假平台后 CI 跨平台腿可跑
+  - test-archive 110→112：新增真实 7z 含子目录归档的压缩与 l -slt 列表断言——目录条目 isDir 判定（/^D/）对真实输出闭环（原单元测试样本为合成属性串）
+  - 更正历史组计数漂移（QA 审查机械核实调用点）：docs-convert 行为测试 8→7、docs-pdf 行为测试 5→6、sanitizeRef 9→8（各处总数均准确）
+  - 全量门禁：ESLint 0 告警；npm test 24 套件 1091 断言 0 失败（退出码直读 npm test，未经管道中转）
+- 全量门禁：ESLint 0 告警；npm test 22 套件 1038 断言 0 失败（退出码直读 npm test）
+
 ## [1.3.3] - 2026-10-19
 
 ### 修复

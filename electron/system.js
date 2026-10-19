@@ -46,13 +46,18 @@ function tcpProbe(host, port) {
   });
 }
 
-/* 域名解析测试（走系统 DNS，getaddrinfo） */
+/* 域名解析测试（走系统 DNS，getaddrinfo；带超时兜底——系统解析器挂起时
+   netProbe IPC 不能无限期不返回，与 tcpProbe 的 3s 超时对齐） */
 function dnsProbe(domain) {
   return new Promise((resolve) => {
     const t0 = Date.now();
+    let settled = false;
+    const done = (r) => { if (!settled) { settled = true; resolve(r); } };
+    const timer = setTimeout(() => done({ domain: domain, ok: false, addr: '', ms: 0 }), PROBE_TIMEOUT);
     dns.lookup(domain, (err, addr) => {
-      if (err) resolve({ domain: domain, ok: false, addr: '', ms: 0 });
-      else resolve({ domain: domain, ok: true, addr: addr, ms: Date.now() - t0 });
+      clearTimeout(timer);
+      if (err) done({ domain: domain, ok: false, addr: '', ms: 0 });
+      else done({ domain: domain, ok: true, addr: addr, ms: Date.now() - t0 });
     });
   });
 }
@@ -141,4 +146,8 @@ function registerSystemIpc(ipcMain, getWin) {
   });
 }
 
-module.exports = { registerSystemIpc, netInfo, netProbe };
+module.exports = {
+  registerSystemIpc, netInfo, netProbe,
+  /* 以下导出供单测（printTestPage 白名单校验、sysExe 防劫持、探测超时） */
+  printTestPage, sysExe, dnsProbe, tcpProbe
+};

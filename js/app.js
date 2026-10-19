@@ -955,7 +955,11 @@ window.App = (function () {
     if (location.protocol === 'file:') {
       var warn = $('offline-warning');
       warn.hidden = false;
-      warn.textContent = '⚠️ 当前以 file:// 方式打开，AI 模型无法加载。请双击 start.bat（或用任意静态服务器）打开本工具。';
+      // 警告图标用内联 SVG（与全项目 Lucide 风格描边图标一致），不用 emoji
+      warn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">' +
+        '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>' +
+        '<line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' +
+        '<span>当前以 file:// 方式打开，AI 模型无法加载。请双击 start.bat（或用任意静态服务器）打开本工具。</span>';
     }
     window.App.settings.load();   // 恢复上次的规格/背景/输出设置（须在 buildSpecGrid 之前）
     initModules();
@@ -992,7 +996,30 @@ window.App = (function () {
     State: State,
     showModule: showModule,
     ui: {
-      $: $, toast: toast, confirm: confirm, showLoading: showLoading, hideLoading: hideLoading, download: download
+      $: $, toast: toast, confirm: confirm, showLoading: showLoading, hideLoading: hideLoading, download: download,
+      /* Lucide 风格内联 SVG 图标（与 warn-banner 警告图标同一体系）：
+       * 交互控件标识统一走此处，不用 emoji / 排版符号（✕★↑↓ 等）。
+       * name: x | up | down | left | right；返回 <svg class="icon"> 元素，
+       * 尺寸随字号（.icon = 1.05em），可访问名称由调用方设在按钮的 aria-label 上 */
+      icon: function (name) {
+        var NS = 'http://www.w3.org/2000/svg';
+        var D = {
+          x: 'M18 6 6 18M6 6l12 12',
+          up: 'm18 15-6-6-6 6',
+          down: 'm6 9 6 6 6-6',
+          left: 'm15 18-6-6 6-6',
+          right: 'm9 18 6-6-6-6'
+        };
+        if (!D[name]) console.warn('[zunhong] App.ui.icon 未知图标名，已回退 x：', name);
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('class', 'icon');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('aria-hidden', 'true');
+        var p = document.createElementNS(NS, 'path');
+        p.setAttribute('d', D[name] || D.x);
+        svg.appendChild(p);
+        return svg;
+      }
     },
     photo: {
       showStep: showStep,

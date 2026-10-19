@@ -182,15 +182,16 @@
 
       var ops = document.createElement('div');
       ops.className = 'ops';
-      [['‹', '前移一位'], ['›', '后移一位'], ['✕', '移除']].forEach(function (pair) {
+      // 控件标识用内联 SVG 图标（App.ui.icon），不用排版符号文本
+      [['left', '前移一位'], ['right', '后移一位'], ['x', '移除']].forEach(function (pair) {
         var b = document.createElement('button');
         b.type = 'button';
-        b.textContent = pair[0];
         b.title = pair[1];
         b.setAttribute('aria-label', pair[1]);
+        b.appendChild(window.App.ui.icon(pair[0]));
         b.addEventListener('click', function () {
-          if (pair[0] === '✕') removeItem(i);
-          else moveItem(i, pair[0] === '‹' ? -1 : 1);
+          if (pair[0] === 'x') removeItem(i);
+          else moveItem(i, pair[0] === 'left' ? -1 : 1);
         });
         ops.appendChild(b);
       });

@@ -11,7 +11,16 @@
  * ============================================================ */
 'use strict';
 
-const assert = require('assert');
+const nodeAssert = require('assert');
+/* 计数包装：node assert 失败即 throw（退出码非零），此处只统计真实执行的
+   断言数——末行汇总动态输出，杜绝「用例增删后文案说谎」 */
+let passCount = 0;
+const assert = {
+  ok: (c, m) => { passCount++; nodeAssert.ok(c, m); },
+  strictEqual: (a, b, m) => { passCount++; nodeAssert.strictEqual(a, b, m); },
+  deepStrictEqual: (a, b, m) => { passCount++; nodeAssert.deepStrictEqual(a, b, m); }
+};
+
 const { buildPrintDoc, resolvePageMm } = require('../electron/print-doc');
 
 const IMG = (n) => 'data:image/png;base64,IMG' + n;
@@ -70,5 +79,6 @@ assert.strictEqual(d.pageCount, 1, '旧单张调用兼容');
   assert.ok(t.html.indexOf('<script>') === -1, '尖括号已转义');
 }
 
-console.log('结果: 20 通过, 0 失败');
+/* 能走到这里意味着全部断言通过（node assert 失败会直接 throw 非零退出） */
+console.log('结果: ' + passCount + ' 通过, 0 失败');
 process.exit(0);

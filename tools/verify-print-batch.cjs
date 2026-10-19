@@ -97,13 +97,14 @@ function buildPdf(text) {
         ];
       });
       await page.click('#pb-pick');
-      await page.waitForFunction(() => document.querySelectorAll('#pb-grid .pb-card').length === 2);
-      assert(true, '选择图片后两张卡片渲染');
-      await page.waitForFunction(() => {
+      // 断言等待结果本身（true），而非 assert(true) 恒真——超时仍会 throw 走外层 catch
+      const rCards = await page.waitForFunction(() => document.querySelectorAll('#pb-grid .pb-card').length === 2);
+      assert(await rCards.jsonValue() === true, '选择图片后两张卡片渲染');
+      const rReady = await page.waitForFunction(() => {
         const t = document.getElementById('pb-count');
         return /就绪 2 张/.test(t.textContent);
       });
-      assert(true, '图片解码就绪计数正确');
+      assert(await rReady.jsonValue() === true, '图片解码就绪计数正确');
 
       await page.click('#pb-grid .pb-card .pb-op');
       await page.waitForFunction(() => document.querySelector('#pb-grid .pb-card img').style.transform === 'rotate(90deg)');
@@ -163,13 +164,13 @@ function buildPdf(text) {
         ];
       });
       await page.click('#pd-pick');
-      await page.waitForFunction(() => document.querySelectorAll('#pd-table tbody tr').length === 2);
-      assert(true, '选择文档后表格两行');
-      await page.waitForFunction(() => {
+      const rRows = await page.waitForFunction(() => document.querySelectorAll('#pd-table tbody tr').length === 2);
+      assert(await rRows.jsonValue() === true, '选择文档后表格两行');
+      const rPages = await page.waitForFunction(() => {
         const cells = document.querySelectorAll('#pd-table tbody td:nth-child(5)');
         return cells.length === 2 && /1 页/.test(cells[0].textContent) && /页/.test(cells[1].textContent);
       }, null, { timeout: 15000 });
-      assert(true, 'PDF 与 TXT 页数解析完成（真实 pdf.js / 排版）');
+      assert(await rPages.jsonValue() === true, 'PDF 与 TXT 页数解析完成（真实 pdf.js / 排版）');
       const cntTxt = await page.$eval('#pd-count', (el) => el.textContent);
       assert(/共 2 页/.test(cntTxt), '计数含总页数');
 

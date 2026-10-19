@@ -33,8 +33,9 @@ function request(port, p, opts) {
 }
 
 (async () => {
-  let pass = 0, fail = 0;
+  let pass = 0, fail = 0, skipped = 0;
   const assert = (c, n) => { if (c) { pass++; console.log('  ok -', n); } else { fail++; console.log('  FAIL -', n); } };
+  const skip = (n) => { skipped++; console.log('  skip -', n); };
 
   /* ---------- resolveWithin 单元：路径守卫 ---------- */
   assert(resolveWithin(ROOT, '/index.html') === path.normalize(path.join(ROOT, 'index.html')), 'resolveWithin 正常路径');
@@ -118,7 +119,8 @@ function request(port, p, opts) {
       const lan = await get(srvPort, '/', { headers: { Host: lanIp + ':' + srvPort } });
       assert(lan.status === 200, 'server.js 本机局域网 IP Host 放行（手机访问功能保留）');
     } else {
-      assert(true, 'server.js 无局域网 IP，跳过手机访问用例');
+      // 无局域网 IP 时确实无可断言项：显式记 skip 而非 assert(true) 冒充通过
+      skip('server.js 无局域网 IP，跳过手机访问用例');
     }
 
     const cross = await get(srvPort, '/..%2F..%2Fetc%2Fpasswd');
@@ -130,6 +132,7 @@ function request(port, p, opts) {
     child.kill();
   }
 
-  console.log('\n结果: ' + pass + ' 通过, ' + fail + ' 失败');
+  console.log('\n结果: ' + pass + ' 通过, ' + fail + ' 失败'
+    + (skipped ? '（另跳过 ' + skipped + ' 项：环境不满足）' : ''));
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -79,6 +79,26 @@
     await w.close();
   }
 
+  /* 输出防静默覆盖：目标目录已存在同名文件时追加 _1…_99 后缀
+   * （archive.js bumpOutName 的 FSA 版）。不同文件夹多选同名文件时，
+   * 后写会静默覆盖先写——探测+序号让每个文件都落盘。批次内同样有效：
+   * 写一个落一个盘，后续探测即可见。 */
+  async function uniqueOutName(dirHandle, name) {
+    var n = String(name || '');
+    if (!n) return n;
+    var exists = function (nm) {
+      return dirHandle.getFileHandle(nm, { create: false }).then(function () { return true; }, function () { return false; });
+    };
+    if (!(await exists(n))) return n;
+    var m = /^(.*)(\.[^.]*)$/.exec(n);
+    var base = m ? m[1] : n, ext = m ? m[2] : '';
+    for (var i = 1; i <= 99; i++) {
+      var cand = base + '_' + i + ext;
+      if (!(await exists(cand))) return cand;
+    }
+    return base + '_' + Date.now() + ext;
+  }
+
   // 统一输出目录选择：环境不支持或用户取消 → null（调用方负责提示）
   async function pickOutputDir() {
     if (typeof window.showDirectoryPicker !== 'function') return null;
@@ -93,6 +113,7 @@
     encodeCanvas: encodeCanvas,
     ensureSubDir: ensureSubDir,
     writeBytes: writeBytes,
+    uniqueOutName: uniqueOutName,
     pickOutputDir: pickOutputDir
   };
 })(window.App);

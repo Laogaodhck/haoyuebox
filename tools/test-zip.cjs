@@ -10,10 +10,16 @@ global.window = {};
 eval(fs.readFileSync(path.join(__dirname, '..', 'js', 'zip.js'), 'utf8'));
 const ZipUtil = global.window.ZipUtil;
 
-let pass = 0, fail = 0;
+let pass = 0, fail = 0, skipped = 0;
 function assert(cond, name) {
   if (cond) { pass++; console.log('  ok -', name); }
   else { fail++; console.log('  FAIL -', name); }
+}
+function skip(name) {
+  skipped++;
+  // 跳过必须显式：真实解压回归（独立解压器逐字节比对）未执行时，
+  // 汇总行要能看见，防止「结构断言全绿」被误读为「解压链路已验证」
+  console.log('  skip -', name);
 }
 
 (async function main() {
@@ -103,7 +109,8 @@ function assert(cond, name) {
         }
       }
       if (!extracted) {
-        console.log('  skip - 未找到解压器（' + missing.join(' / ') + '），跳过真实解压回归（非 Windows 平台）');
+        skip('未找到解压器（' + missing.join(' / ') + '），跳过真实解压回归（非 Windows 平台；'
+          + 'ZIP 结构 / CRC32 断言仍覆盖正确性）');
       }
     }
     if (extracted) {
@@ -119,6 +126,7 @@ function assert(cond, name) {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 
-  console.log('\n结果： ' + pass + ' 通过， ' + fail + ' 失败');
+  console.log('\n结果： ' + pass + ' 通过， ' + fail + ' 失败'
+    + (skipped ? '（另跳过 ' + skipped + ' 项：无可用解压器）' : ''));
   process.exit(fail ? 1 : 0);
 })().catch(function (e) { console.error(e); process.exit(1); });

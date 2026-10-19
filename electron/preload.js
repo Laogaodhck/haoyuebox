@@ -1,12 +1,15 @@
 /* ============================================================
- * preload.js — 渲染进程安全桥接
- * 仅暴露打印能力（读打印机 + 静默打印图片），不暴露 Node 能力。
+ * preload.js — 渲染进程安全桥接（contextBridge 白名单）
+ * 暴露五组能力：打印（zunhongPrint）、压缩工具（zunhongArchive）、
+ * 诊断上报（zunhongDiag）、压缩包图标关联（zunhongArchiveIcons）、
+ * 系统工具（zunhongSystem）。不暴露 Node 能力。
  * ============================================================ */
 'use strict';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
-let progressCallback = null;  // archive:progress 回调（单注册，可替换）
+let progressCallback = null;  // archive:progress 回调（可替换）
+let progressBound = false;    // ipcRenderer 监听器是否已注册（只绑一次）
 
 contextBridge.exposeInMainWorld('zunhongPrint', {
   isDesktop: true,
@@ -36,8 +39,11 @@ contextBridge.exposeInMainWorld('zunhongArchive', {
   list: (payload) => ipcRenderer.invoke('archive:list', payload),
   cancel: () => ipcRenderer.invoke('archive:cancel'),
   onProgress: (cb) => {
-    // 进度监听器只在首次调用时注册，后续调用仅替换回调（防重复绑定叠加触发）
-    if (progressCallback === null) {
+    // 监听器全局只注册一次（与 callback 是否为空无关），后续调用仅替换回调：
+    // 若用「callback===null 才绑定」判断，onProgress(null) 后再 onProgress(cb)
+    // 会重复绑定 ipcRenderer 监听，每个进度事件双触发
+    if (!progressBound) {
+      progressBound = true;
       ipcRenderer.on('archive:progress', (e, data) => { if (progressCallback) progressCallback(data); });
     }
     progressCallback = cb;

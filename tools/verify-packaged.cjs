@@ -82,12 +82,26 @@ if (!exe) {
     assert(await win.$eval('#ac-unsupported', (el) => el.hidden),
       '桌面打包环境下不显示「浏览器不可用」提示');
     /* #ac-note 来自真实 IPC archive:check7z → 打包内 resources/bin/7z.exe */
-    await win.waitForFunction(() => /7z 引擎已就绪/.test(document.getElementById('ac-note').textContent),
+    const r7z = await win.waitForFunction(() => /7z 引擎已就绪/.test(document.getElementById('ac-note').textContent),
       null, { timeout: 15000 });
-    assert(true, '主进程真实 IPC：打包内 7z 引擎检测通过');
+    assert(await r7z.jsonValue() === true, '主进程真实 IPC：打包内 7z 引擎检测通过');
+
+    /* ---------- 系统工具：真实主进程 IPC system:netInfo（注册正确性 E2E） ---------- */
+    await win.click('#ac-back');                       // 先退回压缩工具菜单
+    await win.click('.module-tab[data-module="home"]'); // 回首页才看得见首页卡片
+    await win.click('#home-system');
+    assert(await win.$eval('#view-system', (el) => el.style.display === 'block'),
+      '点击首页卡片进入系统工具模块');
+    const netInfo = await win.evaluate(async () => {
+      try { return await window.zunhongSystem.netInfo(); }
+      catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+    });
+    assert(netInfo && netInfo.ok === true && Array.isArray(netInfo.ifaces),
+      '主进程真实 IPC：system:netInfo 返回网卡数组'
+      + (netInfo && netInfo.ok === true ? '' : '（' + ((netInfo && netInfo.error) || '无返回') + '）'));
 
     /* ---------- 模块切换回归 + 未开发占位页 + 无页面错误 ---------- */
-    await win.click('#ac-back');
+    /* 当前在系统工具模块视图（非子页），直接切顶栏模块标签即可 */
     await win.click('.module-tab[data-module="photo"]');
     assert(await win.$eval('#view-photo', (el) => el.style.display !== 'none'), '顶栏切回照片工具正常');
     await win.click('#photo-open-restore');

@@ -55,21 +55,25 @@
     var okN = 0, pageN = 0;
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
+      var pdf = null;
       setStatus('转换 ' + (i + 1) + '/' + items.length + '：' + it.file.name);
       try {
-        var pdf = await core.loadPdf(it.file);
+        pdf = await core.loadPdf(it.file);
         for (var p = 1; p <= pdf.numPages; p++) {
           var canvas = await core.renderPage(pdf, p, scale);
           var blob = await core.encodeCanvas(canvas, type, fmt === 'png' ? undefined : 0.92);
-          await core.writeBytes(out, baseName(it.file.name) + '-p' + p + ext, blob);
+          // 同名文件（不同文件夹多选）防静默覆盖：探测目录已有则追加 _N 后缀
+          var outName = await core.uniqueOutName(out, baseName(it.file.name) + '-p' + p + ext);
+          await core.writeBytes(out, outName, blob);
           pageN++;
         }
         okN++;
         addResult(it.file.name, true, '，' + pdf.numPages + ' 页');
       } catch (e) {
-        okN += 0;
         addResult(it.file.name, false);
         console.error('[zunhong] PDF 转图片失败:', it.file.name, e);
+      } finally {
+        if (pdf) pdf.cleanup();
       }
     }
     return { okN: okN, pageN: pageN };
@@ -111,20 +115,36 @@
       var pages = [];
       for (var i = 0; i < items.length; i++) {
         setStatus('处理图片 ' + (i + 1) + '/' + items.length + '：' + items[i].file.name);
-        pages.push(await imageToPage(items[i].file, paper));
+        try {
+          // 逐张 try/catch：单张坏图（改扩展名的假 JPEG、0 字节文件）只记失败，
+          // 不葬送整批（此前无 catch，rejection 直达全局兜底、状态行卡死）
+          pages.push(await imageToPage(items[i].file, paper));
+          okN++;
+        } catch (e) {
+          addResult(items[i].file.name, false);
+          console.error('[zunhong] 图片合并失败:', items[i].file.name, e);
+        }
+      }
+      if (!pages.length) {
+        setStatus('失败：所有图片均无法解码，未生成 PDF');
+        return { okN: 0, pageN: 0, noSummary: true };
       }
       var bytes = App.batchFormat.buildPdf(pages);
-      await core.writeBytes(out, '图片合并.pdf', bytes);
-      addResult('图片合并.pdf', true, '，' + pages.length + ' 页');
-      okN = 1;
+      var mergeName = await core.uniqueOutName(out, '图片合并.pdf');
+      await core.writeBytes(out, mergeName, bytes);
+      addResult(mergeName, true, '，' + pages.length + ' 页');
+      setStatus('完成：成功 ' + okN + '/' + items.length + ' 张图片，合并为 ' + pages.length +
+        ' 页，已输出到「' + dirHandle.name + '/' + SUB_DIR + '」');
+      return { okN: okN, pageN: 0, noSummary: true };
     } else {
       for (var j = 0; j < items.length; j++) {
         setStatus('转换 ' + (j + 1) + '/' + items.length + '：' + items[j].file.name);
         try {
           var page = await imageToPage(items[j].file, paper);
-          await core.writeBytes(out, baseName(items[j].file.name) + '.pdf', App.batchFormat.buildPdf([page]));
+          var singleName = await core.uniqueOutName(out, baseName(items[j].file.name) + '.pdf');
+          await core.writeBytes(out, singleName, App.batchFormat.buildPdf([page]));
           okN++;
-          addResult(baseName(items[j].file.name) + '.pdf', true);
+          addResult(singleName, true);
         } catch (e) {
           addResult(items[j].file.name, false);
           console.error('[zunhong] 图片转 PDF 失败:', items[j].file.name, e);
@@ -135,6 +155,42 @@
   }
 
   /* ================= Word → PDF ================= */
+
+  /* mammoth 输出来自用户 DOCX：虽由 mammoth 白名单生成，仍按纵深防御原则清洗——
+   * holder 会先挂进 document.body 再序列化，挂载阶段 img onerror 等事件属性
+   * 在主流文档上下文即可执行。剥离：on* 事件属性、危险协议 URL
+   * （javascript:/vbscript: 等，仅放行相对地址与 img 的 data:image 内嵌图）、
+   * 危险 style 表达式、可执行/外联标签。 */
+  function sanitizeDocxHtml(html) {
+    var doc = new DOMParser().parseFromString('<div id="__sx">' + String(html || '') + '</div>', 'text/html');
+    var root = doc.getElementById('__sx');
+    if (!root) return '';
+    root.querySelectorAll('*').forEach(function (el) {
+      Array.prototype.slice.call(el.attributes || []).forEach(function (attr) {
+        var n = String(attr.name || '').toLowerCase();
+        var v = String(attr.value == null ? '' : attr.value).replace(/\s+/g, '').toLowerCase();
+        if (n.indexOf('on') === 0) { el.removeAttribute(attr.name); return; }
+        if (n === 'style' && /expression|javascript:|behavior|-moz-binding/.test(v)) {
+          el.removeAttribute(attr.name); return;
+        }
+        if (n === 'href' || n === 'src' || n === 'xlink:href') {
+          // 危险协议黑名单剥除；http(s) / 相对地址 / mailto 等保留，
+          // img 的 data:image 内嵌图放行（mammoth 图片内联形态）
+          var imgData = el.tagName === 'IMG' && /^data:image\//.test(v);
+          if (/^(?:javascript|vbscript|livescript|mocha|data|file):/.test(v) && !imgData) {
+            el.removeAttribute(attr.name);
+          }
+        }
+      });
+    });
+    ['script', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'form', 'svg', 'math']
+      .forEach(function (tag) {
+        root.querySelectorAll(tag).forEach(function (el) {
+          if (el.parentNode) el.parentNode.removeChild(el);
+        });
+      });
+    return root.innerHTML;
+  }
 
   // mammoth HTML → 隐藏容器排版 → foreignObject 栅格化 → 按 A4 高度切片分页
   async function docxToPdf(file) {
@@ -150,7 +206,7 @@
       'h1{font-size:26px;margin:18px 0 12px}h2{font-size:21px;margin:16px 0 10px}h3{font-size:17px;margin:14px 0 8px}' +
       'p{margin:0 0 10px}ul,ol{margin:0 0 10px;padding-left:26px}table{border-collapse:collapse;width:100%;margin:10px 0}' +
       'td,th{border:1px solid #999;padding:5px 8px;font-size:13px}img{max-width:100%}' +
-      '</style>' + r.value;
+      '</style>' + sanitizeDocxHtml(r.value);
     document.body.appendChild(holder);
     var height = Math.max(holder.scrollHeight, A4_PAGE_PX);
     var xml = new XMLSerializer().serializeToString(holder);
@@ -175,8 +231,11 @@
       var sctx = slice.getContext('2d');
       sctx.fillStyle = '#ffffff';
       sctx.fillRect(0, 0, slice.width, slice.height);
-      sctx.drawImage(tall, 0, i * A4_PAGE_PX, A4_PX, Math.min(A4_PAGE_PX, height - i * A4_PAGE_PX),
-        0, 0, slice.width, slice.height);
+      /* 末页源高不足一页时按源高度等比缩放到目标高度（此前直接拉满整页，
+       * 561px 源 → 1684px 目标约 3 倍垂直拉伸，末页文字变扁长） */
+      var srcH = Math.min(A4_PAGE_PX, height - i * A4_PAGE_PX);
+      var dstH = Math.max(1, Math.round(slice.height * srcH / A4_PAGE_PX));
+      sctx.drawImage(tall, 0, i * A4_PAGE_PX, A4_PX, srcH, 0, 0, slice.width, dstH);
       var pb = await core.encodeCanvas(slice, 'image/jpeg', 0.9);
       pages.push({ jpeg: new Uint8Array(await pb.arrayBuffer()), w: A4_W, h: A4_H });
     }
@@ -190,9 +249,10 @@
       setStatus('转换 ' + (i + 1) + '/' + items.length + '：' + it.file.name);
       try {
         var bytes = await docxToPdf(it.file);
-        await core.writeBytes(out, baseName(it.file.name) + '.pdf', bytes);
+        var wName = await core.uniqueOutName(out, baseName(it.file.name) + '.pdf');
+        await core.writeBytes(out, wName, bytes);
         okN++;
-        addResult(baseName(it.file.name) + '.pdf', true);
+        addResult(wName, true);
       } catch (e) {
         addResult(it.file.name, false);
         console.error('[zunhong] Word 转 PDF 失败:', it.file.name, e);
@@ -221,7 +281,8 @@
       if (mode === 'p2i') res = await runPdfToImages(out);
       else if (mode === 'i2p') res = await runImagesToPdf(out);
       else res = await runWordToPdf(out);
-      setStatus('完成：成功 ' + res.okN + ' 项' + (res.pageN ? '，共输出 ' + res.pageN + ' 张图片' : '') +
+      // noSummary：子流程已设置更精确的完成/失败状态行（含部分失败计数），不套通用模板
+      if (!res.noSummary) setStatus('完成：成功 ' + res.okN + ' 项' + (res.pageN ? '，共输出 ' + res.pageN + ' 张图片' : '') +
         '，已输出到「' + dirHandle.name + '/' + SUB_DIR + '」，原文件未改动');
     } finally {
       $('dc-run').disabled = false;
@@ -266,7 +327,16 @@
 
   App.docsConvert = {
     enter: enter,
-    _test: { parseRangesRef: function (s, m) { return core.parsePageRanges(s, m); } }
+    _test: {
+      parseRangesRef: function (s, m) { return core.parsePageRanges(s, m); },
+      setItemsRef: function (arr) { items = arr || []; },
+      setModeRef: function (m) { setMode(m); },
+      setDirRef: function (d) { dirHandle = d; },
+      runPdfToImagesRef: runPdfToImages,
+      runImagesToPdfRef: runImagesToPdf,
+      imageToPageRef: imageToPage,
+      sanitizeRef: sanitizeDocxHtml
+    }
   };
 
   App.docsConvert.init = function () {

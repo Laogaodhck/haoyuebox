@@ -482,6 +482,13 @@
     dlg.hidden = false;
     bridge.list({ archive: first.path, pass: passState.extract }).then(function (res) {
       if (!res || !res.ok) {
+        if (res && res.cancelled) {
+          // 取消路径（B8）：主进程已回 cancelled 标记，按中性提示收场，
+          // 不再显示为红色的「读取失败：任务已取消」
+          $('ax-browse-meta').textContent = '读取已取消';
+          $('ax-browse-meta').className = 'hint-text st-dim';
+          return;
+        }
         $('ax-browse-meta').textContent = '读取失败：' + ((res && res.error) || '未知错误');
         $('ax-browse-meta').className = 'hint-text st-bad';
         return;

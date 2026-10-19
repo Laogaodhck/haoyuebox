@@ -209,13 +209,17 @@
         try {
           if (it.isPdf) {
             var pdf = await core.loadPdf(it.file);
-            for (var p = 1; p <= pdf.numPages; p++) {
-              curLabel = '识别 ' + it.file.name + ' 第 ' + p + '/' + pdf.numPages + ' 页：';
-              setStatus(curLabel + '0%');
-              var canvas = await core.renderPage(pdf, p, 2, 2000);
-              var res = await wk.recognize(canvas);
-              units.push({ label: it.file.name + ' 第' + p + '页', text: res && res.data && res.data.text });
-              okN++;
+            try {
+              for (var p = 1; p <= pdf.numPages; p++) {
+                curLabel = '识别 ' + it.file.name + ' 第 ' + p + '/' + pdf.numPages + ' 页：';
+                setStatus(curLabel + '0%');
+                var canvas = await core.renderPage(pdf, p, 2, 2000);
+                var res = await wk.recognize(canvas);
+                units.push({ label: it.file.name + ' 第' + p + '页', text: res && res.data && res.data.text });
+                okN++;
+              }
+            } finally {
+              if (pdf) pdf.cleanup();
             }
           } else {
             curLabel = '识别 ' + it.file.name + '：';
@@ -235,18 +239,23 @@
       console.error('[zunhong] OCR 引擎初始化失败:', e);
       toast('识别引擎初始化失败：' + ((e && e.message) || e), true);
     }
-    curLabel = '';
-    if (units.length) {
-      $('do-text').value = joinUnits(units);
-      updateMeta();
-      exportsEnable(true);
-      setStatus('识别完成：成功 ' + okN + ' 项' + (errN ? '，失败 ' + errN + ' 项' : '') +
-        '，结果可在右侧编辑后复制或导出。');
-    } else {
-      setStatus('');
+    /* 收尾全部包在 try 内、finally 复位：此前 joinUnits/updateMeta/exportsEnable
+     * 若抛错会跳过 disabled=false 复位，按钮永久锁死、running 永 true */
+    try {
+      curLabel = '';
+      if (units.length) {
+        $('do-text').value = joinUnits(units);
+        updateMeta();
+        exportsEnable(true);
+        setStatus('识别完成：成功 ' + okN + ' 项' + (errN ? '，失败 ' + errN + ' 项' : '') +
+          '，结果可在右侧编辑后复制或导出。');
+      } else {
+        setStatus('');
+      }
+    } finally {
+      $('do-run').disabled = false;
+      running = false;
     }
-    $('do-run').disabled = false;
-    running = false;
   }
 
   async function copyText() {
@@ -304,7 +313,18 @@
       exportBaseName: exportBaseName,
       escXml: escXml,
       buildDocxXml: buildDocxXml,
-      buildDocxFiles: buildDocxFiles
+      buildDocxFiles: buildDocxFiles,
+      /* 主链路冒烟钩子（verify-ocr.cjs 用）：真实创建/复用 worker、识别、清理文本。
+       * 纯函数断言覆盖不到「worker 初始化 → 语言包加载 → recognize → 回调」链路，
+       * 该钩子让整条链可在真实浏览器里跑断言。 */
+      ocrRef: async function (file, langKey) {
+        var wk = await ensureWorker(langKey || 'en');
+        var res = await wk.recognize(file);
+        return {
+          text: cleanText(res && res.data && res.data.text),
+          conf: (res && res.data && typeof res.data.confidence === 'number') ? res.data.confidence : 0
+        };
+      }
     }
   };
 

@@ -218,5 +218,9 @@ window.Cropper = (function () {
     return { zoomAt: zoomAt, clamp: clampTransform };
   }
 
-  return { attach: attach, fitCenter: fitCenter, autoAlign: autoAlign, clampTransform: clampTransform };
+  return {
+    attach: attach, fitCenter: fitCenter, autoAlign: autoAlign, clampTransform: clampTransform,
+    /* 以下仅供单测（倾斜坐标映射与最小缩放是「画框不留白边」的核心几何） */
+    _test: { tiltPointRef: tiltPoint, minScaleForRef: minScaleFor }
+  };
 })();

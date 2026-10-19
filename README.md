@@ -137,7 +137,7 @@ photo/
 ├── index.html              # 入口页面（七模块 DOM + 子功能菜单 + 脚本引入顺序）
 ├── electron/               # Electron 主进程（桌面版）
 │   ├── main.js             # 窗口、内置静态服务、CSP、打印/压缩 IPC、文件字节读取
-│   ├── preload.js          # contextBridge 暴露 zunhongPrint / zunhongArchive / zunhongSystem（白名单 IPC）
+│   ├── preload.js          # contextBridge 暴露 zunhongPrint / zunhongArchive / zunhongArchiveIcons / zunhongDiag / zunhongSystem（白名单 IPC）
 │   ├── static-server.js    # 随机端口本地静态服务（路径穿越防护 + 正确 MIME）
 │   ├── print-doc.js        # 多页打印文档构建（合并单任务发送）
 │   ├── archive.js          # 压缩/解压 IPC（spawn 内置 7z.exe，进度回传）
@@ -181,8 +181,8 @@ photo/
 │   ├── server.js           # 浏览器模式静态服务（默认 8410，可用 PORT 覆盖）
 │   ├── _lib.cjs            # 测试公共库（端口、浏览器、断言计数、照片解析）
 │   ├── check-refs.cjs      # index.html 脚本与模型引用完整性校验（npm test 首步）
-│   ├── test-*.cjs          # 纯算法 / 冒烟测试（npm test 21 项，含真实 7z 冒烟）
-│   ├── verify-*.cjs        # Playwright 端到端（分割/换底/缩放撤销/排版打印/压缩/批量打印/批量工具）
+│   ├── test-*.cjs          # 纯算法 / 冒烟测试（npm test 24 项，含真实 7z 冒烟、主进程白名单假件、IPC 契约）
+│   ├── verify-*.cjs        # Playwright 端到端（分割/换底/缩放撤销/排版打印/压缩/批量打印/批量工具/OCR 真机识别）
 │   ├── verify-output.cjs   # 检查导出 PNG 的尺寸与 pHYs（DPI）
 │   └── make-icons.cjs      # 图标生成（jimp，支持 --out 避免覆盖成品）
 ├── fixtures/               # 本地测试照片（gitignore，勿提交真人照片）
@@ -285,15 +285,17 @@ photo/
 ## 开发与测试
 
 ```bash
-npm test          # 纯算法 + 静态服务 + jsdom 冒烟（21 套件，无需浏览器；test-archive 含真实 7z 冒烟）
-npm run verify    # Playwright 端到端：人像细节 / 换底导出 / 缩放撤销 / 笔刷 / 排版打印 / 压缩 / 批量打印
+npm test          # 纯算法 + 静态服务 + jsdom 冒烟（24 套件，无需浏览器；test-archive 含真实 7z 冒烟，
+                  # test-system 以假件覆盖主进程系统工具白名单，test-ipc-contract 校验桥接与 IPC 注册一致）
+npm run verify    # Playwright 端到端：人像细节 / 换底导出 / 缩放撤销 / 笔刷 / 排版打印 / 压缩 / 批量打印 / OCR 真机识别
                   # 末尾 verify-packaged 会驱动打包产物（release-build/win-unpacked）做真实启动冒烟，无产物自动跳过
 npm run lint      # ESLint 静态检查（js/ electron/ 严格，tools/ 放宽）
 npm run format    # Prettier 格式化（按需，未对历史代码全量重排）
 npm run icons     # 重新生成图标（加 -- --out <dir> 可避免覆盖成品图标）
 ```
 
-版本变更见 [CHANGELOG.md](CHANGELOG.md)；发版流程：递增 `package.json` 的
+版本变更见 [CHANGELOG.md](CHANGELOG.md)，v1.3.3 缺陷检测与三轮修复记录见
+[docs/bug-report-v1.3.3.md](docs/bug-report-v1.3.3.md)；发版流程：递增 `package.json` 的
 `version` → 打 `v<version>` 标签推送，Actions 自动出安装包（安装新版即完成更新）。
 
 `npm run verify` 需要两项本地资源，均不入库：

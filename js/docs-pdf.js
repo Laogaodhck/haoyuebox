@@ -39,18 +39,25 @@
         '</span><span class="dw-file-btns"></span>';
       var btns = row.querySelector('.dw-file-btns');
       if (mode === 'merge' && n > 1) {
-        btns.appendChild(mkBtn('↑', function () { move(i, -1); }));
-        btns.appendChild(mkBtn('↓', function () { move(i, 1); }));
+        btns.appendChild(mkBtn('上移', function () { move(i, -1); }, 'up'));
+        btns.appendChild(mkBtn('下移', function () { move(i, 1); }, 'down'));
       }
       btns.appendChild(mkBtn('移除', function () { items.splice(i, 1); renderList(); }));
       box.appendChild(row);
     });
   }
 
-  function mkBtn(text, fn) {
+  /* 小按钮：label 为文字；传 iconName 时用内联 SVG 图标（文字作 title/aria-label） */
+  function mkBtn(label, fn, iconName) {
     var b = document.createElement('button');
     b.className = 'ghost';
-    b.textContent = text;
+    if (iconName) {
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      b.appendChild(App.ui.icon(iconName));
+    } else {
+      b.textContent = label;
+    }
     b.addEventListener('click', fn);
     return b;
   }
@@ -64,45 +71,86 @@
 
   /* ---------- 渲染整本 → JPEG 页数组 ---------- */
   async function pdfToPages(file, scale, quality, onProgress) {
-    var pdf = await core.loadPdf(file);
-    var pages = [];
-    for (var p = 1; p <= pdf.numPages; p++) {
-      if (onProgress) onProgress(p, pdf.numPages);
-      var canvas = await core.renderPage(pdf, p, scale);
-      var blob = await core.encodeCanvas(canvas, 'image/jpeg', quality);
-      pages.push({ jpeg: new Uint8Array(await blob.arrayBuffer()), w: canvas.width, h: canvas.height });
+    /* getDocument 每次解析都会拉起 worker：渲染完必须 cleanup，
+     * 否则合并/压缩整批文档时句柄与 worker 逐个泄漏（runSplit 早已如此，此处对齐） */
+    var pdf = null;
+    try {
+      pdf = await core.loadPdf(file);
+      var pages = [];
+      for (var p = 1; p <= pdf.numPages; p++) {
+        if (onProgress) onProgress(p, pdf.numPages);
+        var canvas = await core.renderPage(pdf, p, scale);
+        var blob = await core.encodeCanvas(canvas, 'image/jpeg', quality);
+        pages.push({ jpeg: new Uint8Array(await blob.arrayBuffer()), w: canvas.width, h: canvas.height });
+      }
+      return pages;
+    } finally {
+      if (pdf) pdf.cleanup();
     }
-    return pages;
   }
 
   async function runMerge(out) {
     var pages = [];
+    var okN = 0;
     for (var i = 0; i < items.length; i++) {
-      await pdfToPages(items[i].file, 1.5, 0.85, function (p, total) {
-        setStatus('合并 ' + (i + 1) + '/' + items.length + '：' + items[i].file.name + ' 第 ' + p + '/' + total + ' 页');
-      }).then(function (arr) { pages = pages.concat(arr); });
+      var it = items[i];
+      setStatus('合并 ' + (i + 1) + '/' + items.length + '：' + it.file.name);
+      try {
+        // 逐文件 try/catch：单个 PDF 损坏/加密只记该文件失败，不葬送整批
+        // （此前无 catch，rejection 直达全局兜底，状态行卡死、结果列表全空）
+        var arr = await pdfToPages(it.file, 1.5, 0.85, function (p, total) {
+          setStatus('合并 ' + (i + 1) + '/' + items.length + '：' + it.file.name + ' 第 ' + p + '/' + total + ' 页');
+        });
+        pages = pages.concat(arr);
+        okN++;
+      } catch (e) {
+        addResult(it.file.name, false);
+        console.error('[zunhong] PDF 合并失败:', it.file.name, e);
+      }
     }
-    await core.writeBytes(out, '合并.pdf', App.batchFormat.buildPdf(pages));
-    addResult('合并.pdf', true, '，' + pages.length + ' 页');
-    return { okN: 1 };
+    if (!pages.length) {
+      setStatus('失败：所有文件均无法解析，未生成合并 PDF');
+      return { okN: 0, noSummary: true };
+    }
+    var mergeName = await core.uniqueOutName(out, '合并.pdf');
+    await core.writeBytes(out, mergeName, App.batchFormat.buildPdf(pages));
+    addResult(mergeName, true, '，' + pages.length + ' 页');
+    setStatus('完成：成功 ' + okN + '/' + items.length + ' 个文件，合并为 ' + pages.length +
+      ' 页，已输出到「' + dirHandle.name + '/' + SUB_DIR + '」');
+    return { okN: okN, noSummary: true };
   }
 
   async function runSplit(out) {
     var it = items[0];
-    var pdf = await core.loadPdf(it.file);
-    var idx = core.parsePageRanges($('dp-split-range').value, pdf.numPages);
-    if (!idx.length) { toast('页码范围无效（示例：1-3,5,8-' + pdf.numPages + '）', true); return { okN: 0 }; }
-    var pages = [];
-    for (var k = 0; k < idx.length; k++) {
-      setStatus('提取第 ' + idx[k] + ' / ' + pdf.numPages + ' 页');
-      var canvas = await core.renderPage(pdf, idx[k], 2);
-      var blob = await core.encodeCanvas(canvas, 'image/jpeg', 0.9);
-      pages.push({ jpeg: new Uint8Array(await blob.arrayBuffer()), w: canvas.width, h: canvas.height });
+    var pdf = null;
+    try {
+      pdf = await core.loadPdf(it.file);
+      var idx = core.parsePageRanges($('dp-split-range').value, pdf.numPages);
+      if (!idx.length) {
+        toast('页码范围无效（示例：1-3,5,8-' + pdf.numPages + '）', true);
+        setStatus('失败：页码范围无效，未生成 PDF');
+        return { okN: 0, noSummary: true };
+      }
+      var pages = [];
+      for (var k = 0; k < idx.length; k++) {
+        setStatus('提取第 ' + idx[k] + ' / ' + pdf.numPages + ' 页');
+        var canvas = await core.renderPage(pdf, idx[k], 2);
+        var blob = await core.encodeCanvas(canvas, 'image/jpeg', 0.9);
+        pages.push({ jpeg: new Uint8Array(await blob.arrayBuffer()), w: canvas.width, h: canvas.height });
+      }
+      var name = await core.uniqueOutName(out, it.file.name.replace(/\.pdf$/i, '') + '-提取.pdf');
+      await core.writeBytes(out, name, App.batchFormat.buildPdf(pages));
+      addResult(name, true, '，' + pages.length + ' 页');
+      return { okN: 1 };
+    } catch (e) {
+      // 单文件操作：整体失败时明确报出文件名与原因，而非仅靠全局兜底弹通用错误
+      addResult(it.file.name, false);
+      console.error('[zunhong] PDF 拆分失败:', it.file.name, e);
+      setStatus('失败：' + it.file.name + ' 无法解析或提取（' + ((e && e.message) || e) + '）');
+      return { okN: 0, noSummary: true };
+    } finally {
+      if (pdf) pdf.cleanup();
     }
-    var name = it.file.name.replace(/\.pdf$/i, '') + '-提取.pdf';
-    await core.writeBytes(out, name, App.batchFormat.buildPdf(pages));
-    addResult(name, true, '，' + pages.length + ' 页');
-    return { okN: 1 };
   }
 
   async function runShrink(out) {
@@ -119,7 +167,7 @@
         });
         var bytes = App.batchFormat.buildPdf(pages);
         after += bytes.length;
-        var name = it.file.name.replace(/\.pdf$/i, '') + '-压缩.pdf';
+        var name = await core.uniqueOutName(out, it.file.name.replace(/\.pdf$/i, '') + '-压缩.pdf');
         await core.writeBytes(out, name, bytes);
         okN++;
         addResult(name, true, '（' + fmtKB(it.file.size) + ' → ' + fmtKB(bytes.length) + '）');
@@ -146,7 +194,7 @@
   async function run() {
     if (running) return;
     if (!items.length) { toast('请先选择 PDF 文件'); return; }
-    if (mode === 'split' && items.length > 1) { toast('拆分提取一次只处理一个文件'); return; }
+    // 拆分模式只保留首个文件（见 onFilesPicked），此处无需多文件检查
     if (!dirHandle) { toast('请先选择输出文件夹'); return; }
     running = true;
     $('dp-run').disabled = true;
@@ -172,6 +220,7 @@
     var input = $('dp-file');
     var files = Array.prototype.slice.call(input.files || []).filter(function (f) { return /\.pdf$/i.test(f.name); });
     if (!files.length) { toast('请选择 PDF 文件'); return; }
+    // 拆分模式一次只处理一个文件：只保留首个（合并/压缩模式累加多选）
     items = mode === 'split' ? [{ file: files[0] }] : items.concat(files.map(function (f) { return { file: f }; }));
     renderList();
   }
@@ -196,7 +245,16 @@
 
   App.docsPdf = {
     enter: enter,
-    _test: { moveRef: move, listRef: function () { return items; } }
+    _test: {
+      moveRef: move,
+      listRef: function () { return items; },
+      setItemsRef: function (arr) { items = arr || []; },
+      setModeRef: function (m) { mode = m; },
+      setDirRef: function (d) { dirHandle = d; },
+      runMergeRef: runMerge,
+      runSplitRef: runSplit,
+      runShrinkRef: runShrink
+    }
   };
 
   App.docsPdf.init = function () {

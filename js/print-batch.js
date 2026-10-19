@@ -697,22 +697,26 @@ window.App.printBatch = (function () {
 
       var td4 = document.createElement('td');
       td4.className = 'pd-ops';
+      // 控件标识用内联 SVG 图标（App.ui.icon），不用排版符号文本
       var up = document.createElement('button');
       up.className = 'ghost pd-op';
-      up.textContent = '↑';
       up.title = '上移';
+      up.setAttribute('aria-label', '上移');
+      up.appendChild(window.App.ui.icon('up'));
       up.disabled = i === 0;
       up.addEventListener('click', function () { moveDoc(i, -1); });
       var down = document.createElement('button');
       down.className = 'ghost pd-op';
-      down.textContent = '↓';
       down.title = '下移';
+      down.setAttribute('aria-label', '下移');
+      down.appendChild(window.App.ui.icon('down'));
       down.disabled = i === docs.length - 1;
       down.addEventListener('click', function () { moveDoc(i, 1); });
       var del = document.createElement('button');
       del.className = 'ghost pd-op pd-op-del';
-      del.textContent = '✕';
       del.title = '移除';
+      del.setAttribute('aria-label', '移除');
+      del.appendChild(window.App.ui.icon('x'));
       del.addEventListener('click', function () { removeDoc(i); });
       td4.appendChild(up);
       td4.appendChild(down);

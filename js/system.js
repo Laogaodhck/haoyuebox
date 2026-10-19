@@ -158,6 +158,8 @@
     bridge.openAddPrinter().then(function (r) {
       if (r && r.ok) App.ui.toast('已打开系统「添加打印机」向导');
       else App.ui.toast('打开失败：' + ((r && r.error) || '未知错误'));
+    }).catch(function (e) {
+      App.ui.toast('打开失败：' + ((e && e.message) || e));
     });
   }
 
@@ -165,16 +167,26 @@
     bridge.openPrintSettings().then(function (r) {
       if (r && r.ok) App.ui.toast('已打开系统打印设置');
       else App.ui.toast('打开失败：' + ((r && r.error) || '未知错误'));
+    }).catch(function (e) {
+      App.ui.toast('打开失败：' + ((e && e.message) || e));
     });
   }
+
+  var printTestBusy = false;   // 测试页在途标志：连点会向打印机发送多张测试页
 
   function printTest() {
     var name = $('printer-test-select').value;
     if (!name) { App.ui.toast('请先选择打印机'); return; }
+    if (printTestBusy) return;
+    printTestBusy = true;
     App.ui.toast('正在发送测试页…');
     bridge.printTestPage(name).then(function (r) {
+      printTestBusy = false;
       if (r && r.ok) App.ui.toast('测试页已发送到「' + name + '」');
       else App.ui.toast('发送失败：' + ((r && r.error) || '未知错误'));
+    }).catch(function (e) {
+      printTestBusy = false;
+      App.ui.toast('发送失败：' + ((e && e.message) || e));
     });
   }
 
@@ -187,6 +199,7 @@
       $('printer-test-btn').addEventListener('click', printTest);
     },
     enterNet: enterNet,
-    enterPrinter: enterPrinter
+    enterPrinter: enterPrinter,
+    _test: { escRef: esc }
   };
 })(window.App);
