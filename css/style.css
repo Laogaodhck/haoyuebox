@@ -421,6 +421,7 @@ button:disabled, .btn-col button:disabled, .btn-row button:disabled {
   border: 2px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 13px 16px;
+  min-height: 200px;              /* 大型放置区：与照片上传拖拽框的放置体验对齐（原内容撑高仅 50px） */
   color: var(--text-dim);
   font-size: 13px;
   transition: border-color .15s, background .15s, color .15s;
