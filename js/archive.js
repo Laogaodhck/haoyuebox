@@ -241,7 +241,7 @@
       cancelBtn.hidden = false;
       return;
     }
-    /* 结束任务：仅恢复按钮可用性，保留结果行的 ✓/失败标记不被重建覆盖 */
+    /* 结束任务：仅恢复按钮可用性，保留结果行的成功/失败标记不被重建覆盖 */
     cancelBtn.hidden = true;
     var has = which === 'compress' ? items.length : archives.length;
     $(which === 'compress' ? 'ac-run' : 'ax-run').disabled = !has || !bridgeOk();
@@ -376,7 +376,7 @@
         var prog = $('ac-progress');
         if (res && res.ok) {
           var volNote = res.parts > 1 ? '，分 ' + res.parts + ' 卷' : '';
-          prog.textContent = '压缩完成 ✓ ' + outPath + '（' + fmtSize(res.size) + volNote + '）';
+          window.App.ui.statusText(prog, '压缩完成 ' + outPath + '（' + fmtSize(res.size) + volNote + '）', 'check');
           toast('压缩完成');
         } else if (res && res.cancelled) {
           prog.textContent = '压缩已取消';
@@ -440,7 +440,7 @@
         td3.textContent = '失败：' + r.error;
         td3.className = 'st-bad';
       } else {
-        td3.textContent = extractTargetText(r.name, $('ax-out').value) + ' ✓';
+        window.App.ui.statusText(td3, extractTargetText(r.name, $('ax-out').value), 'check');
       }
     });
     /* 收纳进度行：完成后结果由 ax-result 呈现，

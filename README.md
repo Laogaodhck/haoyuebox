@@ -140,7 +140,8 @@ photo/
 │   ├── preload.js          # contextBridge 暴露 zunhongPrint / zunhongArchive / zunhongArchiveIcons / zunhongDiag / zunhongSystem（白名单 IPC）
 │   ├── static-server.js    # 随机端口本地静态服务（路径穿越防护 + 正确 MIME）
 │   ├── print-doc.js        # 多页打印文档构建（合并单任务发送）
-│   ├── archive.js          # 压缩/解压 IPC（spawn 内置 7z.exe，进度回传）
+│   ├── archive.js          # 压缩/解压 IPC 层（对话框/入参校验/进度回传/通道注册）
+│   ├── archive-engine.js   # 7z 引擎层（定位/跑子进程/取消/并发哨兵，不碰 IPC 与对话框）
 │   ├── archive-icons.js    # 压缩包图标关联（HKCU ProgID 探测 / 注册 / 还原，白名单扩展名）
 │   ├── system.js           # 系统工具 IPC：网络检测（白名单 DNS 节点）+ 打印机向导/设置页/测试页
 │   ├── 7z-args.js          # 7z 命令行参数构建与输出解析（纯逻辑，可单测）

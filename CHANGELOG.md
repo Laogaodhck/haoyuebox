@@ -50,6 +50,11 @@
 - **mammoth 输出 sanitize 后进 innerHTML**（advisory A9）：DOCX 转 HTML 虽由 mammoth 白名单生成，但排版容器会先挂进 document.body 再序列化，挂载阶段事件属性即可执行。新增 sanitizeDocxHtml：剥离 on* 事件属性、危险协议 URL（黑名单 javascript/vbscript/livescript/mocha/data（img 的 data:image 除外）/file，http(s) 与相对地址保留）、危险 style 表达式、script/iframe/object 等可执行与外联标签（js/docs-convert.js）
 - 清理死代码与文档漂移（advisory A8）：docs-watermark 删未使用的 wmImg.f expando；docs-pdf 删不可达的 split 多文件检查（该模式只保留首个文件，onFilesPicked 已保证）；preload 头注释从「仅暴露打印能力」更新为五组桥接的实际描述
 - 文档同步（README）：preload 桥接清单更新为五组（补 zunhongArchiveIcons / zunhongDiag）；测试小节套件数 21→24 并说明 test-system（主进程白名单假件）/ test-ipc-contract（桥接与 IPC 注册契约）/ verify-ocr（真 Tesseract 冒烟）的覆盖定位；verify 端到端清单补 OCR；开发流程新增 v1.3.3 缺陷报告链接（docs/bug-report-v1.3.3.md）
+- **第五轮（遗留 backlog 清零，详见 docs/bug-report-v1.3.3.md 第九节）**：
+  - **正文排版符号 SVG 化**（backlog ①）：index.html 27 个「← 返回」与 4 个「下一步 →」按钮、3 个「X → Y」转换标签页的导航箭头改内联 SVG（left/right，与首页卡片箭头同描边体系）；print / print-batch / sheet / archive 四个模块状态行与 toast 的「✓ / ⚠」成功失败标识改新增助手 App.ui.statusText（文本走 textContent 防注入 + 末尾 SVG 标识），App.ui.icon 注册表新增 check（对勾）与 alert（三角警示，多 path 数组）；帮助文本「整个文件夹 → 7z 或 ZIP」按既有帮助文本约定改文字描述
+  - **electron/archive.js 拆分为引擎层 + IPC 层**（backlog ②）：原 424 行单文件混装 7z 进程机制与 IPC 关注点。新 electron/archive-engine.js（196 行）：resolve7zPath / run7z / check7z / decodeErrTail / cancelActiveJobs / trackChild / untrackChild / statEntry / runExclusive（压缩解压互斥哨兵上移，compress/extract 共用，busy 语义不变）；archive.js（290 行）只留对话框、入参校验、进度回传与 8 条通道注册，引擎函数经 module.exports 再导出保持既有引用面（main.js 仍只用 registerArchiveIpc）
+  - **「未找到 7z 引擎」文案给排查路径**（backlog ④）：安全软件（杀毒/防火墙）误隔离随包 7z.exe 是全新安装或更新后「引擎突然没了」的最高频原因，原文案只报结果。引擎层新增 no7zError()：隔离区恢复 + 添加信任 + 重启指引（或安装 7-Zip），check7z / compress / extract / listArchive 四条路径统一改用；完整排查步骤见 docs/security-software-compatibility.md
+  - **release.yml 挂 OCR 主链路门禁**（backlog ③）：npm test 只覆盖后处理纯函数，发布链路缺真实 Tesseract 冒烟。测试门禁之后、打包之前新增两步：「安装 Chromium（npx playwright install chromium）」+「OCR 主链路冒烟（node tools/verify-ocr.cjs）」；ms-playwright 浏览器目录纳入 actions/cache（与 electron 缓存同 key 规律，版本随 package-lock 变更失效）
 
 ### 测试
 - test-archive 新增 3 断言：parseProgress 文件名含「数字+%」不劫持进度、多帧且文件名含 % 时取末帧行首百分比、空输入/纯空白返回 null（107→110）
@@ -73,6 +78,10 @@
   - test-dom 366→370：docs-pdf 合并 / pdfToPages cleanup 间谍断言（每个成功解析的 PDF 文档均被释放）、docs-convert p2i cleanup、拆分无效区间返回 noSummary 不谎报完成、App.ui.icon 未知名告警
   - test-system 16→17：新增 dnsProbe 解析器挂起时 3s 超时断言（stub dns.lookup 永不回调，与 tcpProbe 超时对齐）；win32 路径切假平台后 CI 跨平台腿可跑
   - test-archive 110→112：新增真实 7z 含子目录归档的压缩与 l -slt 列表断言——目录条目 isDir 判定（/^D/）对真实输出闭环（原单元测试样本为合成属性串）
+- **第五轮（backlog 清零）**：
+  - test-dom 370→404：新增 check/alert 图标路径与 alert 多 path 断言、statusText 文本与 SVG 标识断言共 5 条；控件标识符号扫描扩至 7 个文件（补 js/archive.js、js/sheet.js，字符类加 ←→✓⚠）2 条；新增全部 js（26 个）+ index.html 的对勾/警示字符零残留扫描 27 条（注释同样计入——宁可改注释表述，不留扫描盲区）
+  - test-archive 112→132：新增「主进程模块结构守卫」20 断言（两层均 ≤320 行、IPC 层引用引擎层、引擎层不碰 ipcMain/dialog 且持有 spawn、引擎层 10 个导出、IPC 层 5 个再导出、no7zError 文案含隔离/信任指引）
+  - 全量门禁：ESLint 0 告警；npm test 24 套件 1145 断言 0 失败（退出码直读 npm test，未经管道中转）
   - 更正历史组计数漂移（QA 审查机械核实调用点）：docs-convert 行为测试 8→7、docs-pdf 行为测试 5→6、sanitizeRef 9→8（各处总数均准确）
   - 全量门禁：ESLint 0 告警；npm test 24 套件 1091 断言 0 失败（退出码直读 npm test，未经管道中转）
 - 全量门禁：ESLint 0 告警；npm test 22 套件 1038 断言 0 失败（退出码直读 npm test）

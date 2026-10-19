@@ -97,6 +97,8 @@ button { font-family: inherit; cursor: pointer; }
 .hc-icon svg { width: 38px; height: 38px; stroke-width: 1.6; }
 .hc-arrow svg { width: 18px; height: 18px; }
 .dz-icon svg { width: 52px; height: 52px; stroke-width: 1.5; }
+/* 文字伴随图标（导航 ←/→、toast 成功标识等）：与文字留间距 */
+button.ghost .icon, button.primary .icon, button.secondary .icon, .pb-tab .icon, .toast .icon { margin: 0 3px; }
 
 /* ---------- 顶栏 ---------- */
 .topbar {

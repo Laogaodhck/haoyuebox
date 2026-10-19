@@ -4,7 +4,7 @@
 - 检测对象：commit 41b51b3（文档工具四项实装 + 系统工具模块 + 解压进度修复）
 - 检测方式：机械门禁（ESLint + 22 套件 1026 断言）+ 三专家并行代码审查（主进程 / 渲染层 / 测试完整性）+ 总监逐条交叉验证
 - 结论：**发现 1 项 P0、3 项 P1 功能缺陷、3 项 P0 级测试覆盖缺口、19 项 P2、15 项 advisory**（其中 1 项初判 P1 经真机验证后证伪，见 P1-2 更正说明）
-- **修复状态：全部修复完毕，无遗留**——P0/P1 全部、P2 全部（13+6 项）、测试覆盖缺口全部（T1-T3 + QA-B4/B5/B6 + Cropper 几何）、advisory 15 项全部（BE-A1~A5 / FE-A7~A9 / QA-A1~A6；FE-A10 为备案项评估不构成违规）。另经提交前三路独立审查（前端 / QA / 后端 + 总监复核）修复 2 项 blocking 与 10 项 advisory（第八节第四轮）。最终门禁：ESLint 0 告警；npm test **24 套件 1091 断言 0 失败**（退出码直读）；npm run verify 全绿（含重新出包后 verify-packaged 21 断言 + verify-ocr 真机 OCR 冒烟）。详见第八节一/二/三/四轮修复记录
+- **修复状态：全部修复完毕，无遗留**——P0/P1 全部、P2 全部（13+6 项）、测试覆盖缺口全部（T1-T3 + QA-B4/B5/B6 + Cropper 几何）、advisory 15 项全部（BE-A1~A5 / FE-A7~A9 / QA-A1~A6；FE-A10 为备案项评估不构成违规）。另经提交前三路独立审查（前端 / QA / 后端 + 总监复核）修复 2 项 blocking 与 10 项 advisory（第八节第四轮），提交后遗留 backlog 4 项全部清零（第八节第五轮）。最终门禁：ESLint 0 告警；npm test **24 套件 1145 断言 0 失败**（退出码直读）；npm run verify 全绿（含重新出包后 verify-packaged 21 断言 + verify-ocr 真机 OCR 冒烟）。详见第八节一/二/三/四/五轮修复记录
 
 ---
 
@@ -218,12 +218,14 @@ QA：A1 assert(true) 弱断言 6 处（失败检测由 waitForFunction 超时承
 | RV-14（后端 advisory） | test-archive 新增真实 7z 含子目录归档的压缩与 l -slt 列表断言——目录条目 isDir 判定（/^D/）对真实输出闭环（原单元测试样本为合成属性串） | test-archive 110→112 |
 | RV-15（后端 advisory） | test-system 新增 dnsProbe 解析器挂起时 3s 超时断言（stub dns.lookup 永不回调，与 tcpProbe 超时对齐） | test-system 16→17 |
 
-**遗留 backlog（本轮不处理，已登记）**：
+**遗留 backlog 处置记录（第五轮全部清零）**：
 
-1. 正文遗留排版符号 ✓ / ⚠ / ← / →（js/sheet.js:240、js/print.js:37-38、js/print-batch.js:116、js/archive.js:62、index.html:61,427）——非 emoji、非交互控件标识，不构成 P0-1 违反，建议下一轮统一 SVG 化
-2. electron/archive.js 344 行略超 300 行指引（项目基线 app.js 901 行，暂不拆分）
-3. verify-ocr 未挂 release.yml 门禁（真 Tesseract 依赖 vendor 资产，建议发版前手动执行并记录）
-4. 7z.exe 被安全软件误报时本机冒烟无法机械检测（已知风险，已有 docs/security-software-compatibility.md）
+| # | 事项 | 处置 |
+|---|---|---|
+| 1 | 正文遗留排版符号 ✓ / ⚠ / ← / →（非 emoji、非交互控件标识，不构成 P0-1 违反） | **已 SVG 化**：index.html 34 处按钮/标签（27 个「← 返回」+ 4 个「下一步 →」+ 3 个「X → Y」转换标签）的导航箭头改内联 SVG；print / print-batch / sheet / archive 四模块状态行与 toast 的成功失败标识改 App.ui.statusText（文本 textContent + 末尾 SVG，新增 check / alert 图标）；帮助文本按既有约定改文字描述。test-dom 源码扫描升级为 7 文件控件符号 + 全 js 对勾/警示字符零残留（注释计入） |
+| 2 | electron/archive.js 344 行略超 300 行指引 | **已拆分**：archive-engine.js（196 行，7z 进程机制：定位/运行/取消/哨兵）+ archive.js（290 行，IPC 层：对话框/校验/进度/注册），哨兵上移为 runExclusive 共用；test-archive 新增结构守卫 20 断言（行数/分层/导出面） |
+| 3 | verify-ocr 未挂 release.yml 门禁 | **已挂**：release.yml 测试门禁后、打包前新增 Chromium 安装 + OCR 主链路冒烟两步；ms-playwright 目录纳入 actions/cache |
+| 4 | 7z.exe 被安全软件误报时本机冒烟无法机械检测 | **可处置部分已做**：引擎层 no7zError() 统一文案——「未找到 7z 引擎」时提示安全软件误隔离及恢复/信任/重启步骤（或安装 7-Zip），check7z / compress / extract / listArchive 四路径共用；完整排查仍指向 docs/security-software-compatibility.md。「本机误报」本身依赖用户环境，机械检测不适用，维持已知风险备案 |
 
 ---
 

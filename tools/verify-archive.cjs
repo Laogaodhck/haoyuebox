@@ -244,8 +244,9 @@ withServer(PORT, async () => {
       return c.length ? c[c.length - 1][1] : null;
     });
     assert(extPayload.destMode === 'same' && extPayload.items[0] === 'C:\\f\\a.zip', '解压 payload 正确');
-    assert(await page.$eval('#ax-table tbody tr td:nth-child(4)', td => /✓/.test(td.textContent)),
-      '成功行带 ✓ 标记');
+    assert(await page.$eval('#ax-table tbody tr td:nth-child(4)',
+      td => td.querySelector('svg.icon') !== null && td.textContent.indexOf('\u2713') < 0),
+      '成功行带 SVG 成功标记（对勾图标，非字符拼接）');
     assert(await page.$eval('#ax-progress', el => el.hidden),
       '解压完成后进度行收纳（不留「解压中 — N%」残留）');
 

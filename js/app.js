@@ -61,9 +61,11 @@ window.App = (function () {
   }
   function hideLoading() { loadingEl.hidden = true; }
 
-  function toast(msg, isError) {
+  function toast(msg, isError, iconName) {
     var t = $('toast');
-    t.textContent = msg;
+    t.textContent = '';
+    if (iconName) t.appendChild(makeIcon(iconName)); // 成功/警示标识走 SVG（同 statusText）
+    t.appendChild(document.createTextNode(msg));
     t.className = 'toast show' + (isError ? ' error' : '');
     clearTimeout(t._timer);
     t._timer = setTimeout(function () { t.className = 'toast'; }, 2600);
@@ -992,34 +994,52 @@ window.App = (function () {
     showModule(startModule); // 启动进入首页或上次模块
   }
 
+  /* Lucide 风格内联 SVG 图标（与 warn-banner 警告图标同一体系）：
+   * 交互控件标识、状态/结果行标识统一走此处，不用 emoji / 排版符号
+   * （对勾 / 警示 / 左右箭头等一律 SVG 化或改文字描述，见 test-dom 源码扫描断言）。
+   * name: x | up | down | left | right | check | alert；返回 <svg class="icon"> 元素，
+   * 尺寸随字号（.icon = 1.05em），可访问名称由调用方设在按钮的 aria-label 上。
+   * 路径值可以是单字符串或多 path 数组（alert 三角+竖线+点需三条 path） */
+  var ICON_PATHS = {
+    x: 'M18 6 6 18M6 6l12 12',
+    up: 'm18 15-6-6-6 6',
+    down: 'm6 9 6 6 6-6',
+    left: 'm15 18-6-6 6-6',
+    right: 'm9 18 6-6-6-6',
+    check: 'm20 6-11 11-5-5',
+    alert: ['m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z', 'M12 9v4', 'M12 17h.01']
+  };
+
+  function makeIcon(name) {
+    var NS = 'http://www.w3.org/2000/svg';
+    if (!ICON_PATHS[name]) console.warn('[zunhong] App.ui.icon 未知图标名，已回退 x：', name);
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'icon');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    var ds = ICON_PATHS[name] || ICON_PATHS.x;
+    (Array.isArray(ds) ? ds : [ds]).forEach(function (d) {
+      var p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', d);
+      svg.appendChild(p);
+    });
+    return svg;
+  }
+
+  /* 状态/结果行写入：纯文本 + 末尾 SVG 标识（替代「对勾 / 警示」排版符号拼接）。
+   * 文本一律走 textContent（防 innerHTML 注入），标识走 makeIcon 体系 */
+  function setStatusText(el, text, iconName) {
+    el.textContent = '';
+    el.appendChild(document.createTextNode(text));
+    if (iconName) el.appendChild(makeIcon(iconName));
+  }
+
   var App = {
     State: State,
     showModule: showModule,
     ui: {
       $: $, toast: toast, confirm: confirm, showLoading: showLoading, hideLoading: hideLoading, download: download,
-      /* Lucide 风格内联 SVG 图标（与 warn-banner 警告图标同一体系）：
-       * 交互控件标识统一走此处，不用 emoji / 排版符号（✕★↑↓ 等）。
-       * name: x | up | down | left | right；返回 <svg class="icon"> 元素，
-       * 尺寸随字号（.icon = 1.05em），可访问名称由调用方设在按钮的 aria-label 上 */
-      icon: function (name) {
-        var NS = 'http://www.w3.org/2000/svg';
-        var D = {
-          x: 'M18 6 6 18M6 6l12 12',
-          up: 'm18 15-6-6-6 6',
-          down: 'm6 9 6 6 6-6',
-          left: 'm15 18-6-6 6-6',
-          right: 'm9 18 6-6-6-6'
-        };
-        if (!D[name]) console.warn('[zunhong] App.ui.icon 未知图标名，已回退 x：', name);
-        var svg = document.createElementNS(NS, 'svg');
-        svg.setAttribute('class', 'icon');
-        svg.setAttribute('viewBox', '0 0 24 24');
-        svg.setAttribute('aria-hidden', 'true');
-        var p = document.createElementNS(NS, 'path');
-        p.setAttribute('d', D[name] || D.x);
-        svg.appendChild(p);
-        return svg;
-      }
+      icon: makeIcon, statusText: setStatusText
     },
     photo: {
       showStep: showStep,

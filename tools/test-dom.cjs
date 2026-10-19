@@ -371,17 +371,49 @@ withServer(PORT, async () => {
   assert(ic.querySelector('path') !== null, 'ui.icon 含 path 子元素');
   assert(win.App.ui.icon('up').querySelector('path').getAttribute('d')
     !== ic.querySelector('path').getAttribute('d'), 'ui.icon 不同 name 对应不同路径');
+  assert(win.App.ui.icon('check').querySelector('path').getAttribute('d')
+    !== ic.querySelector('path').getAttribute('d'), 'ui.icon check 为独立路径（对勾）');
+  assert(win.App.ui.icon('alert').querySelectorAll('path').length === 3,
+    'ui.icon alert 为多 path 三角警示图标（三角+竖线+点）');
   var warnN = 0;
   var origWarn = win.console.warn;
   win.console.warn = function () { warnN++; };
   try { win.App.ui.icon('no-such-icon'); } finally { win.console.warn = origWarn; }
   assert(warnN === 1, 'ui.icon 未知图标名时告警（不静默产出错图标）');
-  ['js/print.js', 'js/print-batch.js', 'js/compose.js', 'js/docs-pdf.js', 'index.html'].forEach(function (rel) {
-    var src = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
-    var hit = src.match(/[↑↓✕★‹›»«]/g);
-    assert(!hit, rel + ' 控件标识无排版符号残留'
-      + (hit ? '（剩 ' + hit.length + ' 处: ' + hit.join(' ') + '）' : ''));
-  });
+
+  /* ---- statusText：状态行文本 + SVG 标识（对勾/警示排版符号退场回归） ---- */
+  var stEl = win.document.createElement('div');
+  win.App.ui.statusText(stEl, '已导入 3 张', 'check');
+  assert(stEl.textContent === '已导入 3 张', 'statusText 文本经 textContent 写入');
+  assert(stEl.querySelector('svg.icon path') !== null
+    && stEl.textContent.indexOf('\u2713') < 0, 'statusText 成功标识为 SVG 而非对勾字符');
+  var stEl2 = win.document.createElement('div');
+  win.App.ui.statusText(stEl2, '已导入 2 张 · 失败 1 张', 'alert');
+  assert(stEl2.querySelectorAll('svg.icon path').length === 3
+    && stEl2.textContent.indexOf('\u26a0') < 0, 'statusText 失败标识为三角 SVG 而非警示字符');
+
+  /* 源码级扫描：UI 文本文件不得残留排版符号。
+   * ① 控件标识符号（含导航左右箭头）：5 个 UI 模块 + 压缩/排版两个含结果行的模块；
+   * ② 对勾/警示符号：全部 js + index.html（注释也算——宁可改注释表述，不留扫描盲区） */
+  var SYM_UI = /\u2190\u2192\u2191\u2193\u2715\u2605\u2039\u203a\u00bb\u00ab/g;
+  ['js/print.js', 'js/print-batch.js', 'js/compose.js', 'js/docs-pdf.js', 'index.html', 'js/archive.js', 'js/sheet.js']
+    .forEach(function (rel) {
+      var src = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+      var hit = src.match(SYM_UI);
+      assert(!hit, rel + ' 控件标识无排版符号残留'
+        + (hit ? '（剩 ' + hit.length + ' 处: ' + hit.join(' ') + '）' : ''));
+    });
+  var SYM_MARK = /\u2713\u26a0/g;
+  fs.readdirSync(path.join(__dirname, '..', 'js'))
+    .filter(function (f) { return /\.js$/.test(f); })
+    .map(function (f) { return 'js/' + f; })
+    .concat(['index.html'])
+    .forEach(function (rel) {
+      var src = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+      var hit = src.match(SYM_MARK);
+      assert(!hit, rel + ' 状态标识无对勾/警示字符残留'
+        + (hit ? '（剩 ' + hit.length + ' 处）' : ''));
+    });
 
   /* ---- docsConvert.sanitizeRef：mammoth 输出清洗（A9 回归：XSS 纵深防御） ---- */
   var san = win.App.docsConvert._test && win.App.docsConvert._test.sanitizeRef;

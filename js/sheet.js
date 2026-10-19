@@ -236,8 +236,8 @@
       }
       sheetFiles = sheetFiles.concat(loaded); // 累加导入
       bar.style.width = '100%';
-      // 成功数用实际载入数，失败一并提示（不虚报）
-      text.textContent = '已导入 ' + loaded.length + ' 张' + (failed ? ' · 失败 ' + failed + ' 张' : '') + (failed ? ' ⚠' : ' ✓');
+      // 成功数用实际载入数，失败一并提示（不虚报）；成功/失败标识走 SVG（check/alert）
+      App.ui.statusText(text, '已导入 ' + loaded.length + ' 张' + (failed ? ' · 失败 ' + failed + ' 张' : ''), failed ? 'alert' : 'check');
       if (failed) toast('导入完成：成功 ' + loaded.length + ' 张，失败 ' + failed + ' 张（' + failedName + '）', true);
       $('sheet-file-name').textContent = '已导入 ' + sheetFiles.length + ' 张';
       renderLaySheet();

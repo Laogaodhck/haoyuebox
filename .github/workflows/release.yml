@@ -33,12 +33,14 @@ jobs:
           cache: npm
 
       # electron 与 electron-builder 的下载缓存（NSIS 工具链、winCodeSign、electron zip）
-      # Windows 上两者缓存在 ~/AppData/Local 下（~/.cache 是 Linux 约定）
+      # Windows 上两者缓存在 ~/AppData/Local 下（~/.cache 是 Linux 约定）；
+      # ms-playwright 同路径规律，给 OCR 门禁的 Chromium 复用（版本随 package-lock 变更而失效）
       - uses: actions/cache@v4
         with:
           path: |
             ~/AppData/Local/electron/Cache
             ~/AppData/Local/electron-builder/Cache
+            ~/AppData/Local/ms-playwright
           key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
           restore-keys: ${{ runner.os }}-electron-
 
@@ -80,6 +82,16 @@ jobs:
 
       - name: 测试门禁
         run: npm test
+
+      # OCR 主链路门禁：npm test 只覆盖后处理纯函数，这里在真实 Chromium 里
+      # 跑完整链路（vendor Tesseract wasm + 语言包 + 识别 + 置信度断言）。
+      # 浏览器缺失时 launchBrowser 会提示安装；装过则秒过（上面已缓存）
+      - name: 安装 Chromium（OCR 门禁用）
+        shell: bash
+        run: npx playwright install chromium
+      - name: OCR 主链路冒烟
+        shell: bash
+        run: node tools/verify-ocr.cjs
 
       - name: 打包
         shell: bash

@@ -2,7 +2,8 @@
  * test-archive.cjs — 压缩工具单测
  * 1) electron/7z-args.js 纯逻辑（参数构建 / 进度解析 / 退出码）
  * 2) js/archive.js 渲染层纯函数（大小格式化 / 默认名 / 去重合并 / 文案）
- * 3) 真实 7z 冒烟：存在 electron/bin/7z.exe 时做 7z/ZIP(加密)/GZ
+ * 3) 主进程模块结构守卫（archive.js 引擎层 / IPC 层拆分回归）
+ * 4) 真实 7z 冒烟：存在 electron/bin/7z.exe 时做 7z/ZIP(加密)/GZ
  *    压缩与解压全链路（临时目录，结束后清理）
  * ============================================================ */
 'use strict';
@@ -252,7 +253,32 @@ const at = global.window.App.archive;
   t.assert(!args7z.hasInputConflict([], '') && !args7z.hasInputConflict(['C:\\x'], ''), 'hasInputConflict 空输出放行');
 })();
 
-/* ---------- 3. 真实 7z 冒烟（压缩 → 解压全链路） ---------- */
+/* ---------- 3. 主进程模块结构守卫（archive.js 引擎 / IPC 拆分回归） ---------- */
+(function testMainProcessSplit() {
+  console.log('\n[3] 主进程模块结构守卫');
+  const engineSrc = fs.readFileSync(path.join(ROOT, 'electron', 'archive-engine.js'), 'utf8');
+  const ipcSrc = fs.readFileSync(path.join(ROOT, 'electron', 'archive.js'), 'utf8');
+  const engineLines = engineSrc.split('\n').length;
+  const ipcLines = ipcSrc.split('\n').length;
+  t.assert(engineLines <= 320 && ipcLines <= 320,
+    '拆分后两层均 ≤320 行（引擎 ' + engineLines + ' / IPC ' + ipcLines + '；拆分前单文件 424 行）');
+  t.assert(/require\('\.\/archive-engine'\)/.test(ipcSrc), 'IPC 层引用引擎层模块');
+  t.assert(!/ipcMain|dialog/.test(engineSrc), '引擎层不碰 ipcMain / dialog（纯进程机制）');
+  t.assert(/spawn/.test(engineSrc), '引擎层持有 spawn（子进程生命周期归引擎）');
+  const engine = require(path.join(ROOT, 'electron', 'archive-engine.js'));
+  ['resolve7zPath', 'no7zError', 'runExclusive', 'cancelActiveJobs', 'trackChild', 'untrackChild',
+    'statEntry', 'check7z', 'decodeErrTail', 'run7z'].forEach((n) => {
+    t.assert(typeof engine[n] === 'function', '引擎层导出 ' + n);
+  });
+  t.assert(/隔离/.test(engine.no7zError()) && /信任|7-Zip/.test(engine.no7zError()),
+    'no7zError 文案指向安全软件误隔离并给排查指引');
+  const ipc = require(path.join(ROOT, 'electron', 'archive.js'));
+  ['registerArchiveIpc', 'resolve7zPath', 'check7z', 'listArchive', 'cancelActiveJobs'].forEach((n) => {
+    t.assert(typeof ipc[n] === 'function', 'IPC 层再导出 ' + n);
+  });
+})();
+
+/* ---------- 4. 真实 7z 冒烟（压缩 → 解压全链路） ---------- */
 const EXE = path.join(ROOT, 'electron', 'bin', '7z.exe');
 
 function run7z(args) {
@@ -272,11 +298,11 @@ function run7z(args) {
   /* 随包引擎是 Windows PE：非 Windows 平台（CI ubuntu）文件存在但无法执行，
      实际会以 spawn error code=-1 收场 → 直接跳过冒烟 */
   if (!fs.existsSync(EXE) || process.platform !== 'win32') {
-    console.log('\n[3] 跳过真实 7z 冒烟（' + (process.platform !== 'win32' ? '非 Windows 平台' : '未找到 electron/bin/7z.exe') + '）');
+    console.log('\n[4] 跳过真实 7z 冒烟（' + (process.platform !== 'win32' ? '非 Windows 平台' : '未找到 electron/bin/7z.exe') + '）');
     t.finish();
     return;
   }
-  console.log('\n[3] 真实 7z 冒烟');
+  console.log('\n[4] 真实 7z 冒烟');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zunhong-7z-'));
   try {
     const hello = path.join(tmp, '你好.txt');

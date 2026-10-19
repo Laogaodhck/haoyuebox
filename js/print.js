@@ -84,8 +84,8 @@
         status.textContent = '打印失败：' + fail;
         toast('打印失败：' + fail, true);
       } else {
-        status.textContent = '已发送打印任务 ✓（' + jobs.length + ' 页）';
-        toast('已发送到打印机 ✓');
+        App.ui.statusText(status, '已发送打印任务（' + jobs.length + ' 页）', 'check');
+        toast('已发送到打印机', false, 'check');
       }
     });
 
@@ -231,8 +231,8 @@
       status.textContent = '打印失败：' + fail;
       toast('打印失败：' + fail, true);
     } else {
-      status.textContent = '已发送打印任务 ✓（' + sheetPages.pages.length + ' 页 × ' + params.copies + ' 份）';
-      toast('已发送到打印机 ✓');
+      App.ui.statusText(status, '已发送打印任务（' + sheetPages.pages.length + ' 页 × ' + params.copies + ' 份）', 'check');
+      toast('已发送到打印机', false, 'check');
     }
   }
 

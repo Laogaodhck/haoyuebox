@@ -390,8 +390,8 @@ window.App.printBatch = (function () {
         marginType: $('pb-margin').value === 'printableArea' ? 'printableArea' : 'none'
       }, params));
       if (res && res.ok) {
-        status.textContent = '已发送打印任务 ✓（' + urls.length + ' 页 × ' + params.copies + ' 份）';
-        toast('已发送到打印机 ✓');
+        window.App.ui.statusText(status, '已发送打印任务（' + urls.length + ' 页 × ' + params.copies + ' 份）', 'check');
+        toast('已发送到打印机', false, 'check');
       } else {
         status.textContent = '打印失败：' + ((res && res.error) || '未知错误');
         toast('打印失败：' + ((res && res.error) || '未知错误'), true);
@@ -789,9 +789,9 @@ window.App.printBatch = (function () {
 
     setPrinting(false, 'doc');
     if (okTasks >= totalTasks && !failMsg) {
-      status.textContent = '已发送打印任务 ✓（' + sentPages + ' 页 × ' + params.copies + ' 份'
-        + (mode === 'queue' ? ' · ' + totalTasks + ' 个任务）' : '）');
-      toast('已发送到打印机 ✓');
+      window.App.ui.statusText(status, '已发送打印任务（' + sentPages + ' 页 × ' + params.copies + ' 份'
+        + (mode === 'queue' ? ' · ' + totalTasks + ' 个任务）' : '）'), 'check');
+      toast('已发送到打印机', false, 'check');
     } else if (okTasks > 0) {
       status.textContent = '部分完成：成功 ' + okTasks + '/' + totalTasks + ' 个任务；失败原因：' + failMsg;
       toast('部分文档打印失败', true);
