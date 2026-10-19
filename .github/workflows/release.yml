@@ -35,7 +35,7 @@ jobs:
       # electron 与 electron-builder 的下载缓存（NSIS 工具链、winCodeSign、electron zip）
       # Windows 上两者缓存在 ~/AppData/Local 下（~/.cache 是 Linux 约定）；
       # ms-playwright 同路径规律，给 OCR 门禁的 Chromium 复用（版本随 package-lock 变更而失效）
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/AppData/Local/electron/Cache
