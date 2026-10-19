@@ -324,6 +324,7 @@
     if (!filtered.length) { toast('拖拽内容中没有可识别的压缩包', true); return; }
     archives = mergeItems(archives, filtered);
     $('ax-result').textContent = '';
+    $('ax-progress').hidden = true; /* 新入列时收纳上一轮残留的进度行 */
     renderExtractList();
     toast('已添加 ' + filtered.length + ' 个压缩包');
   }
@@ -402,6 +403,7 @@
       if (!filtered.length) { toast('所选文件中没有可识别的压缩包', true); return; }
       archives = mergeItems(archives, filtered);
       $('ax-result').textContent = '';
+      $('ax-progress').hidden = true; /* 新入列时收纳上一轮残留的进度行 */
       renderExtractList();
     }).catch(function (e) { toast('选择失败：' + (e.message || e), true); });
   }
@@ -420,6 +422,7 @@
     }).then(function (res) {
       renderExtractResult(res || { ok: false, results: [], okCount: 0, failCount: 0 });
     }).catch(function (e) {
+      $('ax-progress').hidden = true; /* 收纳进度行，异常信息走 ax-result */
       toast('解压失败：' + (e.message || e), true);
       $('ax-result').textContent = '解压失败：' + (e.message || e);
     }).then(function () { setRunning(false, 'extract'); });
@@ -440,6 +443,9 @@
         td3.textContent = extractTargetText(r.name, $('ax-out').value) + ' ✓';
       }
     });
+    /* 收纳进度行：完成后结果由 ax-result 呈现，
+     * 残留的「解压中 — N%」会让用户误以为任务卡住未结束 */
+    $('ax-progress').hidden = true;
     var line = (res.cancelled ? '解压已取消' : '解压完成') +
       '：成功 ' + res.okCount + ' 个' + (res.failCount ? '，失败 ' + res.failCount + ' 个' : '');
     $('ax-result').textContent = line;

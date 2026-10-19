@@ -34,11 +34,12 @@ npm run dist       # 打包 Windows 安装包 + 便携版
 
 ## 功能
 
-六个模块：**首页**（软件声明 + 入口）、**照片工具**（证照生成 / 图片转换 / 图片压缩 / 图片合成四个子功能，
+七个模块：**首页**（软件声明 + 入口）、**照片工具**（证照生成 / 图片转换 / 图片压缩 / 图片合成四个子功能，
 另有老照片修复、证照打印规划中）、**排版工具**（4 步批量排版打印）、
 **批量工具**（批量重命名 / 去除水印 / 格式转换 / 体积优化 / 批量打印五个子功能，批量加水印规划中）、
-**文档工具**（文档打印，文档转换规划中）、**压缩工具**（压缩 / 解压 / 压缩包图标）。
-顶部模块标签与首页工具卡片均可进入；照片、批量与文档工具下设子功能菜单。
+**文档工具**（文档打印 · 文档转换 · PDF 工具 · OCR 文字识别 · 文档加水印五项全部可用）、**压缩工具**（压缩 / 解压 / 压缩包图标）、
+**系统工具**（网络检测 / 添加打印机 / 设置三项可用，软件卸载 / 垃圾清理规划中，暂为占位页）。
+顶部模块标签与首页工具卡片均可进入；照片、批量、文档与系统工具下设子功能菜单。
 
 | 功能 | 说明 |
 | --- | --- |
@@ -62,12 +63,20 @@ npm run dist       # 打包 Windows 安装包 + 便携版
 | 批量重命名 | 文件夹级批量改名（照片/文档/自定义后缀过滤）：规则编号（基础名 + 分隔符 + 起始序号 + 位数）与逐行自定义名可混用；照片类型显示缩略图并支持点击放大预览；自然排序（图2 排在图10 前）；冲突逐行标注并跳过（目标已存在 / 链式冲突 / 批内重名 / 非法字符 / 系统保留名）；File System Access API 本地完成，优先原生原子 `move`；「清空」一键释放缩略图缓存与全部状态 |
 | 批量去除水印 | 预览图拖拽框选水印区域（选区按比例应用到整文件夹）· 模糊 / 像素化 / 纯色覆盖 / 周边取色填充 · 强度可调 · 另存为「-无水印」或覆盖原文件 |
 | 批量格式转换 | JPG / PNG / WebP / PDF 批量互转 · 质量可调 · 透明区域填充 · PDF 可合并为单文件或逐图单页 · 输出到子文件夹「转换输出」不动原文件 |
+| 网络检测 | 系统工具子功能：本机网卡信息（接口 / IPv4·IPv6 / MAC）· 公共 DNS 节点 TCP 连通与延迟检测 · 域名解析测试，结果三态汇总（正常 / 不稳定 / 无法联网）；桌面版仅连固定白名单节点，连接即断、不上传任何数据；浏览器模式禁用并提示 |
+| 添加打印机 | 系统工具子功能：本机打印机列表（含默认打印机标记）· 一键打开系统「添加打印机」向导与「打印机和扫描仪」设置页 · 打印测试页（打印机名经本机枚举白名单校验）；浏览器模式禁用并提示 |
+| 文档转换 | 文档工具子功能：PDF → 图片（JPG / PNG，1x / 1.5x / 2x 倍率，逐页单图）· 图片 → PDF（合并为单文件或逐图单页，原始尺寸或 A4 居中适印）· Word → PDF（.docx 简化版式转 A4 纵向 PDF）· 输出到「转换输出」子目录不动原文件 |
+| PDF 工具 | 文档工具子功能：多 PDF 按列表顺序合并为单个文件 · 页码范围拆分提取（如 1-3,5,8-，支持开口区间）· 体积压缩（三档强度重编码，显示前后体积对比）· 处理后页面为图像（文字不可再选中） |
+| 文档加水印 | 文档工具子功能：PDF 与图片（JPG / PNG / WebP）批量加文字或图片水印 · 文字水印含内容 / 字号 / 颜色 / 不透明度 / 旋转角，图片水印含缩放与透明度 · 九宫格定位或 1–8 列平铺防删除 · PDF 逐页栅格化重建（水印不可单独剥离），图片保持原格式（PNG 保留透明）· 实时预览 · 输出到「加水印输出」子文件夹不动原文件 |
+| OCR 文字识别 | 文档工具子功能：图片（JPG / PNG / WebP / BMP）与扫描 PDF 提取可编辑文字 · 内置 Tesseract LSTM 离线引擎（SIMD 自适应，首次识别加载内核）· 简体中文 + 英文语言包三选 · PDF 逐页栅格化识别 · 结果集中文本框可编辑 · 一键复制 / 导出 TXT / 导出 DOCX（Word / WPS 可开）· 全程本机完成，断网可用 |
+| 主题与偏好 | 系统工具 → 设置：深色 / 浅色主题切换（即时生效、刷新保持）· 启动时进入首页或上次使用的模块 · 设置记忆占用显示与一键恢复默认 · 关于信息（版本 / 运行模式自动识别 / 作者 / 许可） |
 | 设置记忆 | 规格、底色、输出格式与 JPEG 质量写入 localStorage，下次启动自动恢复 |
 
 ## 操作流程
 
 照片工具、批量工具与文档工具下设**子功能菜单**（首页工具卡片 / 模块标签 → 子菜单 → 具体功能），
-其中证照生成与批量重命名为 4 步流程，其余子功能为单页操作。
+其中证照生成与批量重命名为 4 步流程，其余子功能为单页操作；
+系统工具的软件卸载 / 垃圾清理目前为「敬请期待」占位页。
 
 **照片工具 → 证照生成**：上传 → 抠图换底 → 规格调整 → 导出
 
@@ -104,6 +113,12 @@ npm run dist       # 打包 Windows 安装包 + 便携版
 2. **参数**：选择打印机、纸张（A4/B5/A5/A3/Letter/4×6）、方向、边距、单双面与份数
 3. **打印**：可选列队逐份打印或合并单任务；浏览器模式提示改用桌面版
 
+**文档工具 → OCR 文字识别**：选择文件 → 识别 → 编辑导出
+
+1. **文件**：多选图片（JPG / PNG / WebP / BMP）或扫描 PDF，选语言包（中文 + 英文 / 仅中文 / 仅英文）
+2. **识别**：首次自动加载本地识别内核（约 12 MB，仅首次较慢），PDF 逐页栅格化识别，进度实时显示
+3. **导出**：结果集中文本框可编辑，一键复制或导出 TXT / DOCX（A4 纵向，Word / WPS 可直接打开）
+
 **压缩工具**：选择文件/文件夹 → 设定格式与密码 → 执行；或选择压缩包 → 解压
 
 1. **压缩**：多选文件或选择整个文件夹（自动去重），可选 7z / ZIP 格式、四档等级
@@ -119,14 +134,15 @@ npm run dist       # 打包 Windows 安装包 + 便携版
 
 ```
 photo/
-├── index.html              # 入口页面（六模块 DOM + 子功能菜单 + 脚本引入顺序）
+├── index.html              # 入口页面（七模块 DOM + 子功能菜单 + 脚本引入顺序）
 ├── electron/               # Electron 主进程（桌面版）
 │   ├── main.js             # 窗口、内置静态服务、CSP、打印/压缩 IPC、文件字节读取
-│   ├── preload.js          # contextBridge 暴露 zunhongPrint / zunhongArchive（白名单 IPC）
+│   ├── preload.js          # contextBridge 暴露 zunhongPrint / zunhongArchive / zunhongSystem（白名单 IPC）
 │   ├── static-server.js    # 随机端口本地静态服务（路径穿越防护 + 正确 MIME）
 │   ├── print-doc.js        # 多页打印文档构建（合并单任务发送）
 │   ├── archive.js          # 压缩/解压 IPC（spawn 内置 7z.exe，进度回传）
 │   ├── archive-icons.js    # 压缩包图标关联（HKCU ProgID 探测 / 注册 / 还原，白名单扩展名）
+│   ├── system.js           # 系统工具 IPC：网络检测（白名单 DNS 节点）+ 打印机向导/设置页/测试页
 │   ├── 7z-args.js          # 7z 命令行参数构建与输出解析（纯逻辑，可单测）
 │   └── bin/                # 内置 7z.exe + 7z.dll（LGPL，打包注入 resources/bin）
 ├── assets/                 # 品牌图标（源自尊泓 logo）
@@ -148,17 +164,24 @@ photo/
 │   ├── batch-format.js     # 批量格式转换（含 PDF 合并/单页）
 │   ├── print-batch.js      # 批量打印：图片（批量工具）+ 文档打印（文档工具，pdf.js / mammoth / TXT 分页）
 │   ├── archive.js          # 压缩工具渲染层（选择/参数/进度，7z 经主进程）
-│   ├── settings.js         # 用户设置持久化
+│   ├── settings.js         # 用户设置持久化（含主题/启动模块/上次模块偏好）
+│   ├── system.js           # 系统工具渲染层（网络检测/添加打印机面板 + 浏览器降级）
 │   ├── sheet.js            # 排版流程（4 步：模板 → 导入 → 预览 → 打印）
-│   └── print.js            # 直接打印（IPC 面板、纸张参数、打印预览）
+│   ├── print.js            # 直接打印（IPC 面板、纸张参数、打印预览）
+│   ├── docs-watermark.js   # 文档加水印（文字/图片水印 · 平铺定位 · FSA 输出）
+│   ├── pdfcore.js          # 文档工具共享 PDF 核心（pdf.js 渲染/编码/FSA 写入/页码解析）
+│   ├── docs-convert.js     # 文档转换（PDF→图片 / 图片→PDF / Word→PDF）
+│   ├── docs-pdf.js         # PDF 工具（合并 / 拆分提取 / 体积压缩）
+│   └── docs-ocr.js         # OCR 文字识别（懒加载 Tesseract · 结果编辑 · TXT/DOCX 导出）
 ├── vendor/
 │   ├── mediapipe/          # 本地化的模型与 WASM 运行时（离线关键）
-│   └── print/              # pdf.js（Apache-2.0）+ mammoth（BSD-2-Clause）本地化
+│   ├── print/              # pdf.js（Apache-2.0）+ mammoth（BSD-2-Clause）本地化
+│   └── ocr/                # Tesseract LSTM 离线识别引擎 + 简体中文/英文语言包（Apache-2.0）
 ├── tools/
 │   ├── server.js           # 浏览器模式静态服务（默认 8410，可用 PORT 覆盖）
 │   ├── _lib.cjs            # 测试公共库（端口、浏览器、断言计数、照片解析）
 │   ├── check-refs.cjs      # index.html 脚本与模型引用完整性校验（npm test 首步）
-│   ├── test-*.cjs          # 纯算法 / 冒烟测试（npm test 18 项，含真实 7z 冒烟）
+│   ├── test-*.cjs          # 纯算法 / 冒烟测试（npm test 21 项，含真实 7z 冒烟）
 │   ├── verify-*.cjs        # Playwright 端到端（分割/换底/缩放撤销/排版打印/压缩/批量打印/批量工具）
 │   ├── verify-output.cjs   # 检查导出 PNG 的尺寸与 pHYs（DPI）
 │   └── make-icons.cjs      # 图标生成（jimp，支持 --out 避免覆盖成品）
@@ -245,10 +268,24 @@ photo/
 - 沙箱渲染层无 fs 能力，文件字节经主进程 `print:readFile` 读取
   （白名单扩展名 + 200MB 上限，ArrayBuffer 经 IPC 结构化克隆传输）。
 
+### OCR 文字识别（Tesseract LSTM）
+
+- **引擎构成**：`vendor/ocr/` 内置 tesseract.js v5（Apache-2.0）——主线程加载器 `tesseract.min.js` +
+  Worker 脚本 `worker.min.js` + 双 wasm 识别内核（SIMD / 非 SIMD 各一套 LSTM 专用核心，运行时按
+  CPU 支持自适应加载）+ 简体中文 / 英文 traineddata 语言包（best_int 精度档）。
+- **懒加载**：脚本标签仅加载主线程加载器（约 60KB），首次点「开始识别」才创建 Worker 并加载内核与
+  语言包；切换语言包经 `reinitialize` 复用已加载的 wasm 内核，不重复初始化。
+- **识别管线**：图片直接交给引擎；PDF 经 pdfcore 逐页栅格化（2x 倍率、长边 ≤2000px）后逐页识别，
+  多项结果以「===== 名称 =====」分节拼接，单项直接输出；文本清理统一换行、去行尾空白、压缩连续空行。
+- **路径解析**：tesseract.js 在 blob: Worker 内 `importScripts` / `fetch`，相对路径无法解析，
+  workerPath / corePath / langPath 均经 `new URL(p, location.href)` 转绝对 URL。
+- **导出**：TXT 直接 Blob 下载；DOCX 为最小 OOXML 包（[Content_Types].xml + _rels/.rels +
+  word/document.xml，A4 纵向逐行成段），经内置 ZipUtil（store 不压缩）打包，零额外依赖。
+
 ## 开发与测试
 
 ```bash
-npm test          # 纯算法 + 静态服务 + jsdom 冒烟（18 套件，无需浏览器；test-archive 含真实 7z 冒烟）
+npm test          # 纯算法 + 静态服务 + jsdom 冒烟（21 套件，无需浏览器；test-archive 含真实 7z 冒烟）
 npm run verify    # Playwright 端到端：人像细节 / 换底导出 / 缩放撤销 / 笔刷 / 排版打印 / 压缩 / 批量打印
                   # 末尾 verify-packaged 会驱动打包产物（release-build/win-unpacked）做真实启动冒烟，无产物自动跳过
 npm run lint      # ESLint 静态检查（js/ electron/ 严格，tools/ 放宽）
@@ -298,6 +335,10 @@ npm run icons     # 重新生成图标（加 -- --out <dir> 可避免覆盖成�
 - 文档打印渲染来自 [pdf.js](https://mozilla.github.io/pdf.js/)（Mozilla Foundation，**Apache License 2.0**）
   与 [mammoth.js](https://github.com/mwilliamson/mammoth.js)（Mike Williamson，**BSD-2-Clause**），
   运行时本地化至 `vendor/print/` 以满足离线运行要求。
+- OCR 文字识别能力来自 [Tesseract](https://github.com/naptha/tesseract.js)
+  （tesseract.js 及 tesseract.js-core，**Apache License 2.0**）及其内置的 Tesseract OCR 引擎
+  与简体中文 / 英文 traineddata 语言包，本地化至 `vendor/ocr/` 以满足离线识别要求；
+  Tesseract 著作权归 Tesseract OCR 社区（原 HP / Google）所有。
 - Electron、electron-builder、jimp、jsdom、Playwright 为开发/打包期依赖，各自遵循其开源许可。
 
 ## 注意

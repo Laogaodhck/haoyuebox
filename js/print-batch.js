@@ -4,7 +4,7 @@
  * 文档：多选 PDF / TXT / DOCX → 列队顺序打印（每文档一个任务）
  *       或合并打印（全部页合并为一个任务），支持单双面。
  * 面板归属：print-batch 在批量工具视图内（返回交批量工具菜单），
- *           print-docs / docs-soon 在文档工具视图内。
+ *           print-docs / docs-convert / docs-pdf / docs-watermark / docs-ocr 在文档工具视图内。
  * PDF 渲染用 pdf.js（vendor/print），DOCX 用 mammoth 提取文本简化排版，
  * TXT 原生排版分页；全部离线本地执行。
  * 浏览器模式下 window.zunhongPrint 不存在，面板提示并禁用。
@@ -806,15 +806,20 @@ window.App.printBatch = (function () {
   /* ================= 面板与模式切换 ================= */
 
   /* showOnly 模式：仅显示指定面板（与批量/压缩工具一致）。
-     面板归属：print-batch（批量工具·图片批量打印）| print-docs（文档工具·文档打印）
-     | docs-soon（文档工具·文档转换占位）| null = 回各自子功能菜单 */
+     面板归属：print-batch（批量工具·图片批量打印）| print-docs（文档打印）
+     | docs-convert（文档转换）| docs-pdf（PDF 工具）| docs-watermark（文档加水印）
+     | docs-ocr（OCR 文字识别）| null = 回各自子功能菜单 */
   function showOnly(panelId) {
     $('batch-menu').hidden = panelId === 'print-batch';
-    $('print-menu').hidden = panelId === 'print-docs' || panelId === 'docs-soon';
+    $('print-menu').hidden = panelId === 'print-docs' || panelId === 'docs-convert' ||
+      panelId === 'docs-pdf' || panelId === 'docs-watermark' || panelId === 'docs-ocr';
     $('print-batch').hidden = panelId !== 'print-batch';
     $('print-docs').hidden = panelId !== 'print-docs';
     $('pd-doc').hidden = panelId !== 'print-docs';
-    $('docs-soon').hidden = panelId !== 'docs-soon';
+    $('docs-convert').hidden = panelId !== 'docs-convert';
+    $('docs-pdf').hidden = panelId !== 'docs-pdf';
+    $('docs-watermark').hidden = panelId !== 'docs-watermark';
+    $('docs-ocr').hidden = panelId !== 'docs-ocr';
   }
 
   function enter() { showOnly(null); }

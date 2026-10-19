@@ -246,6 +246,8 @@ withServer(PORT, async () => {
     assert(extPayload.destMode === 'same' && extPayload.items[0] === 'C:\\f\\a.zip', '解压 payload 正确');
     assert(await page.$eval('#ax-table tbody tr td:nth-child(4)', td => /✓/.test(td.textContent)),
       '成功行带 ✓ 标记');
+    assert(await page.$eval('#ax-progress', el => el.hidden),
+      '解压完成后进度行收纳（不留「解压中 — N%」残留）');
 
     // 第二次选择：b.7z（stub 第二次返回）→ 模拟失败
     await page.click('#ax-pick');

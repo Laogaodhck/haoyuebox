@@ -26,6 +26,7 @@
     <button class="module-tab" data-module="batch">批量工具</button>
     <button class="module-tab" data-module="print">文档工具</button>
     <button class="module-tab" data-module="archive">压缩工具</button>
+    <button class="module-tab" data-module="system">系统工具</button>
   </nav>
   <nav class="steps" id="steps-nav">
     <div class="step active" data-step="upload"><i>1</i>上传照片</div>
@@ -50,7 +51,7 @@
   <aside class="home-declare">
     <img class="home-logo" src="assets/icon.png" alt="尊泓工具箱">
     <h2 class="home-name">尊泓工具箱</h2>
-    <div class="home-version">桌面离线版 v1.3.2</div>
+    <div class="home-version">桌面离线版 v1.3.3</div>
     <div class="home-divider"></div>
     <h3 class="home-h3">软件声明</h3>
     <ul class="home-declare-list">
@@ -100,6 +101,14 @@
       <span class="hc-body">
         <span class="hc-title">压缩工具</span>
         <span class="hc-desc">7z / ZIP 批量压缩 · ZIP / RAR / 7z 等一键解压 · 密码加密</span>
+      </span>
+      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+    </button>
+    <button class="home-card" id="home-system" type="button">
+      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+      <span class="hc-body">
+        <span class="hc-title">系统工具</span>
+        <span class="hc-desc">软件卸载 · 垃圾清理 · 网络检测 · 更多系统功能陆续上线</span>
       </span>
       <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
@@ -1249,6 +1258,165 @@
 
 </div>
 
+<div id="view-system">
+
+  <!-- ========== 系统工具 · 子功能菜单（卸载/清理为占位，网络检测/添加打印机/设置已实装） ========== -->
+  <div id="system-menu">
+    <div class="archive-menu">
+      <button class="home-card" id="system-open-uninstall" type="button">
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">软件卸载 <span class="hc-badge soon">敬请期待</span></span>
+          <span class="hc-desc">列出本机已安装软件 · 一键安全卸载 · 残留清理（开发中）</span>
+        </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </button>
+      <button class="home-card" id="system-open-cleanup" type="button">
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">垃圾清理 <span class="hc-badge soon">敬请期待</span></span>
+          <span class="hc-desc">系统临时文件与缓存 · 常用软件垃圾 · 一键清理（开发中）</span>
+        </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </button>
+      <button class="home-card" id="system-open-network" type="button">
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">网络检测 <span class="hc-badge">可用</span></span>
+          <span class="hc-desc">网卡与 IP 信息 · 连通性检测 · DNS 解析测试</span>
+        </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </button>
+      <button class="home-card" id="system-open-printer" type="button">
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">添加打印机 <span class="hc-badge">可用</span></span>
+          <span class="hc-desc">本机打印机列表 · 系统添加向导 · 打印测试页</span>
+        </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </button>
+      <button class="home-card" id="system-open-settings" type="button">
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">设置 <span class="hc-badge">可用</span></span>
+          <span class="hc-desc">主题外观 · 启动模块 · 数据与缓存 · 关于与版本</span>
+        </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ========== 子功能：系统工具（四项开发中共用占位页，内容按入口填充；设置已实装见下） ========== -->
+  <section id="system-soon" class="subpage" hidden>
+    <div class="soon-wrap">
+      <div class="soon-card">
+        <span class="soon-icon" id="system-soon-icon"></span>
+        <div class="soon-title" id="system-soon-title"></div>
+        <div class="soon-desc" id="system-soon-desc"></div>
+        <ul class="soon-list" id="system-soon-list"></ul>
+        <span class="soon-badge">功能开发中 · 敬请期待</span>
+        <button id="soon-system-back" class="ghost soon-back">← 返回系统工具</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 子功能：系统工具 · 设置 ========== -->
+  <section id="system-settings" class="subpage" hidden>
+    <div class="settings-wrap">
+
+      <div class="panel settings-panel">
+        <h3>外观</h3>
+        <div class="settings-row">
+          <span>主题</span>
+          <select id="set-theme">
+            <option value="dark">深色（默认）</option>
+            <option value="light">浅色</option>
+          </select>
+        </div>
+        <h3>通用</h3>
+        <div class="settings-row">
+          <span>启动时进入</span>
+          <select id="set-start">
+            <option value="home">首页（默认）</option>
+            <option value="last">上次使用的模块</option>
+          </select>
+        </div>
+        <h3>数据</h3>
+        <div class="settings-row">
+          <span>设置记忆占用</span>
+          <span id="set-storage" class="settings-hint">…</span>
+        </div>
+        <div class="settings-row">
+          <span>恢复全部默认</span>
+          <button id="set-reset" class="ghost settings-danger">清空并重启</button>
+        </div>
+        <div class="settings-hint">设置仅保存在本机（localStorage），不上传任何数据。</div>
+      </div>
+
+      <div class="panel settings-panel">
+        <h3>关于</h3>
+        <div class="settings-row"><span>软件版本</span><span id="set-ver">…</span></div>
+        <div class="settings-row"><span>运行模式</span><span id="set-mode">…</span></div>
+        <div class="settings-row"><span>作者</span><span>老高 · QQ 846193</span></div>
+        <div class="settings-row"><span>许可</span><span>MIT（开源免费）</span></div>
+        <div class="settings-hint">纯本地离线工具，照片与文件处理全部在本机完成，不上传、不收集任何数据。</div>
+      </div>
+
+      <button id="set-back" class="ghost soon-back settings-back">← 返回系统工具</button>
+    </div>
+  </section>
+
+  <!-- ========== 子功能：系统工具 · 网络检测（桌面版经 zunhongSystem IPC；浏览器版提示降级） ========== -->
+  <section id="system-net" class="subpage" hidden>
+    <div class="settings-wrap">
+
+      <div class="panel settings-panel">
+        <h3>本机网卡信息</h3>
+        <div id="net-ifaces" class="sys-table"><div class="settings-hint">读取中…</div></div>
+        <div id="net-browser-hint" class="settings-hint" hidden>浏览器模式不支持网络检测，请使用桌面版。</div>
+      </div>
+
+      <div class="panel settings-panel">
+        <h3>网络连通检测</h3>
+        <div class="settings-row">
+          <span>对固定公共 DNS 节点做 TCP 连通与延迟测试，并测试域名解析</span>
+          <button id="net-probe-btn" class="ghost">开始检测</button>
+        </div>
+        <div id="net-results" class="sys-table" hidden></div>
+        <div id="net-summary" class="settings-hint"></div>
+        <div class="settings-hint">检测仅向公共 DNS（53 端口）发起连接即断开，不上传、不访问任何站点。</div>
+      </div>
+
+      <button id="back-system-net" class="ghost soon-back settings-back">← 返回系统工具</button>
+    </div>
+  </section>
+
+  <!-- ========== 子功能：系统工具 · 添加打印机（系统向导/设置页/测试页经主进程白名单调用） ========== -->
+  <section id="system-printer" class="subpage" hidden>
+    <div class="settings-wrap">
+
+      <div class="panel settings-panel">
+        <h3>本机打印机</h3>
+        <div id="printer-list" class="sys-table"><div class="settings-hint">读取中…</div></div>
+        <div class="settings-row">
+          <span>打印测试页到</span>
+          <select id="printer-test-select"><option value="">（未检测到打印机）</option></select>
+        </div>
+        <div class="sys-actions">
+          <button id="printer-wizard-btn" class="ghost">打开系统添加打印机向导</button>
+          <button id="printer-settings-btn" class="ghost">打开系统打印设置</button>
+          <button id="printer-refresh-btn" class="ghost">刷新列表</button>
+          <button id="printer-test-btn" class="ghost">打印测试页</button>
+        </div>
+        <div id="printer-browser-hint" class="settings-hint" hidden>浏览器模式不支持打印机操作，请使用桌面版。</div>
+      </div>
+
+      <button id="back-system-printer" class="ghost soon-back settings-back">← 返回系统工具</button>
+    </div>
+  </section>
+
+</div>
+
 <div id="view-print">
 
   <!-- ========== 文档工具 · 子功能菜单 ========== -->
@@ -1265,29 +1433,273 @@
       <button class="home-card" id="print-open-convert" type="button">
         <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg></span>
         <span class="hc-body">
-          <span class="hc-title">文档转换 <span class="hc-badge soon">敬请期待</span></span>
-          <span class="hc-desc">PDF ↔ 图片互转 · Word 转 PDF（开发中）</span>
+          <span class="hc-title">文档转换 <span class="hc-badge">可用</span></span>
+          <span class="hc-desc">PDF 转图片 · 图片转 PDF · Word 转 PDF</span>
+        </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </button>
+      <button class="home-card" id="print-open-pdf" type="button">
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">PDF 工具 <span class="hc-badge">可用</span></span>
+          <span class="hc-desc">多文件合并 · 页码提取 · 体积压缩</span>
+        </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </button>
+      <button class="home-card" id="print-open-ocr" type="button">
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">OCR 文字识别 <span class="hc-badge">可用</span></span>
+          <span class="hc-desc">图片 / 扫描 PDF 提取文字 · 中英文 · 导出 TXT / DOCX</span>
+        </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </button>
+      <button class="home-card" id="print-open-watermark" type="button">
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">文档加水印 <span class="hc-badge">可用</span></span>
+          <span class="hc-desc">文字 / 图片水印 · 九宫格或平铺 · 输出不动原文件</span>
         </span>
         <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
       </button>
     </div>
   </div>
 
-  <!-- ========== 子功能：文档转换（开发中占位） ========== -->
-  <section id="docs-soon" class="subpage" hidden>
-    <div class="soon-wrap">
-      <div class="soon-card">
-        <span class="soon-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg></span>
-        <div class="soon-title">文档转换</div>
-        <div class="soon-desc">PDF ↔ 图片互转 · Word 转 PDF</div>
-        <ul class="soon-list">
-          <li>PDF 逐页导出为 JPG / PNG 图片</li>
-          <li>多张图片合并生成 PDF 文档</li>
-          <li>Word 文档转 PDF 完整版式输出</li>
-        </ul>
-        <span class="soon-badge">功能开发中 · 敬请期待</span>
-        <button id="soon-docs-back" class="ghost soon-back">← 返回文档工具</button>
+  <!-- ========== 子功能：OCR 文字识别（本地 Tesseract LSTM · 中英文 · TXT/DOCX 导出） ========== -->
+  <section id="docs-ocr" class="subpage" hidden>
+    <div class="subpage-inner">
+
+      <div class="panel dw-side">
+        <h3>选择文件</h3>
+        <button id="do-pick" class="ghost dw-block">选择图片 / PDF</button>
+        <input id="do-file" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.bmp" hidden>
+        <div id="do-count" class="dw-hint"></div>
+        <div id="do-empty" class="dw-hint">支持 JPG / PNG / WebP / BMP 图片与 PDF（扫描件），可多选</div>
+        <button id="do-clear" class="ghost dw-block" hidden>清空列表</button>
+
+        <h3>识别语言</h3>
+        <div class="dw-row"><span>语言包（内置，全程离线）</span>
+          <select id="do-lang">
+            <option value="both" selected>中文 + 英文</option>
+            <option value="zh">仅中文（简体）</option>
+            <option value="en">仅英文</option>
+          </select>
+        </div>
+        <div class="dw-hint">首次识别需加载本地识别内核（约 12 MB），之后重复使用；切换语言包会重新初始化。扫描件清晰度越高效果越好。</div>
+
+        <button id="do-run" class="ghost dw-block">开始识别</button>
+        <div id="do-status" class="dw-status"></div>
+        <button id="do-back" class="ghost soon-back">← 返回文档工具</button>
       </div>
+
+      <div class="panel dw-stage">
+        <textarea id="do-text" class="do-text" spellcheck="false" placeholder="识别结果将显示在此处，可直接编辑…"></textarea>
+        <div id="do-meta" class="dw-hint"></div>
+        <div class="dw-file-btns">
+          <button id="do-copy" class="ghost" disabled>复制文本</button>
+          <button id="do-txt" class="ghost" disabled>导出 TXT</button>
+          <button id="do-docx" class="ghost" disabled>导出 DOCX</button>
+        </div>
+        <div id="do-empty-hint" class="dw-hint">选择文件并点击「开始识别」，识别全程在本机完成；结果可编辑、复制，或导出为 TXT / DOCX（Word）。</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========== 子功能：文档加水印（文字/图片水印 · PDF 逐页栅格化重建 · 图片保原格式） ========== -->
+  <section id="docs-watermark" class="subpage" hidden>
+    <div class="subpage-inner">
+
+      <div class="panel dw-side">
+        <h3>选择文件</h3>
+        <button id="dw-pick" class="ghost dw-block">选择 PDF / 图片</button>
+        <input id="dw-file" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" hidden>
+        <div id="dw-count" class="dw-hint"></div>
+        <div id="dw-empty" class="dw-hint">支持 PDF 与 JPG / PNG / WebP，可多选</div>
+        <button id="dw-clear" class="ghost dw-block" hidden>清空列表</button>
+
+        <h3>水印样式</h3>
+        <div class="pb-tabs">
+          <button id="dw-tab-text" class="pb-tab active" type="button">文字水印</button>
+          <button id="dw-tab-image" class="pb-tab" type="button">图片水印</button>
+        </div>
+        <div id="dw-text-rows">
+          <div class="dw-row"><span>水印内容</span><input id="dw-text" type="text" value="内部资料" maxlength="60"></div>
+          <div class="dw-row"><span>字号 <b id="dw-size-v">42</b></span><input id="dw-size" type="range" min="12" max="120" value="42"></div>
+          <div class="dw-row"><span>颜色</span>
+            <select id="dw-color">
+              <option value="black" selected>黑色</option>
+              <option value="white">白色</option>
+              <option value="gray">灰色</option>
+              <option value="red">红色</option>
+              <option value="blue">蓝色</option>
+            </select>
+          </div>
+        </div>
+        <div id="dw-img-rows" hidden>
+          <div class="dw-row"><span>水印图片（PNG 透明最佳）</span>
+            <span class="dw-file-btns"><button id="dw-img-pick" class="ghost">选择图片</button><span id="dw-img-name" class="dw-hint">未选择</span></span>
+            <input id="dw-img-file" type="file" accept="image/*" hidden>
+          </div>
+          <div class="dw-row"><span>大小（占短边）<b id="dw-img-scale-v">25%</b></span><input id="dw-img-scale" type="range" min="10" max="60" value="25"></div>
+        </div>
+        <div class="dw-row"><span>不透明度 <b id="dw-opacity-v">25%</b></span><input id="dw-opacity" type="range" min="5" max="100" value="25"></div>
+        <div class="dw-row"><span>旋转角 <b id="dw-rotate-v">-30°</b></span><input id="dw-rotate" type="range" min="-90" max="90" value="-30"></div>
+        <div class="dw-row"><span>位置</span>
+          <select id="dw-pos">
+            <option value="tile" selected>平铺（防删除）</option>
+            <option value="center">居中</option>
+            <option value="tl">左上</option><option value="tc">顶部居中</option><option value="tr">右上</option>
+            <option value="ml">左侧居中</option><option value="mr">右侧居中</option>
+            <option value="bl">左下</option><option value="bc">底部居中</option><option value="br">右下</option>
+          </select>
+        </div>
+        <div class="dw-row"><span>平铺密度（列数）</span><input id="dw-cols" type="range" min="1" max="8" value="4"></div>
+
+        <h3>输出</h3>
+        <button id="dw-dir" class="ghost dw-block">选择输出文件夹</button>
+        <div id="dw-dir-name" class="dw-hint">未选择</div>
+        <button id="dw-run" class="ghost dw-block">开始加水印</button>
+        <div id="dw-status" class="dw-status"></div>
+        <div class="dw-hint">PDF 将逐页栅格化处理（页面转为图像后重建），水印无法被单独剥离；图片保持原格式，PNG 保留透明。原文件不动。</div>
+        <button id="dw-back" class="ghost soon-back">← 返回文档工具</button>
+      </div>
+
+      <div class="panel dw-stage">
+        <canvas id="dw-canvas" hidden></canvas>
+        <div id="dw-preview-hint" class="dw-hint">选择文件后在此预览水印效果</div>
+        <div id="dw-list" class="dw-list"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========== 子功能：文档转换（PDF→图片 / 图片→PDF / Word→PDF） ========== -->
+  <section id="docs-convert" class="subpage" hidden>
+    <div class="subpage-inner">
+
+      <div class="panel dw-side">
+        <h3>选择文件</h3>
+        <button id="dc-pick" class="ghost dw-block">选择 .pdf（可多选）</button>
+        <input id="dc-file" type="file" multiple accept=".pdf" hidden>
+        <div id="dc-count" class="dw-hint"></div>
+        <div id="dc-empty" class="dw-hint">按当前转换方向选择文件</div>
+        <button id="dc-clear" class="ghost dw-block" hidden>清空列表</button>
+
+        <h3>转换方向</h3>
+        <div class="pb-tabs">
+          <button id="dc-tab-p2i" class="pb-tab active" type="button">PDF → 图片</button>
+          <button id="dc-tab-i2p" class="pb-tab" type="button">图片 → PDF</button>
+          <button id="dc-tab-w2p" class="pb-tab" type="button">Word → PDF</button>
+        </div>
+        <div id="dc-p2i">
+          <div class="dw-row"><span>图片格式</span>
+            <select id="dc-p2i-fmt">
+              <option value="jpeg" selected>JPG（体积小）</option>
+              <option value="png">PNG（无损）</option>
+            </select>
+          </div>
+          <div class="dw-row"><span>渲染倍率（越高质量越好、越慢）</span>
+            <select id="dc-p2i-scale">
+              <option value="1">1x（屏幕阅读）</option>
+              <option value="1.5">1.5x（推荐）</option>
+              <option value="2">2x（打印清晰）</option>
+            </select>
+          </div>
+        </div>
+        <div id="dc-i2p" hidden>
+          <div class="dw-row"><span>页面设置</span>
+            <select id="dc-i2p-paper">
+              <option value="original" selected>按图片原始尺寸</option>
+              <option value="a4">A4 纵向 · 居中适印</option>
+            </select>
+          </div>
+          <div class="dw-row"><span>输出方式</span>
+            <select id="dc-i2p-merge">
+              <option value="merge" selected>合并为单个 PDF</option>
+              <option value="single">逐图各生成一个 PDF</option>
+            </select>
+          </div>
+        </div>
+        <div id="dc-w2p" hidden>
+          <div class="dw-hint">将 .docx 转为 A4 纵向 PDF（简化版式：标题 / 正文 / 列表 / 表格 / 图片）。复杂排版建议用 Word 另存 PDF。</div>
+        </div>
+
+        <h3>输出</h3>
+        <button id="dc-dir" class="ghost dw-block">选择输出文件夹</button>
+        <div id="dc-dir-name" class="dw-hint">未选择</div>
+        <button id="dc-run" class="ghost dw-block">开始转换</button>
+        <div id="dc-status" class="dw-status"></div>
+        <div class="dw-hint">输出到所选文件夹的「转换输出」子目录，原文件不动。</div>
+        <button id="dc-back" class="ghost soon-back">← 返回文档工具</button>
+      </div>
+
+      <div class="panel dw-stage">
+        <div id="dc-list" class="dw-list"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========== 子功能：PDF 工具（合并 / 拆分提取 / 体积压缩） ========== -->
+  <section id="docs-pdf" class="subpage" hidden>
+    <div class="subpage-inner">
+
+      <div class="panel dw-side">
+        <h3>选择 PDF</h3>
+        <button id="dp-pick" class="ghost dw-block">选择 PDF 文件</button>
+        <input id="dp-file" type="file" multiple accept=".pdf" hidden>
+        <div id="dp-count" class="dw-hint"></div>
+        <div id="dp-empty" class="dw-hint">合并 / 压缩可多选，拆分提取单文件</div>
+        <button id="dp-clear" class="ghost dw-block" hidden>清空列表</button>
+        <div id="dp-list" class="dw-list"></div>
+
+        <h3>处理方式</h3>
+        <div class="pb-tabs">
+          <button id="dp-tab-merge" class="pb-tab active" type="button">合并</button>
+          <button id="dp-tab-split" class="pb-tab" type="button">拆分提取</button>
+          <button id="dp-tab-shrink" class="pb-tab" type="button">体积压缩</button>
+        </div>
+        <div id="dp-merge">
+          <div class="dw-hint">按列表顺序（↑↓ 调整）合并为单个「合并.pdf」。</div>
+        </div>
+        <div id="dp-split" hidden>
+          <div class="dw-row"><span>页码范围（示例：1-3,5,8-）</span>
+            <input id="dp-split-range" type="text" value="1-3" placeholder="如 1-3,5,8-">
+          </div>
+          <div class="dw-hint">支持单页 / 区间 / 开口区间，输出为「原名-提取.pdf」。</div>
+        </div>
+        <div id="dp-shrink" hidden>
+          <div class="dw-row"><span>压缩强度</span>
+            <select id="dp-shrink-quality">
+              <option value="0.8">轻度（质量优先）</option>
+              <option value="0.65" selected>推荐</option>
+              <option value="0.5">强力（体积优先）</option>
+            </select>
+          </div>
+          <div class="dw-row"><span>渲染倍率</span>
+            <select id="dp-shrink-scale">
+              <option value="1.5">1.5x</option>
+              <option value="1.2" selected>1.2x</option>
+              <option value="1">1x（最小体积）</option>
+            </select>
+          </div>
+          <div class="dw-hint">重编码后完成时显示体积对比；扫描件效果最佳。</div>
+        </div>
+
+        <h3>输出</h3>
+        <button id="dp-dir" class="ghost dw-block">选择输出文件夹</button>
+        <div id="dp-dir-name" class="dw-hint">未选择</div>
+        <button id="dp-run" class="ghost dw-block">开始合并</button>
+        <div id="dp-status" class="dw-status"></div>
+        <div class="dw-hint">处理后页面为图像（文字不可再选中），输出到「转换输出」子目录，原文件不动。</div>
+        <button id="dp-back" class="ghost soon-back">← 返回文档工具</button>
+      </div>
+
+      <div class="panel dw-stage">
+        <div id="dp-results" class="dw-list"></div>
+      </div>
+
     </div>
   </section>
 
@@ -1435,10 +1847,17 @@
   <script src="js/compose.js"></script>
   <script src="js/compress.js"></script>
 <script src="js/settings.js"></script>
+<script src="js/system.js"></script>
 <script src="js/sheet.js"></script>
 <script src="js/print.js"></script>
 <script type="module" src="vendor/print/pdf-adapter.mjs"></script>
 <script src="vendor/print/mammoth.browser.min.js"></script>
 <script src="js/print-batch.js"></script>
+<script src="js/pdfcore.js"></script>
+<script src="js/docs-watermark.js"></script>
+<script src="js/docs-convert.js"></script>
+<script src="js/docs-pdf.js"></script>
+<script src="vendor/ocr/tesseract.min.js"></script>
+<script src="js/docs-ocr.js"></script>
 </body>
 </html>

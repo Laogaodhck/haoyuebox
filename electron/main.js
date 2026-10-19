@@ -11,6 +11,7 @@ const { createStaticServer } = require('./static-server');
 const { buildPrintDoc } = require('./print-doc');
 const { registerArchiveIpc } = require('./archive');
 const archiveIcons = require('./archive-icons');
+const { registerSystemIpc } = require('./system');
 
 const APP_TITLE = '尊泓工具箱';
 let mainWindow = null;
@@ -154,6 +155,8 @@ function registerPrintIpc() {
 }
 registerPrintIpc();
 registerArchiveIpc(ipcMain, () => mainWindow);
+/* 系统工具：网络检测（固定白名单 DNS 节点）+ 打印机向导/设置页/测试页 */
+registerSystemIpc(ipcMain, () => mainWindow);
 
 /* 压缩包图标关联（HKCU 用户级，只补无关联的电脑，不动已有关联） */
 ipcMain.handle('archive-icons:probe', () => archiveIcons.probe());

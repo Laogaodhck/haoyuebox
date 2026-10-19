@@ -1,6 +1,7 @@
 /* ============================================================
  * settings.js — 用户设置持久化（localStorage）
- * 记住上次使用的规格、底色、输出格式与 JPEG 质量。
+ * 记住上次使用的规格、底色、输出格式与 JPEG 质量；
+ * 以及系统工具 → 设置 的偏好（主题 / 启动模块 / 上次模块）。
  * ============================================================ */
 'use strict';
 
@@ -16,7 +17,9 @@
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify({
         spec: State.spec.id, bg: State.bg, fmt: State.fmt, quality: State.quality,
-        whiten: State.whiten
+        whiten: State.whiten,
+        /* 系统工具 → 设置 的偏好 */
+        theme: State.theme, startMode: State.startMode, lastModule: State.lastModule
       }));
     } catch (e) { /* 存储不可用时静默忽略 */ }
   }
@@ -33,8 +36,21 @@
       if (s.fmt === 'png' || s.fmt === 'jpeg') State.fmt = s.fmt;
       if (typeof s.quality === 'number') State.quality = Math.min(1, Math.max(0.5, s.quality));
       if (typeof s.whiten === 'number') State.whiten = Math.min(100, Math.max(0, Math.round(s.whiten)));
+      if (s.theme === 'light' || s.theme === 'dark') State.theme = s.theme;
+      if (s.startMode === 'home' || s.startMode === 'last') State.startMode = s.startMode;
+      if (typeof s.lastModule === 'string') State.lastModule = s.lastModule;
       if (fromLegacy) save(); // 旧品牌设置迁移到新存储键
     } catch (e) { /* 设置损坏或不可读时按默认值继续 */ }
+    applyTheme();
+  }
+
+  /* 主题应用：浅色经 body[data-theme="light"] 覆盖颜色变量（见 style.css），深色即默认无属性 */
+  function applyTheme() {
+    if (State.theme === 'light') {
+      document.body.dataset.theme = 'light';
+    } else {
+      delete document.body.dataset.theme;
+    }
   }
 
   function applyToUI() {
@@ -46,7 +62,9 @@
     $('quality-val').textContent = Math.round(State.quality * 100) + '%';
     $('custom-bg').value = /^#[0-9a-fA-F]{6}$/.test(State.bg) ? State.bg : '#FFFFFF';
     App.photo.syncBgSwatches();
+    $('set-theme').value = State.theme === 'light' ? 'light' : 'dark';
+    $('set-start').value = State.startMode === 'last' ? 'last' : 'home';
   }
 
-  App.settings = { save: save, load: load, applyToUI: applyToUI };
+  App.settings = { save: save, load: load, applyToUI: applyToUI, applyTheme: applyTheme };
 })(window.App);

@@ -721,6 +721,7 @@ window.App = (function () {
     $('view-batch').style.display = name === 'batch' ? 'block' : 'none';
     $('view-archive').style.display = name === 'archive' ? 'block' : 'none';
     $('view-print').style.display = name === 'print' ? 'block' : 'none';
+    $('view-system').style.display = name === 'system' ? 'block' : 'none';
     document.querySelectorAll('.module-tab').forEach(function (t) {
       t.classList.toggle('active', t.dataset.module === name);
     });
@@ -732,6 +733,10 @@ window.App = (function () {
       window.App.printBatch.enter();
       window.App.printBatch.refreshPrinters();
     }
+    if (name === 'system') showSystemMenu();                  // 每次进入系统工具回到子功能菜单
+    /* 记录上次使用的模块（设置 → 启动时进入「上次使用的模块」用），随偏好一并持久化 */
+    State.lastModule = name;
+    window.App.settings.save();
   }
 
   /* 照片工具子功能：menu=子功能菜单 idphoto=证照生成 convert=图片转换 compose=图片合成
@@ -747,6 +752,85 @@ window.App = (function () {
     $('print-soon').hidden = name !== 'printsoon'; // 证照打印（开发中占位，自打印工具迁入）
   }
 
+  /* 系统工具子功能：软件卸载/垃圾清理两项暂未开发，占位页共用一套外壳，
+     标题/要点按入口填充，图标从对应菜单卡片克隆（见 style.css #view-system）；
+     网络检测/添加打印机/设置已实装（js/system.js + #system-net/#system-printer/#system-settings） */
+  var SYSTEM_SOON = {
+    uninstall: { title: '软件卸载',
+      desc: '列出本机已安装软件 · 一键安全卸载 · 残留清理',
+      list: ['已安装程序列表扫描与分类', '一键调用系统卸载流程', '卸载残留文件与注册表清理'] },
+    cleanup: { title: '垃圾清理',
+      desc: '系统临时文件与缓存 · 常用软件垃圾 · 一键清理',
+      list: ['系统临时文件与更新缓存清理', '浏览器与常用软件垃圾扫描', '清理前明细预览，只清垃圾不动文件'] }
+  };
+
+  function showSystemMenu() {
+    $('system-menu').hidden = false;
+    $('system-soon').hidden = true;
+    $('system-settings').hidden = true;
+    $('system-net').hidden = true;
+    $('system-printer').hidden = true;
+  }
+
+  function showSystemSoon(key) {
+    var info = SYSTEM_SOON[key];
+    if (!info) return;
+    var iconBox = $('system-soon-icon');
+    var iconSvg = document.querySelector('#system-open-' + key + ' .hc-icon svg');
+    iconBox.innerHTML = '';
+    if (iconSvg) iconBox.appendChild(iconSvg.cloneNode(true));
+    $('system-soon-title').textContent = info.title;
+    $('system-soon-desc').textContent = info.desc;
+    $('system-soon-list').innerHTML = info.list.map(function (t) {
+      return '<li>' + t + '</li>';
+    }).join('');
+    $('system-menu').hidden = true;
+    $('system-soon').hidden = false;
+  }
+
+  /* 系统工具 → 网络检测 / 添加打印机：切到对应面板并触发数据加载（js/system.js） */
+  function showSystemNet() {
+    $('system-menu').hidden = true;
+    $('system-soon').hidden = true;
+    $('system-settings').hidden = true;
+    $('system-printer').hidden = true;
+    $('system-net').hidden = false;
+    window.App.system.enterNet();
+  }
+
+  function showSystemPrinter() {
+    $('system-menu').hidden = true;
+    $('system-soon').hidden = true;
+    $('system-settings').hidden = true;
+    $('system-net').hidden = true;
+    $('system-printer').hidden = false;
+    window.App.system.enterPrinter();
+  }
+
+  /* 系统工具 → 设置：打开时同步控件取值、统计存储占用并填充关于信息 */
+  function showSystemSettings() {
+    $('system-menu').hidden = true;
+    $('system-soon').hidden = true;
+    $('system-settings').hidden = false;
+    window.App.settings.applyToUI();
+    var bytes = 0;
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        bytes += (k.length + (localStorage.getItem(k) || '').length) * 2; // UTF-16 每字符 2 字节
+      }
+    } catch (e) { /* 存储不可用时显示占位 */ }
+    $('set-storage').textContent = bytes > 0
+      ? '约 ' + (bytes / 1024).toFixed(1) + ' KB（localStorage，仅存本机）'
+      : '暂无本地存储数据';
+    var verEl = document.querySelector('.home-version');
+    var verMatch = /v[\d.]+/.exec(verEl && verEl.textContent || '');
+    $('set-ver').textContent = verMatch ? verMatch[0] : '未知';
+    $('set-mode').textContent = (window.zunhongPrint || window.zunhongArchive || window.zunhongDiag)
+      ? '桌面版（Electron）'
+      : '浏览器版（功能受限）';
+  }
+
   /* ============ 入口注册表（声明式） ============
      新增首页卡片/子功能入口只需在此各加一行，无需再改 initModules 与绑定代码。 */
   var MODULE_CARDS = [
@@ -754,7 +838,8 @@ window.App = (function () {
     { card: 'home-sheet',    module: 'sheet' },
     { card: 'home-batch',    module: 'batch' },
     { card: 'home-archive',  module: 'archive' },
-    { card: 'home-print',    module: 'print' }
+    { card: 'home-print',    module: 'print' },
+    { card: 'home-system',   module: 'system' }
   ];
   var SUB_ENTRIES = [
     { card: 'photo-open-idphoto',    run: function () { showPhotoSub('idphoto'); } },
@@ -774,13 +859,41 @@ window.App = (function () {
     { card: 'soon-batch-back',       run: function () { window.App.batch.showOnly(null); } },
     /* 批量打印（图片面板）已自打印工具迁入批量工具 */
     { card: 'batch-open-printbatch', run: function () { window.App.batch.showOnly('print-batch'); window.App.printBatch.refreshPrinters(); } },
-    /* 文档工具：文档打印 + 文档转换占位 */
-    { card: 'print-open-docs',       run: function () { window.App.printBatch.showOnly('print-docs'); } },
-    { card: 'print-open-convert',    run: function () { window.App.printBatch.showOnly('docs-soon'); } },
-    { card: 'soon-docs-back',        run: function () { window.App.printBatch.showOnly(null); } }
+    /* 文档工具：五项子功能均已实装 */
+    { card: 'print-open-docs',      run: function () { window.App.printBatch.showOnly('print-docs'); } },
+    { card: 'print-open-convert',   run: function () {
+      window.App.printBatch.showOnly('docs-convert');
+      window.App.docsConvert.enter();
+    } },
+    { card: 'print-open-pdf',       run: function () {
+      window.App.printBatch.showOnly('docs-pdf');
+      window.App.docsPdf.enter();
+    } },
+    { card: 'print-open-ocr',       run: function () {
+      window.App.printBatch.showOnly('docs-ocr');
+      window.App.docsOcr.enter();
+    } },
+    { card: 'print-open-watermark', run: function () {
+      window.App.printBatch.showOnly('docs-watermark');
+      window.App.docsWatermark.enter();
+    } },
+    { card: 'dc-back',              run: function () { window.App.printBatch.showOnly(null); } },
+    { card: 'dp-back',              run: function () { window.App.printBatch.showOnly(null); } },
+    { card: 'dw-back',              run: function () { window.App.printBatch.showOnly(null); } },
+    { card: 'do-back',              run: function () { window.App.printBatch.showOnly(null); } },
+    /* 系统工具：软件卸载/垃圾清理为占位页，网络检测/添加打印机/设置已实装 */
+    { card: 'system-open-uninstall', run: function () { showSystemSoon('uninstall'); } },
+    { card: 'system-open-cleanup',   run: function () { showSystemSoon('cleanup'); } },
+    { card: 'system-open-network',   run: function () { showSystemNet(); } },
+    { card: 'system-open-printer',   run: function () { showSystemPrinter(); } },
+    { card: 'system-open-settings',  run: function () { showSystemSettings(); } },
+    { card: 'soon-system-back',      run: function () { showSystemMenu(); } },
+    { card: 'back-system-net',       run: function () { showSystemMenu(); } },
+    { card: 'back-system-printer',   run: function () { showSystemMenu(); } },
+    { card: 'set-back',              run: function () { showSystemMenu(); } }
   ];
   /* boot 时逐个调用的模块 init 列表（与 window.App 键名一致） */
-  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch'];
+  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch', 'docsWatermark', 'docsConvert', 'docsPdf', 'docsOcr', 'system'];
 
   function initModules() {
     document.querySelectorAll('.module-tab').forEach(function (t) {
@@ -791,6 +904,24 @@ window.App = (function () {
     });
     SUB_ENTRIES.forEach(function (e) {
       $(e.card).addEventListener('click', e.run);
+    });
+    /* 系统工具 → 设置：偏好修改即时生效并持久化 */
+    $('set-theme').addEventListener('change', function () {
+      State.theme = this.value === 'light' ? 'light' : 'dark';
+      window.App.settings.applyTheme();
+      window.App.settings.save();
+    });
+    $('set-start').addEventListener('change', function () {
+      State.startMode = this.value === 'last' ? 'last' : 'home';
+      window.App.settings.save();
+    });
+    $('set-reset').addEventListener('click', function () {
+      window.App.ui.confirm('确定清空全部本机设置并恢复默认吗？\n（含规格/底色/输出记忆与主题、启动偏好）')
+        .then(function (ok) {
+          if (!ok) return;
+          try { localStorage.clear(); } catch (e) { /* 忽略 */ }
+          location.reload();
+        });
     });
   }
 
@@ -848,7 +979,13 @@ window.App = (function () {
       }
     });
     window.App.settings.applyToUI();
-    showModule('home'); // 启动进入首页
+    /* 启动模块：默认首页；设置选择「上次使用的模块」时恢复上次位置（未知值兜底回首页） */
+    var KNOWN_MODULES = ['home', 'photo', 'sheet', 'batch', 'archive', 'system', 'print'];
+    var startModule = 'home';
+    if (State.startMode === 'last' && KNOWN_MODULES.indexOf(State.lastModule) >= 0) {
+      startModule = State.lastModule;
+    }
+    showModule(startModule); // 启动进入首页或上次模块
   }
 
   var App = {

@@ -122,6 +122,10 @@ const args7z = require(path.join(ROOT, 'electron', '7z-args.js'));
   t.assert(args7z.parseProgress(' 42% 5 + path/to/file') === 42, 'parseProgress 解析 42%');
   t.assert(args7z.parseProgress('  7%\r') === 7, 'parseProgress 兼容 \\r 刷新行');
   t.assert(args7z.parseProgress('100%') === 100, 'parseProgress 100%');
+  t.assert(args7z.parseProgress(' 78% 14\r 99% 44 - f') === 99,
+    'parseProgress 单帧多条取最后一帧（取首帧会滞留旧百分比）');
+  t.assert(args7z.parseProgress(' 40% 7\r 78% 14\r') === 78,
+    'parseProgress 多帧刷新取末帧');
   t.assert(args7z.parseProgress('一切正常输出') === null && args7z.parseProgress('123%') === null,
     'parseProgress 无进度/超界返回 null');
   t.assert(args7z.tailError(' 42%\r\n\r\nERROR: 错误的密码\r\n') === 'ERROR: 错误的密码',

@@ -23,6 +23,28 @@
   --focus-ring: 0 0 0 3px var(--accent-ring);
 }
 
+/* ---------- 浅色主题（系统工具 → 设置 切换）：仅覆盖颜色变量与滚动条，深色为默认 ---------- */
+body[data-theme="light"] {
+  --bg: #f2f4f8;
+  --bg-panel: #ffffff;
+  --bg-card: #ffffff;
+  --bg-hover: #eef1f6;
+  --bg-canvas: #e6e9f0;
+  --bg-toast: #ffffff;
+  --accent-soft: #e3ecff;
+  --border: #d8dee9;
+  --text: #232833;
+  --text-dim: #67708a;
+  --accent: #2f6fe8;
+  --accent-ring: rgba(47, 111, 232, 0.25);
+  --accent-strong: #1f5fd0;
+  --green: #149367;
+  --danger: #d84a4a;
+  scrollbar-color: #c3cad6 transparent;
+}
+body[data-theme="light"] ::-webkit-scrollbar-thumb { background: #c3cad6; border-color: var(--bg); }
+body[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #aab3c2; }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* hidden 属性必须永远生效（否则 .loading 的 display:flex 会压过它，遮罩永远关不掉） */
@@ -661,8 +683,79 @@ body[data-module="archive"] #sheet-steps-nav { display: none; }
 body[data-module="print"] #steps-nav,
 body[data-module="print"] #sheet-steps-nav { display: none; }
 #view-print { display: none; }
+/* ---------- 系统工具 ---------- */
+body[data-module="system"] #steps-nav,
+body[data-module="system"] #sheet-steps-nav { display: none; }
+#view-system { display: none; }
+/* 系统工具 → 设置：单列居中面板（覆盖 .subpage 的双栏网格） */
+#system-settings.subpage { display: block; }
+.settings-wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 16px; }
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-row select { min-width: 160px; }
+.settings-hint { color: var(--text-dim); font-size: 12.5px; line-height: 1.6; padding: 8px 0 2px; }
+.settings-danger { color: var(--danger); border-color: var(--danger); }
+.settings-back { justify-self: center; margin-top: 4px; }
+/* 系统工具数据表（网络检测/打印机列表共用）：3 列网格，.cols2 双列变体 */
+.sys-table { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin: 8px 0 4px; }
+.sys-table-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1.7fr 0.9fr;
+  gap: 8px;
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  align-items: center;
+}
+.sys-table-row:first-child { border-top: none; background: var(--bg-hover); color: var(--text-dim); }
+.sys-table-row span { word-break: break-all; }
+.sys-table-row.cols2 { grid-template-columns: 2fr 1fr; }
+.sys-status { color: var(--text); }
+.sys-table-row.ok .sys-status { color: var(--green); }
+.sys-table-row.bad .sys-status { color: var(--danger); }
+.sys-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+/* 文档加水印面板：侧栏参数 + 右侧预览 */
+.dw-block { width: 100%; margin-bottom: 8px; }
+.dw-hint { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; word-break: break-all; }
+.dw-row { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--text-dim); margin-bottom: 10px; }
+.dw-row b { color: var(--text); font-weight: 600; }
+.dw-row input[type="text"], .dw-row select, .dw-row input[type="range"] { width: 100%; }
+.dw-file-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dw-side h3 { margin-top: 14px; }
+.dw-side h3:first-child { margin-top: 0; }
+.dw-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; min-height: 320px; overflow: auto; }
+.dw-stage canvas { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-hover); }
+.dw-status { font-size: 12.5px; color: var(--text); min-height: 18px; margin-bottom: 6px; word-break: break-all; }
+.dw-list { width: 100%; }
+.dw-list-row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 2px; border-bottom: 1px dashed var(--border); font-size: 12.5px; }
+.dw-list-row .dw-res { flex: none; }
+.dw-list-row.ok .dw-res { color: var(--green); }
+.dw-list-row.bad .dw-res { color: var(--danger); }
+/* OCR 文字识别：结果编辑框（随 dw-stage 弹性列宽自适应） */
+.do-text {
+  width: 100%;
+  min-height: 320px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.7;
+  font-family: inherit;
+}
+.do-text:focus { outline: none; border-color: var(--accent); }
+.do-text::placeholder { color: var(--text-dim); }
 /* 批量打印 / 文档打印：面板外壳（内部为 subpage-inner 双栏，外壳本身不参与分栏） */
-#print-batch.subpage, #print-docs.subpage { display: block; }
+#print-batch.subpage, #print-docs.subpage, #docs-watermark.subpage,
+#docs-convert.subpage, #docs-pdf.subpage, #docs-ocr.subpage { display: block; }
 .subpage-inner { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
 .pb-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
 .pb-tab {

@@ -439,6 +439,7 @@
       window.App.batch.showOnly('batch-format');
       renderAll();
     },
+    buildPdf: buildPdf, // 纯 JS PDF 生成器（DCTDecode 嵌 JPEG），供文档工具各面板复用
     // 以下导出仅供测试
     _test: {
       FMTS: FMTS,

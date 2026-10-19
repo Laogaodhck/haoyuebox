@@ -7,6 +7,10 @@
 | [pdf.js](https://github.com/mozilla/pdf.js)（pdfjs-dist） | 6.4.299 | `vendor/print/pdf.min.mjs`、`pdf.worker.min.mjs`、`pdf-adapter.mjs`（ESM 适配器） | https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-6.4.299.tgz | Apache-2.0 | 2026-10-17 |
 | [mammoth](https://github.com/mwilliamson/mammoth.js) | 1.13.0 | `vendor/print/mammoth.browser.min.js` | https://registry.npmjs.org/mammoth/-/mammoth-1.13.0.tgz | BSD-2-Clause | 2026-10-17 |
 | [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe) | 1.1.1 | `vendor/mediapipe/vision_bundle.js`、`wasm/`（6 个文件）、`models/*.tflite`（模型资产不变） | https://registry.npmjs.org/@mediapipe/tasks-vision/-/tasks-vision-1.1.1.tgz | Apache-2.0 | 2026-10-17 |
+| [tesseract.js](https://github.com/naptha/tesseract.js) | 5.1.1 | `vendor/ocr/tesseract.min.js`、`worker.min.js` | https://registry.npmjs.org/tesseract.js/-/tesseract.js-5.1.1.tgz | Apache-2.0 | 2026-10-19 |
+| [tesseract.js-core](https://github.com/naptha/tesseract.js-core) | 5.1.1 | `vendor/ocr/tesseract-core-{simd-,}lstm.wasm(.js)`（LSTM 内核 + wasm sidecar） | https://registry.npmjs.org/tesseract.js-core/-/tesseract.js-core-5.1.1.tgz | Apache-2.0 | 2026-10-19 |
+| [@tesseract.js-data/chi_sim](https://github.com/naptha/tesseract.js-data) | 1.0.0（4.0.0_best_int） | `vendor/ocr/lang/chi_sim.traineddata.gz` | https://registry.npmjs.org/@tesseract.js-data/chi_sim/-/chi_sim-1.0.0.tgz | Apache-2.0 | 2026-10-19 |
+| [@tesseract.js-data/eng](https://github.com/naptha/tesseract.js-data) | 1.0.0（4.0.0_best_int） | `vendor/ocr/lang/eng.traineddata.gz` | https://registry.npmjs.org/@tesseract.js-data/eng/-/eng-1.0.0.tgz | Apache-2.0 | 2026-10-19 |
 
 ## 升级注意事项
 
@@ -40,6 +44,17 @@
 ### mammoth（→ 1.13.0）
 
 - UMD 构建，仍挂 `window.mammoth`，`convertToHtml({ arrayBuffer })` API 不变，直接替换文件即可。
+
+### tesseract.js（5.1.1，新增）
+
+- 主线程构建 `tesseract.min.js` 为 UMD（挂 `window.Tesseract`），`worker.min.js` 由主线程
+  以 blob: 包装 `importScripts` 加载——**三个路径（workerPath / corePath / langPath）必须传
+  绝对 URL**，blob: Worker 内无法解析相对路径（`js/docs-ocr.js` 的 `absUrl()` 已处理）；
+- `corePath` 指向目录时按 CPU SIMD 支持自适应加载 `tesseract-core-simd-lstm` 或
+  `tesseract-core-lstm`（OEM 1 = LSTM_ONLY），**`.wasm` 文件是对应 `.wasm.js`（emscripten
+  glue）的 sidecar，升级必须成对拷贝**；
+- 语言包来自 `@tesseract.js-data/*`，仅有 `4.0.0_best_int` 精度档目录（无 fast_int），
+  gzip 包随 `langPath` 目录分发；`createWorker(langs, 1, opts)` 的 `logger` 仅在主线程回调。
 
 ## 验证入口
 

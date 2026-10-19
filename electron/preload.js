@@ -58,4 +58,14 @@ contextBridge.exposeInMainWorld('zunhongArchiveIcons', {
   restore: (exts) => ipcRenderer.invoke('archive-icons:restore', exts)
 });
 
+/* 系统工具桥接：网络检测（主进程仅连固定白名单 DNS 节点）+ 打印机系统操作 */
+contextBridge.exposeInMainWorld('zunhongSystem', {
+  isDesktop: true,
+  netInfo: () => ipcRenderer.invoke('system:netInfo'),
+  netProbe: () => ipcRenderer.invoke('system:netProbe'),
+  openAddPrinter: () => ipcRenderer.invoke('system:openAddPrinter'),
+  openPrintSettings: () => ipcRenderer.invoke('system:openPrintSettings'),
+  printTestPage: (printerName) => ipcRenderer.invoke('system:printTestPage', printerName)
+});
+
 console.log('[zunhong] 打印桥接已就绪');

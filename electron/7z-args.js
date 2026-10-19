@@ -104,12 +104,19 @@ function buildExtractArgs(opts) {
 
 /* 从 7z 进度输出片段解析百分比（0-100），无进度则返回 null
  * -bsp1 行首刷新，形如 " 42% 5 + path/to/file"（\r 同行重写），
- * 取行内首个百分比即可——% 后的数字是文件计数，不能要求其后无数字 */
+ * 取行内首个百分比即可——% 后的数字是文件计数，不能要求其后无数字。
+ * 注意：一次 stdout data 事件可能携带多帧刷新（如 " 78% 14\r 99% 44 - f"），
+ * 必须取最后一帧——取首帧会让进度滞留在旧值（UI 表现为「卡住」在历史百分比） */
 function parseProgress(chunk) {
-  const m = String(chunk).match(/(\d{1,3})%/);
-  if (!m) return null;
-  const n = parseInt(m[1], 10);
-  return n >= 0 && n <= 100 ? n : null;
+  const s = String(chunk);
+  const re = /(\d{1,3})%/g;
+  let m;
+  let last = null;
+  while ((m = re.exec(s)) !== null) {
+    const n = parseInt(m[1], 10);
+    if (n >= 0 && n <= 100) last = n;
+  }
+  return last;
 }
 
 /* 从 stderr/stdout 尾部提取用户可读的错误行（去掉空行与进度残留） */
