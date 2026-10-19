@@ -2,7 +2,7 @@
 
 本项目所有显著变更记录于此。版本号遵循语义化版本（主版本.次版本.修订号）。
 
-## [未发布]
+## [1.3.4] - 2026-10-20
 
 ### 修复
 - **修复中文打印机名「默认打印机」徽标永不显示**：windowsDefaultPrinter 经 execFile 调 PowerShell 未指定输出编码，中文 Windows 的 PowerShell 5.1 管道输出走 OEM 代码页（GBK 936），Node 按 UTF-8 解码成乱码，与 Electron 枚举的 Unicode 打印机名永不相等（英文名不受影响，故测试环境从未暴露）。现 `-Command` 前强制 `[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;`（electron/main.js；真机探针证实：无前缀输出 GBK 字节 bb dd c6 d5 解码为乱码，加前缀输出 e6 83 a0 e6 99 ae 正确得「惠普」）
