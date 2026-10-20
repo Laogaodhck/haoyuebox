@@ -6,8 +6,15 @@
 
 ### 修复
 - **修复覆盖安装弹「尊泓工具箱 无法关闭。请手动关闭它，然后单击重试以继续。」**：覆盖安装前安装器会静默运行旧版卸载程序，机器上存在挂起/无窗口的旧进程（不响应 WM_CLOSE）时旧版卸载连续 5 次失败即弹此框卡住安装；默认运行检测的优雅关闭与强杀对此类进程也可能漏杀。现经 electron-builder `nsis.include`（新增 assets/installer.nsh）定义 `customCheckAppRunning`，在默认检测之前先静默强杀：PowerShell 按安装目录路径精确匹配 Stop-Process（不误杀别处同名便携版）+ `taskkill /F /T` 按映像名兜底（/T 连子进程），最多 4 轮检测-强杀；仍杀不掉回落默认提示框（行为不劣于修复前）。卸载程序同样受益
+- **修复「软件版本」显示可能与包版本漂移**：设置→关于 的版本此前从首页硬编码文案正则提取，升级改版漏改 HTML 即显示错版本。现桌面版优先显示主进程真实版本（`app:getUpdateInfo` → `app.getVersion()`），HTML 文案仅浏览器版兜底；升级过的安装额外显示「（自 vX 升级）」
 
 ### 改进
+- **覆盖安装与版本更新的数据保留与迁移体系**：
+  - 安装器显式声明 `deleteAppDataOnUninstall: false`——卸载/覆盖安装绝不清除用户数据（%APPDATA% 下 userData 与程序目录隔离，原靠默认值的隐性依赖转为显式契约）
+  - 设置结构版本化（新增 `v` 字段，当前 v2）：新增 `js/settings.js` 迁移框架，逐级迁移（v1 旧数据/浩玥旧键 → v2 规范化）；**迁移前先把原始数据快照备份**到 `userData/backups`（主进程原子写，保留最近 3 份），**迁移失败回滚**——原始数据原样保留、不写任何新值、按默认值继续并落诊断日志；比当前更高版本的数据（降级安装场景）原样保留不向下迁移
+  - 版本检测（新增 `electron/update.js`）：启动时比对 `userData/version-marker.json`（原子写 tmp+rename，中断不留半截 JSON；损坏自愈重写），识别 升级/版本回滚/常规/首启 并落诊断日志——更新失败退回旧版不再不可感知；渲染层升级首启自动再备份一次当前设置
+  - 数据备份恢复：设置主键缺失（误清空/存储损坏）但存在备份时，启动弹确认框询问恢复（App.ui.confirm），拒绝即删除该备份；备份读取/删除均有文件名白名单与路径穿越防护
+  - 新增 preload 桥 `zunhongApp`（app:updateInfo/backupData/readBackup/deleteBackup 四通道，test-ipc-contract 自动覆盖）；新增 `tools/test-update.cjs` 37 断言（版本比较、启动类型判定、原子写、备份全链路、裁剪与穿越拒绝），test-dom 扩展迁移框架断言（414 通过，全套件 25 个直读退出码全绿）
 - **压缩/解压支持输出到桌面**：「压缩到」下拉新增「桌面（自动命名）」（输出 `桌面\压缩包.7z`，单项沿用其名称；桌面路径经主进程 `app.getPath('desktop')` 获取，与系统桌面重定向一致），「解压到」下拉新增「桌面同名文件夹」（每个压缩包解压到 `桌面\包名\`）。新增 `archive:desktopPath` IPC 与 preload 桥接 desktopPath（test-ipc-contract 22 通道双向核对通过）；解压表格「解压到」列同步显示「桌面/包名/」文案。test-archive 新增 4 断言、verify-archive 新增 3 断言（65/65 通过）
 
 ## [1.3.5] - 2026-10-20

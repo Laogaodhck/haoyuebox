@@ -11,7 +11,7 @@
     "serve": "node tools/server.js",
     "dist": "electron-builder --win",
     "icons": "node tools/make-icons.cjs",
-    "test": "node tools/check-refs.cjs && node tools/test-dpi.cjs && node tools/test-compress.cjs && node tools/test-hair-clothes.cjs && node tools/test-server.cjs && node tools/test-print-route.cjs && node tools/test-dom.cjs && node tools/test-tilt.cjs && node tools/test-batch-rename.cjs && node tools/test-brush.cjs && node tools/test-zip.cjs && node tools/test-convert.cjs && node tools/test-compose.cjs && node tools/test-batch-format.cjs && node tools/test-batch-watermark.cjs && node tools/test-archive.cjs && node tools/test-archive-icons.cjs && node tools/test-print-batch.cjs && node tools/test-print-doc.cjs && node tools/test-docs-watermark.cjs && node tools/test-pdfcore.cjs && node tools/test-docs-ocr.cjs && node tools/test-system.cjs && node tools/test-ipc-contract.cjs",
+    "test": "node tools/check-refs.cjs && node tools/test-dpi.cjs && node tools/test-compress.cjs && node tools/test-hair-clothes.cjs && node tools/test-server.cjs && node tools/test-print-route.cjs && node tools/test-dom.cjs && node tools/test-tilt.cjs && node tools/test-batch-rename.cjs && node tools/test-brush.cjs && node tools/test-zip.cjs && node tools/test-convert.cjs && node tools/test-compose.cjs && node tools/test-batch-format.cjs && node tools/test-batch-watermark.cjs && node tools/test-archive.cjs && node tools/test-archive-icons.cjs && node tools/test-print-batch.cjs && node tools/test-print-doc.cjs && node tools/test-docs-watermark.cjs && node tools/test-pdfcore.cjs && node tools/test-docs-ocr.cjs && node tools/test-system.cjs && node tools/test-update.cjs && node tools/test-ipc-contract.cjs",
     "verify": "node tools/verify-hair.cjs && node tools/verify-matteview.cjs && node tools/verify-sheet.cjs && node tools/verify-sheet-save.cjs && node tools/verify-archive.cjs && node tools/verify-batch.cjs && node tools/verify-print-batch.cjs && node tools/verify-brush.cjs && node tools/verify-output.cjs && node tools/verify-ocr.cjs && node tools/verify-packaged.cjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -74,6 +74,7 @@
       "createStartMenuShortcut": true,
       "shortcutName": "尊泓工具箱",
       "uninstallDisplayName": "尊泓工具箱",
+      "deleteAppDataOnUninstall": false,
       "artifactName": "尊泓工具箱 Setup ${version}.${ext}"
     },
     "portable": {

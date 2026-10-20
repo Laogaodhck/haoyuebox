@@ -12,6 +12,7 @@ const { buildPrintDoc } = require('./print-doc');
 const { registerArchiveIpc } = require('./archive');
 const archiveIcons = require('./archive-icons');
 const { registerSystemIpc } = require('./system');
+const update = require('./update');
 
 const APP_TITLE = '尊泓工具箱';
 let mainWindow = null;
@@ -170,6 +171,8 @@ registerPrintIpc();
 registerArchiveIpc(ipcMain, () => mainWindow);
 /* 系统工具：网络检测（固定白名单 DNS 节点）+ 打印机向导/设置页/测试页 */
 registerSystemIpc(ipcMain, () => mainWindow);
+/* 版本检测/升级标记/数据备份（覆盖安装与版本更新的本机侧支撑） */
+const updateCtl = update.registerUpdateIpc(ipcMain, app, appendDiag);
 
 /* 压缩包图标关联（HKCU 用户级，只补无关联的电脑，不动已有关联） */
 ipcMain.handle('archive-icons:probe', () => archiveIcons.probe());
@@ -290,7 +293,12 @@ if (process.platform === 'win32') {
 }
 
 // 启动失败（如静态服务监听失败）不能静默变僵尸：落诊断日志 + 弹窗告知 + 退出
-app.whenReady().then(createWindow).catch((err) => {
+app.whenReady().then(() => {
+  // 升级/回滚扫描须在窗口创建前完成：marker 原子写 + 诊断日志，
+  // 渲染层 boot 后即可取到本次启动类型（升级首启触发数据备份）
+  updateCtl.scanOnLaunch();
+  return createWindow();
+}).catch((err) => {
   appendDiag('createWindow-failed', (err && err.stack) || String(err));
   dialog.showErrorBox('尊泓工具箱启动失败', '窗口初始化失败：' + ((err && err.message) || err));
   app.quit();

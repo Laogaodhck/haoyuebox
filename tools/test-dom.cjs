@@ -67,6 +67,24 @@ withServer(PORT, async () => {
     'App.sheet / App.print 引导函数就绪');
   assert(typeof win.App.settings.save === 'function' && typeof win.App.photo.makeSingleCanvas === 'function',
     'App.settings.save / App.photo.makeSingleCanvas 可用');
+  /* 设置版本化迁移框架（覆盖安装/版本更新的数据保留核心） */
+  assert(win.App.settings.SCHEMA_VERSION === 2, 'App.settings.SCHEMA_VERSION === 2');
+  assert(win.App.settings.versionOf({}) === 1, 'versionOf 无 v 标记视作 v1');
+  assert(win.App.settings.versionOf({ v: 2 }) === 2 && win.App.settings.versionOf({ v: 'x' }) === 1,
+    'versionOf 非法 v 兜底为 v1');
+  (function () {
+    const m = win.App.settings.migrate({ spec: 'id1', bg: '#FFFFFF', theme: 'blue', fmt: 'gif', quality: 9, whiten: 'x', startMode: 'other' });
+    assert(m.v === 2, 'migrate v1 → v2 打版本标');
+    assert(m.spec === 'id1' && m.bg === '#FFFFFF', 'migrate 合法字段保留');
+    assert(!('theme' in m) && !('fmt' in m) && !('quality' in m) && !('whiten' in m) && !('startMode' in m),
+      'migrate 非法字段清出（规范化）');
+  })();
+  (function () {
+    const m = win.App.settings.migrate({ v: 2, spec: 'id1', extra: 'keep-out' });
+    assert(m.v === 2 && m.spec === 'id1', 'migrate v2 数据原样通过');
+    const hi = win.App.settings.migrate({ v: 9, spec: 'id1' });
+    assert(hi.v === 9 && hi.spec === 'id1', 'migrate 未来版本不向下迁移');
+  })();
   assert(!!doc.getElementById('dropzone'), '上传区存在');
   assert(!!doc.getElementById('matte-view'), '抠图画布存在');
   assert(!!doc.getElementById('whiten-range') && !!doc.getElementById('whiten-val') && !!doc.getElementById('whiten-field'),
@@ -457,12 +475,22 @@ withServer(PORT, async () => {
   win.App.State.quality = 0.3;
   win.App.settings.load();
   assert(win.App.State.quality === 0.8, 'settings save→load 往返恢复 quality');
+  /* v1 旧数据（无版本标）走迁移：越界/非法字段被清出，State 保留原值不采纳 */
+  win.App.State.quality = 0.8;
+  win.App.State.whiten = 30;
   ls.setItem('zunhong-toolbox-settings', JSON.stringify({ quality: 2, whiten: -5, fmt: 'gif', theme: 'neon', startMode: 'nope' }));
   win.App.settings.load();
-  assert(win.App.State.quality === 1, 'settings quality 钳制上限 1');
-  assert(win.App.State.whiten === 0, 'settings whiten 钳制下限 0');
+  assert(win.App.State.quality === 0.8 && win.App.State.whiten === 30,
+    'settings 越界数值迁移时清出（State 保留原值）');
   assert(win.App.State.fmt !== 'gif' && win.App.State.theme !== 'neon' && win.App.State.startMode !== 'nope',
     'settings 非法枚举值不采纳（fmt/theme/startMode）');
+  assert(win.App.settings.versionOf(JSON.parse(ls.getItem('zunhong-toolbox-settings'))) === 2,
+    'v1 旧数据迁移后已写回 v2 结构');
+  /* v2 直存路径：合法但越界的数值仍由 applyFields 钳制 */
+  ls.setItem('zunhong-toolbox-settings', JSON.stringify({ v: 2, quality: 0.3, whiten: 250 }));
+  win.App.settings.load();
+  assert(win.App.State.quality === 0.5, 'settings quality 钳制下限 0.5');
+  assert(win.App.State.whiten === 100, 'settings whiten 钳制上限 100');
   ls.removeItem('zunhong-toolbox-settings');
   ls.setItem('haoyue-idphoto-settings', JSON.stringify({ quality: 0.7 }));
   win.App.State.quality = 0.5;

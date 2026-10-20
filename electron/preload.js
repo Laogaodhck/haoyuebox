@@ -76,4 +76,14 @@ contextBridge.exposeInMainWorld('zunhongSystem', {
   printTestPage: (printerName) => ipcRenderer.invoke('system:printTestPage', printerName)
 });
 
+/* 版本/更新桥接：版本信息（升级/回滚识别）与设置备份（迁移前快照、
+ * 数据丢失恢复）。全部纯本机操作，无任何网络。 */
+contextBridge.exposeInMainWorld('zunhongApp', {
+  isDesktop: true,
+  updateInfo: () => ipcRenderer.invoke('app:updateInfo'),
+  backupData: (raw) => ipcRenderer.invoke('app:backupData', raw),
+  readBackup: () => ipcRenderer.invoke('app:readBackup'),
+  deleteBackup: (name) => ipcRenderer.invoke('app:deleteBackup', name)
+});
+
 console.log('[zunhong] 打印桥接已就绪');

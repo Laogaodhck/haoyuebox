@@ -28,6 +28,8 @@ window.App = (function () {
     viewTf: null,           // 抠图视图合成变换 work → 画布 px（供笔刷坐标映射）
     fmt: 'png',
     quality: 0.92,
+    appVersion: '',         // 真实应用版本（桌面版经 IPC，浏览器版留空走 HTML 文案）
+    upgradedFrom: '',       // 本次启动若为升级首启，记录来源版本（诊断/展示用）
     undoStack: []
   };
 
@@ -827,7 +829,11 @@ window.App = (function () {
       : '暂无本地存储数据';
     var verEl = document.querySelector('.home-version');
     var verMatch = /v[\d.]+/.exec(verEl && verEl.textContent || '');
-    $('set-ver').textContent = verMatch ? verMatch[0] : '未知';
+    /* 版本显示以主进程真实版本（app.getVersion）为准，HTML 文案仅浏览器版兜底
+     * ——避免包版本与页面硬编码文案漂移导致显示错版本 */
+    $('set-ver').textContent = State.appVersion
+      ? 'v' + State.appVersion + (State.upgradedFrom ? '（自 v' + State.upgradedFrom + ' 升级）' : '')
+      : (verMatch ? verMatch[0] : '未知');
     $('set-mode').textContent = (window.zunhongPrint || window.zunhongArchive || window.zunhongDiag)
       ? '桌面版（Electron）'
       : '浏览器版（功能受限）';
@@ -937,6 +943,51 @@ window.App = (function () {
     } catch (e) { /* 桥接不可用时静默 */ }
   }
 
+  /* 桌面版：升级/回滚检测 + 数据备份恢复（纯本机，浏览器版无桥接直接跳过）。
+   * 覆盖安装/版本更新后的首启流程：
+   *  1. 主进程已按 version-marker 判定本次启动类型（升级/回滚/常规/首启）；
+   *  2. 升级首启：把当前设置快照再备份一份（升级前数据的保险，迁移流程
+   *     亦各有快照）；
+   *  3. 回滚（更新失败退回旧版）：提示用户数据未受影响（主进程已落日志）；
+   *  4. 设置主键缺失（用户清空/存储损坏）但存在备份时，确认后恢复——
+   *     恢复内容经迁移框架落盘，拒绝则删除该备份（放弃恢复）。 */
+  function checkUpdateAndBackup() {
+    if (!window.zunhongApp || !window.zunhongApp.updateInfo) return;
+    window.zunhongApp.updateInfo().then(function (info) {
+      if (!info || !info.version) return;
+      State.appVersion = info.version;
+      State.upgradedFrom = info.kind === 'upgrade' ? (info.from || '') : '';
+      if (info.kind === 'upgrade') {
+        try {
+          var raw = localStorage.getItem(window.App.settings.KEY);
+          if (raw) window.zunhongApp.backupData(raw).catch(function () { /* 静默 */ });
+        } catch (e) { /* 存储不可用静默 */ }
+      }
+      if (info.kind === 'rollback') {
+        toast('检测到版本回滚（v' + info.from + ' → v' + info.version + '），本机数据未受影响');
+      }
+      return window.zunhongApp.readBackup().then(function (bak) {
+        var have = false;
+        try { have = localStorage.getItem(window.App.settings.KEY) !== null; } catch (e) { /* 存储不可用 */ }
+        if (!bak || !bak.data || have) return;
+        var parsed = null;
+        try { parsed = JSON.parse(bak.data); } catch (e) { /* 备份损坏按无备份处理 */ }
+        if (!parsed || typeof parsed !== 'object') return;
+        return confirm('检测到 v' + (bak.version || '?') + ' 的设置备份，当前设置记忆为空。\n是否恢复该备份？')
+          .then(function (ok) {
+            if (ok) {
+              try {
+                localStorage.setItem(window.App.settings.KEY, JSON.stringify(parsed));
+              } catch (e) { return; }
+              location.reload(); // 重启后经迁移框架加载备份（含 v1 旧格式自动迁移）
+            } else {
+              window.zunhongApp.deleteBackup(bak.file).catch(function () { /* 静默 */ });
+            }
+          });
+      });
+    }).catch(function () { /* 桥接异常静默（旧主进程/非桌面环境） */ });
+  }
+
   function boot() {
     // 全局兜底：任何未捕获错误都必须关掉加载遮罩并提示，避免“永久转圈”
     window.addEventListener('unhandledrejection', function (e) {
@@ -992,6 +1043,8 @@ window.App = (function () {
       startModule = State.lastModule;
     }
     showModule(startModule); // 启动进入首页或上次模块
+    /* 升级/回滚检测与数据恢复：UI 就绪后异步执行，不阻塞首屏 */
+    checkUpdateAndBackup();
   }
 
   /* Lucide 风格内联 SVG 图标（与 warn-banner 警告图标同一体系）：
