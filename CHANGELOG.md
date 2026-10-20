@@ -12,7 +12,7 @@
 - **修复「软件版本」显示可能与包版本漂移**：设置→关于 的版本此前从首页硬编码文案正则提取，升级改版漏改 HTML 即显示错版本。现桌面版优先显示主进程真实版本（`app:getUpdateInfo` → `app.getVersion()`），HTML 文案仅浏览器版兜底；升级过的安装额外显示「（自 vX 升级）」
 
 ### 改进
-- **安装包启用独立安装器图标**：Setup 安装器（含卸载程序）图标从复用应用图标（尊泓回纹标）改为专用「安装包 + 光盘」图标（assets/setup-icon.ico，16–256 七档尺寸；512px 源图 assets/src-setup-icon.png，原始 webp 归档于仓库外）。源图为棋盘格伪透明 webp，已按泛洪填充清除棋盘背景转为真透明。应用本体（尊泓工具箱.exe）图标保持尊泓回纹标不变
+- **安装包启用独立安装器图标**：Setup 安装器（含卸载程序）图标从复用应用图标（尊泓回纹标）改为专用「安装包 + 光盘」图标（assets/setup-icon.ico，16–256 七档尺寸；源图 assets/src-setup-icon.png，用户提供的去底版 icon_trimmed.png，经边缘修整：清除低 alpha 棋盘残迹与白晕光边、裁紧留白至 430×430，原图归档于仓库外 E:/GitHub/logo/setup-icon-source.png）。经 nsis.installerIcon/uninstallerIcon 挂载，后续每次打包自动使用；生成已纳入 `npm run icons` 标准管线（make-icons.cjs 同时产出应用图标与安装器图标）。应用本体（尊泓工具箱.exe）图标保持尊泓回纹标不变
 - **覆盖安装与版本更新的数据保留与迁移体系**：
   - 安装器显式声明 `deleteAppDataOnUninstall: false`——卸载/覆盖安装绝不清除用户数据（%APPDATA% 下 userData 与程序目录隔离，原靠默认值的隐性依赖转为显式契约）
   - 设置结构版本化（新增 `v` 字段，当前 v2）：新增 `js/settings.js` 迁移框架，逐级迁移（v1 旧数据/浩玥旧键 → v2 规范化）；**迁移前先把原始数据快照备份**到 `userData/backups`（主进程原子写，保留最近 3 份），**迁移失败回滚**——原始数据原样保留、不写任何新值、按默认值继续并落诊断日志；比当前更高版本的数据（降级安装场景）原样保留不向下迁移

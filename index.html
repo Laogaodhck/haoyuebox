@@ -1449,6 +1449,14 @@
         </span>
         <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
       </button>
+      <button class="home-card" id="print-open-reader" type="button">
+        <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+        <span class="hc-body">
+          <span class="hc-title">PDF 阅读器 <span class="hc-badge">可用</span></span>
+          <span class="hc-desc">打开浏览 PDF · 翻页 / 缩放 / 页码跳转</span>
+        </span>
+        <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </button>
       <button class="home-card" id="print-open-ocr" type="button">
         <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg></span>
         <span class="hc-body">
@@ -1706,6 +1714,56 @@
     </div>
   </section>
 
+  <!-- ========== 子功能：PDF 阅读器（打开浏览 · 翻页 / 缩放 / 页码跳转） ========== -->
+  <section id="docs-reader" class="subpage" hidden>
+    <div class="subpage-inner">
+
+      <div class="panel dw-side">
+        <h3>打开文件</h3>
+        <button id="dr-pick" class="ghost dw-block">选择 PDF 文件</button>
+        <input id="dr-file" type="file" accept=".pdf" hidden>
+        <div id="dr-file-name" class="dw-hint">未打开文件</div>
+        <div class="dw-hint">全程本机离线阅读，不上传任何内容。</div>
+
+        <h3>翻页</h3>
+        <div class="dr-nav">
+          <button id="dr-prev" class="ghost" type="button" title="上一页（←）" aria-label="上一页"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+          <span id="dr-page-ind" class="dr-ind">– / –</span>
+          <button id="dr-next" class="ghost" type="button" title="下一页（→）" aria-label="下一页"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+        </div>
+        <div class="dw-row"><span>跳转到页码</span>
+          <span class="dr-jump"><input id="dr-jump" type="number" min="1" placeholder="页码"><button id="dr-go" class="ghost" type="button">跳转</button></span>
+        </div>
+
+        <h3>缩放</h3>
+        <div class="dw-row"><span>显示方式</span>
+          <select id="dr-fit">
+            <option value="width" selected>适应宽度</option>
+            <option value="page">适应页面</option>
+            <option value="free">自定义缩放</option>
+          </select>
+        </div>
+        <div class="dr-nav">
+          <button id="dr-zoom-out" class="ghost" type="button" title="缩小">−</button>
+          <span id="dr-zoom-val" class="dr-ind">100%</span>
+          <button id="dr-zoom-in" class="ghost" type="button" title="放大">＋</button>
+        </div>
+        <div class="dw-hint">键盘 ←/→（或 PgUp / PgDn）翻页；按住 Ctrl 滚动滚轮可缩放。</div>
+
+        <div id="dr-status" class="dw-status"></div>
+        <button id="dr-back" class="ghost soon-back"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>返回文档工具</button>
+      </div>
+
+      <div class="panel dr-stage">
+        <div id="dr-view">
+          <canvas id="dr-canvas" hidden></canvas>
+          <div id="dr-empty" class="dw-hint">选择 PDF 文件后在此阅读；支持连续翻页、缩放与页码跳转。</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
   <!-- ========== 子功能：文档打印 ========== -->
   <section id="print-docs" class="subpage" hidden>
 
@@ -1860,6 +1918,7 @@
 <script src="js/docs-watermark.js"></script>
 <script src="js/docs-convert.js"></script>
 <script src="js/docs-pdf.js"></script>
+<script src="js/docs-reader.js"></script>
 <script src="vendor/ocr/tesseract.min.js"></script>
 <script src="js/docs-ocr.js"></script>
 </body>

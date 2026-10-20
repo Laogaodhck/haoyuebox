@@ -867,7 +867,7 @@ window.App = (function () {
     { card: 'soon-batch-back',       run: function () { window.App.batch.showOnly(null); } },
     /* 批量打印（图片面板）已自打印工具迁入批量工具 */
     { card: 'batch-open-printbatch', run: function () { window.App.batch.showOnly('print-batch'); window.App.printBatch.refreshPrinters(); } },
-    /* 文档工具：五项子功能均已实装 */
+    /* 文档工具：六项子功能均已实装 */
     { card: 'print-open-docs',      run: function () { window.App.printBatch.showOnly('print-docs'); } },
     { card: 'print-open-convert',   run: function () {
       window.App.printBatch.showOnly('docs-convert');
@@ -876,6 +876,10 @@ window.App = (function () {
     { card: 'print-open-pdf',       run: function () {
       window.App.printBatch.showOnly('docs-pdf');
       window.App.docsPdf.enter();
+    } },
+    { card: 'print-open-reader',    run: function () {
+      window.App.printBatch.showOnly('docs-reader');
+      window.App.docsReader.enter();
     } },
     { card: 'print-open-ocr',       run: function () {
       window.App.printBatch.showOnly('docs-ocr');
@@ -887,6 +891,7 @@ window.App = (function () {
     } },
     { card: 'dc-back',              run: function () { window.App.printBatch.showOnly(null); } },
     { card: 'dp-back',              run: function () { window.App.printBatch.showOnly(null); } },
+    { card: 'dr-back',              run: function () { window.App.printBatch.showOnly(null); } },
     { card: 'dw-back',              run: function () { window.App.printBatch.showOnly(null); } },
     { card: 'do-back',              run: function () { window.App.printBatch.showOnly(null); } },
     /* 系统工具：软件卸载/垃圾清理为占位页，网络检测/添加打印机/设置已实装 */
@@ -901,7 +906,7 @@ window.App = (function () {
     { card: 'set-back',              run: function () { showSystemMenu(); } }
   ];
   /* boot 时逐个调用的模块 init 列表（与 window.App 键名一致） */
-  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch', 'docsWatermark', 'docsConvert', 'docsPdf', 'docsOcr', 'system'];
+  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch', 'docsWatermark', 'docsConvert', 'docsPdf', 'docsReader', 'docsOcr', 'system'];
 
   function initModules() {
     document.querySelectorAll('.module-tab').forEach(function (t) {

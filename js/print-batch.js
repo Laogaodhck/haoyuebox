@@ -816,7 +816,8 @@ window.App.printBatch = (function () {
   function showOnly(panelId) {
     $('batch-menu').hidden = panelId === 'print-batch';
     $('print-menu').hidden = panelId === 'print-docs' || panelId === 'docs-convert' ||
-      panelId === 'docs-pdf' || panelId === 'docs-watermark' || panelId === 'docs-ocr';
+      panelId === 'docs-pdf' || panelId === 'docs-watermark' || panelId === 'docs-ocr' ||
+      panelId === 'docs-reader';
     $('print-batch').hidden = panelId !== 'print-batch';
     $('print-docs').hidden = panelId !== 'print-docs';
     $('pd-doc').hidden = panelId !== 'print-docs';
@@ -824,6 +825,7 @@ window.App.printBatch = (function () {
     $('docs-pdf').hidden = panelId !== 'docs-pdf';
     $('docs-watermark').hidden = panelId !== 'docs-watermark';
     $('docs-ocr').hidden = panelId !== 'docs-ocr';
+    $('docs-reader').hidden = panelId !== 'docs-reader';
   }
 
   function enter() { showOnly(null); }

@@ -151,14 +151,15 @@ withServer(PORT, async () => {
     '输出格式下拉含 7z / ZIP');
   assert(doc.querySelector('#ac-level option[value="normal"]') && doc.querySelector('#ax-out option[value="sub"]'),
     '压缩等级 / 解压位置选项齐备');
-  assert(doc.querySelectorAll('#print-menu .home-card').length === 5, '文档工具菜单 5 张卡片');
+  assert(doc.querySelectorAll('#print-menu .home-card').length === 6, '文档工具菜单 6 张卡片');
   assert(doc.querySelectorAll('#print-menu .hc-badge.soon').length === 0,
-    '文档工具五张卡片全部可用（无敬请期待占位）');
+    '文档工具六张卡片全部可用（无敬请期待占位）');
   assert(doc.querySelector('#print-open-docs .hc-badge:not(.soon)')
     && doc.querySelector('#print-open-watermark .hc-badge:not(.soon)')
     && doc.querySelector('#print-open-convert .hc-badge:not(.soon)')
     && doc.querySelector('#print-open-pdf .hc-badge:not(.soon)')
-    && doc.querySelector('#print-open-ocr .hc-badge:not(.soon)'), '文档打印/加水印/转换/PDF 工具/OCR 卡片已标记为可用');
+    && doc.querySelector('#print-open-reader .hc-badge:not(.soon)')
+    && doc.querySelector('#print-open-ocr .hc-badge:not(.soon)'), '文档打印/加水印/转换/PDF 工具/阅读器/OCR 卡片已标记为可用');
   assert(!!doc.getElementById('print-open-docs') && !!doc.getElementById('batch-open-printbatch'),
     '文档打印入口与批量打印（批量工具）入口存在');
   assert(!!doc.getElementById('print-batch') && !!doc.getElementById('pb-img') && !!doc.getElementById('pd-doc'),
@@ -176,6 +177,9 @@ withServer(PORT, async () => {
    'dp-pick', 'dp-file', 'dp-count', 'dp-empty', 'dp-clear', 'dp-list', 'dp-tab-merge', 'dp-tab-split',
    'dp-tab-shrink', 'dp-merge', 'dp-split', 'dp-split-range', 'dp-shrink', 'dp-shrink-quality',
    'dp-shrink-scale', 'dp-dir', 'dp-dir-name', 'dp-run', 'dp-status', 'dp-back', 'dp-results',
+   'docs-reader', 'dr-pick', 'dr-file', 'dr-file-name', 'dr-prev', 'dr-page-ind', 'dr-next',
+   'dr-jump', 'dr-go', 'dr-fit', 'dr-zoom-out', 'dr-zoom-val', 'dr-zoom-in', 'dr-status',
+   'dr-back', 'dr-view', 'dr-canvas', 'dr-empty',
    'pd-pick', 'pd-count', 'pd-unsupported', 'pd-mode', 'pd-printer', 'pd-duplex', 'pd-copies', 'pd-note',
    'pd-clear', 'pd-run', 'pd-status', 'pd-back', 'pd-list', 'pd-table', 'pd-empty', 'pd-check-all'
   ].forEach(function (id) {
@@ -185,11 +189,13 @@ withServer(PORT, async () => {
     'App.docsWatermark 模块已注册（文档加水印）');
   assert(win.App.docsConvert && typeof win.App.docsConvert.enter === 'function'
     && win.App.docsPdf && typeof win.App.docsPdf.enter === 'function'
+    && win.App.docsReader && typeof win.App.docsReader.enter === 'function'
     && win.App.pdfcore && typeof win.App.pdfcore.parsePageRanges === 'function',
-    'App.docsConvert / App.docsPdf / App.pdfcore 模块已注册');
+    'App.docsConvert / App.docsPdf / App.docsReader / App.pdfcore 模块已注册');
   assert(doc.querySelector('script[src="js/pdfcore.js"]')
     && doc.querySelector('script[src="js/docs-convert.js"]')
-    && doc.querySelector('script[src="js/docs-pdf.js"]'), 'pdfcore / docs-convert / docs-pdf 脚本已引入');
+    && doc.querySelector('script[src="js/docs-pdf.js"]')
+    && doc.querySelector('script[src="js/docs-reader.js"]'), 'pdfcore / docs-convert / docs-pdf / docs-reader 脚本已引入');
   assert(doc.querySelector('#pb-duplex option[value="simplex"]')
     && doc.querySelector('#pb-duplex option[value="longEdge"]')
     && doc.querySelector('#pb-duplex option[value="shortEdge"]'), '单双面三档选项齐备（图片面板）');
