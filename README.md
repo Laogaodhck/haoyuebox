@@ -20,6 +20,11 @@ npm run dist       # 打包 Windows 安装包 + 便携版
 - `尊泓工具箱 Setup <版本>.exe`（NSIS 安装版，可选安装目录、创建桌面快捷方式，版本号随 `package.json`）
 - `尊泓工具箱_便携版.exe`（免安装单文件）
 
+图标约定：应用本体（尊泓工具箱.exe）使用尊泓回纹标（`assets/icon.ico`，经 `npm run icons`
+从 `assets/src-icon.png` 生成）；Setup 安装器与卸载程序使用独立安装器图标
+（`assets/setup-icon.ico`，源图 `assets/src-setup-icon.png`，经 nsis 的
+`installerIcon` / `uninstallerIcon` 挂载）。
+
 安装与更新行为：
 
 - **覆盖安装 / 升级**：直接运行新版 Setup 即可，用户设置（主题 / 规格 / 打印机会账等，存于
@@ -157,7 +162,8 @@ zunhongbox/
 │   ├── system.js           # 系统工具 IPC：网络检测（白名单 DNS 节点）+ 打印机向导/设置页/测试页
 │   ├── 7z-args.js          # 7z 命令行参数构建与输出解析（纯逻辑，可单测）
 │   └── bin/                # 内置 7z.exe + 7z.dll（LGPL，打包注入 resources/bin）
-├── assets/                 # 品牌图标（源自尊泓 logo）+ installer.nsh（NSIS 安装器自定义钩子）
+├── assets/                 # 品牌图标（源自尊泓 logo）+ 安装器图标（src-setup-icon.png / setup-icon.ico）
+│                           #   + installer.nsh（NSIS 安装器自定义钩子）
 ├── css/style.css           # 暗色主题响应式样式
 ├── js/
 │   ├── specs.js            # 证件规格模板库（8 种 + 头部参考线比例）

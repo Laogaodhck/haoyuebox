@@ -66,6 +66,8 @@
     },
     "nsis": {
       "include": "assets/installer.nsh",
+      "installerIcon": "assets/setup-icon.ico",
+      "uninstallerIcon": "assets/setup-icon.ico",
       "oneClick": false,
       "perMachine": false,
       "allowElevation": true,
