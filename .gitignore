@@ -25,3 +25,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.log
+
+# 本地杂项（临时素材，不入库）
+Setup logo/
