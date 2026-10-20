@@ -19,6 +19,7 @@
   var running = false; /* 是否有压缩/解压任务进行中 */
   var bridge = null;   /* window.zunhongArchive */
   var engineOk = true; /* 7z 引擎可用性（check7z 失败后置 false，锁死执行入口） */
+  var desktopDir = ''; /* 桌面目录（主进程 app.getPath('desktop')，init 时取一次） */
 
   /* 密码状态：由密码弹窗维护，不再直接挂在输入框上 */
   var passState = { compress: '', extract: '' };
@@ -87,6 +88,7 @@
   function extractTargetText(archiveName, destMode) {
     if (destMode === 'same') return '压缩包所在目录';
     var base = (archiveName || '').replace(/\.[^.]+$/, '') || '解压结果';
+    if (destMode === 'desktop-sub') return '桌面/' + base + '/';
     return base + '/';
   }
 
@@ -103,10 +105,12 @@
     return out || s;
   }
 
-  /* 「压缩到」模式 → 输出路径；dialog 模式返回 ''（走另存为对话框） */
-  function resolveOutPath(mode, chosen, fmt) {
-    if (mode !== 'same') return '';
-    var dir = parentDir(chosen[0].path);
+  /* 「压缩到」模式 → 输出路径；dialog 模式返回 ''（走另存为对话框）。
+   * desktop 模式用主进程提供的桌面路径自动命名，路径未就绪同样返回 '' */
+  function resolveOutPath(mode, chosen, fmt, desktopDir) {
+    if (mode !== 'same' && mode !== 'desktop') return '';
+    var dir = mode === 'desktop' ? String(desktopDir || '') : parentDir(chosen[0].path);
+    if (!dir) return '';
     return dir + (/[\\/]$/.test(dir) ? '' : '\\') + defaultArchiveName(chosen, fmt);
   }
 
@@ -335,7 +339,12 @@
     var chosen = items.filter(isChecked);
     if (!chosen.length) { toast('请至少勾选一项要压缩的内容', true); return; }
     var fmt = $('ac-fmt').value;
-    var autoPath = resolveOutPath($('ac-out').value, chosen, fmt);
+    var mode = $('ac-out').value;
+    if (mode === 'desktop' && !desktopDir) {
+      toast('无法获取桌面路径，请改用其他输出位置', true);
+      return;
+    }
+    var autoPath = resolveOutPath(mode, chosen, fmt, desktopDir);
     var useDialog = !autoPath;
     /* 数据安全：自动命名与待压缩内容同名（如单文件 report.7z → report.7z）
      * 时自动追加 _1 后缀，防止后续清产物步骤删掉源文件 */
@@ -730,6 +739,11 @@
 
     /* 进度回传 */
     bridge.onProgress(onProgress);
+
+    /* 桌面目录（压缩到桌面 / 解压到桌面同名文件夹 的输出基准） */
+    if (typeof bridge.desktopPath === 'function') {
+      bridge.desktopPath().then(function (p) { desktopDir = p || ''; }).catch(function () { /* 执行时兜底 */ });
+    }
 
     /* 启动时确认 7z 引擎可用 */
     bridge.check7z().then(function (r) {

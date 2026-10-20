@@ -204,6 +204,7 @@ const at = global.window.App.archive;
 
   t.assert(T.extractTargetText('photos.zip', 'sub') === 'photos/'
     && T.extractTargetText('photos.zip', 'same') === '压缩包所在目录', 'extractTargetText 两种模式');
+  t.assert(T.extractTargetText('photos.zip', 'desktop-sub') === '桌面/photos/', 'extractTargetText 桌面同名文件夹文案');
   t.assert(T.extractTargetText('data', 'sub') === 'data/', 'extractTargetText 无扩展名兜底');
 
   t.assert(T.compressProgressText(45) === '压缩中… 45%', 'compressProgressText');
@@ -232,6 +233,10 @@ const at = global.window.App.archive;
   t.assert(T.resolveOutPath('same', two, '7z') === 'C:\\f\\压缩包.7z', 'resolveOutPath 源目录+自动命名');
   t.assert(T.resolveOutPath('same', one, 'zip') === 'C:\\a\\照片.zip', 'resolveOutPath 单项沿用名称与父目录');
   t.assert(T.resolveOutPath('dialog', two, '7z') === '', 'resolveOutPath dialog 模式走另存为');
+  t.assert(T.resolveOutPath('desktop', two, '7z', 'C:\\Users\\me\\Desktop') === 'C:\\Users\\me\\Desktop\\压缩包.7z',
+    'resolveOutPath 桌面模式+自动命名');
+  t.assert(T.resolveOutPath('desktop', one, 'zip', 'C:\\dt') === 'C:\\dt\\照片.zip', 'resolveOutPath 桌面模式单项沿用名称');
+  t.assert(T.resolveOutPath('desktop', two, '7z', '') === '', 'resolveOutPath 桌面路径缺失 → 走另存为兜底');
 
   /* 自压防护：自动命名与源文件同名时追加 _1 后缀（bumpOutName） */
   t.assert(T.bumpOutName('C:\\a\\report.7z', { 'c:\\a\\report.7z': 1 }) === 'C:\\a\\report_1.7z',

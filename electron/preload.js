@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('zunhongArchive', {
   /* 拖拽路径 → 条目元数据（主进程 stat，返回 [{path,name,isDir,size,mtime}]） */
   statPaths: (paths) => ipcRenderer.invoke('archive:statPaths', paths),
   saveDialog: (defaultName) => ipcRenderer.invoke('archive:saveDialog', defaultName),
+  /* 桌面目录（压缩到桌面 / 解压到桌面同名文件夹 的输出基准路径） */
+  desktopPath: () => ipcRenderer.invoke('archive:desktopPath'),
   compress: (payload) => ipcRenderer.invoke('archive:compress', payload),
   extract: (payload) => ipcRenderer.invoke('archive:extract', payload),
   list: (payload) => ipcRenderer.invoke('archive:list', payload),

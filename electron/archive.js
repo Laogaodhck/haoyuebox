@@ -7,7 +7,7 @@
  * ============================================================ */
 'use strict';
 
-const { dialog } = require('electron');
+const { app, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -170,7 +170,7 @@ async function compress(getWin, payload) {
   });
 }
 
-/* 解压：payload { items:[path], destMode:'sub'|'same', pass }
+/* 解压：payload { items:[path], destMode:'sub'|'same'|'desktop-sub', pass }
  * 多选包逐个处理，进度附带当前序号 */
 async function extract(getWin, payload) {
   payload = payload || {};
@@ -185,7 +185,11 @@ async function extract(getWin, payload) {
       const src = items[i];
       const base = path.basename(src).replace(/\.[^.]+$/, '') || '解压结果';
       const dir = path.dirname(src);
-      const outDir = payload.destMode === 'same' ? dir : path.join(dir, base);
+      const outDir = payload.destMode === 'same'
+        ? dir
+        : payload.destMode === 'desktop-sub'
+          ? path.join(app.getPath('desktop'), base)
+          : path.join(dir, base);
       try { fs.mkdirSync(outDir, { recursive: true }); } catch (e) { /* 已存在 */ }
       const args = args7z.buildExtractArgs({ archive: src, outDir, pass: payload.pass });
       const res = await engine.run7z(exe, args, (pct) => {
@@ -273,6 +277,7 @@ function registerArchiveIpc(ipcMain, getWin) {
   ipcMain.handle('archive:pickPaths', (e, kind) => pickPaths(getWin, kind));
   ipcMain.handle('archive:statPaths', (e, paths) => statPaths(paths));
   ipcMain.handle('archive:saveDialog', (e, defaultName) => saveDialog(getWin, defaultName));
+  ipcMain.handle('archive:desktopPath', () => app.getPath('desktop'));
   ipcMain.handle('archive:compress', (e, payload) => compress(getWin, payload));
   ipcMain.handle('archive:extract', (e, payload) => extract(getWin, payload));
   ipcMain.handle('archive:list', (e, payload) => listArchive(payload));

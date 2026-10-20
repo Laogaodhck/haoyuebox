@@ -69,6 +69,7 @@ withServer(PORT, async () => {
           };
         },
         check7z: async () => ({ ok: true, version: '7-Zip 26.03 (x64)', path: 'C:\\fake\\7z.exe' }),
+        desktopPath: async () => 'C:\\dt',
         onProgress: (cb) => { bridge._cb = cb; },
         /* 拖拽支持 stub：File.name → 本机路径；statPaths 按名称给元数据（无扩展名视为文件夹） */
         pathForFile: (f) => 'C:\\drop\\' + ((f && f.name) || ''),
@@ -194,6 +195,22 @@ withServer(PORT, async () => {
     const dlgCalls2 = await page.evaluate(() =>
       window.zunhongArchive.calls.filter(c => c[0] === 'saveDialog').length);
     assert(dlgCalls2 === 2, '压缩到「所在目录」不再弹另存为');
+
+    // ---------- 「压缩到」= 桌面（自动命名，免弹窗） ----------
+    await page.selectOption('#ac-out', 'desktop');
+    await page.click('#ac-run');
+    // stub 的 statPaths 视一切路径存在 → 桌面自动命名同样走覆盖确认
+    await page.waitForFunction(() => !document.getElementById('confirm-dlg').hidden);
+    await page.click('#confirm-ok');
+    await page.waitForFunction(() => {
+      const c = window.zunhongArchive.calls.filter(c => c[0] === 'compress');
+      return c.length >= 4;   // 此前已有 3 次（弹窗×2 + 所在目录×1）
+    });
+    const payload3 = await page.evaluate(() => {
+      const c = window.zunhongArchive.calls.filter(c => c[0] === 'compress');
+      return c[c.length - 1][1];
+    });
+    assert(payload3.outPath === 'C:\\dt\\压缩包.7z', '压缩到「桌面」输出到桌面并自动命名');
     await page.selectOption('#ac-out', 'dialog');
     const pct = await page.$eval('#ac-progress', el => el.textContent);
     assert(/42%|压缩完成/.test(pct), '进度经 onProgress 回传渲染');
@@ -236,6 +253,10 @@ withServer(PORT, async () => {
     await page.selectOption('#ax-out', 'same');
     assert(await page.$eval('#ax-table tbody tr td:nth-child(4)', td => td.textContent === '压缩包所在目录'),
       '切换「解压到」后表格联动');
+    await page.selectOption('#ax-out', 'desktop-sub');
+    assert(await page.$eval('#ax-table tbody tr td:nth-child(4)', td => td.textContent === '桌面/a/'),
+      '「桌面同名文件夹」表格联动');
+    await page.selectOption('#ax-out', 'same');
 
     await page.click('#ax-run');
     await page.waitForFunction(() => /解压完成/.test(document.getElementById('ax-result').textContent));
