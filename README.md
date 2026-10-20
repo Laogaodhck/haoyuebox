@@ -20,10 +20,11 @@ npm run dist       # 打包 Windows 安装包 + 便携版
 - `尊泓工具箱 Setup <版本>.exe`（NSIS 安装版，可选安装目录、创建桌面快捷方式，版本号随 `package.json`）
 - `尊泓工具箱_便携版.exe`（免安装单文件）
 
-图标约定：应用本体（尊泓工具箱.exe）使用尊泓回纹标（`assets/icon.ico`，经 `npm run icons`
-从 `assets/src-icon.png` 生成）；Setup 安装器与卸载程序使用独立安装器图标
-（`assets/setup-icon.ico`，源图 `assets/src-setup-icon.png`，经 nsis 的
-`installerIcon` / `uninstallerIcon` 挂载）。
+图标约定：应用本体（尊泓工具箱.exe）使用尊泓回纹标（`assets/icon.ico`）；Setup 安装器与卸载
+程序使用独立安装器图标（`assets/setup-icon.ico`，「安装包盒 + 光盘」）。两者均经
+`npm run icons` 从 `assets/src-icon.png` 与 `assets/src-setup-icon.png` 生成，安装器图标经
+nsis 的 `installerIcon` / `uninstallerIcon` 挂载——**后续版本的每次打包都会自动使用该图标**，
+无需额外步骤；更换图标只需替换对应源图后重跑 `npm run icons`。
 
 安装与更新行为：
 
@@ -203,7 +204,7 @@ zunhongbox/
 │   │                       #   版本标记与备份恢复全链路 test-update）
 │   ├── verify-*.cjs        # Playwright 端到端（分割/换底/缩放撤销/排版打印/压缩/批量打印/批量工具/OCR 真机识别）
 │   ├── verify-output.cjs   # 检查导出 PNG 的尺寸与 pHYs（DPI）
-│   └── make-icons.cjs      # 图标生成（jimp，支持 --out 避免覆盖成品）
+│   └── make-icons.cjs      # 图标生成（jimp：src-icon.png → icon.ico/png；src-setup-icon.png → setup-icon.ico，支持 --out）
 ├── fixtures/               # 本地测试照片（gitignore，勿提交真人照片）
 ├── start.bat               # 浏览器模式一键启动
 └── package.json            # 脚本命令与 electron-builder 打包配置
