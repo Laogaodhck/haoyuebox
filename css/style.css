@@ -21,6 +21,10 @@
   --radius: 12px;             /* 面板 / 画布容器 */
   --radius-lg: 16px;          /* 大型卡片区（dropzone / 首页卡片） */
   --focus-ring: 0 0 0 3px var(--accent-ring);
+  /* 桌面响应式布局变量：按视口宽度分档调整（窄桌面 960–1120 / 标准 1121–1599 / 宽屏 ≥1600） */
+  --side-col: 340px;        /* 子页双栏侧栏宽（.subpage / .subpage-inner / .batch-rename） */
+  --side-col-step: 320px;   /* 证照生成 / 排版步骤页侧栏宽 */
+  --layout-gap: 16px;       /* 双栏布局间距 */
 }
 
 /* ---------- 浅色主题（系统工具 → 设置 切换）：仅覆盖颜色变量与滚动条，深色为默认 ---------- */
@@ -234,14 +238,15 @@ body[data-module="sheet"] #sheet-steps-nav { display: flex; }
 .step.done { color: var(--text); }
 
 /* ---------- 布局 ---------- */
-main { padding: 20px; max-width: 1280px; margin: 0 auto; }
+/* 上限 1560px：1440 档近乎铺满利用宽度，1920+ 居中收拢避免两侧大片留白 */
+main { padding: 20px; max-width: min(1560px, 100%); margin: 0 auto; }
 .step-panel { display: none; }
 .step-panel.active { display: block; }
 
 #step-matte.active, #step-spec.active, #step-export.active,
 #sheetstep-tpl.active, #sheetstep-import.active, #sheetstep-preview.active, #sheetstep-print.active {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: var(--side-col-step) 1fr;
   gap: 18px;
   align-items: start;
 }
@@ -610,7 +615,7 @@ button:disabled, .btn-col button:disabled, .btn-row button:disabled {
   display: grid;
   grid-template-columns: minmax(280px, 380px) 1fr;
   gap: 22px;
-  max-width: 1080px;
+  max-width: min(1240px, 100%);
   margin: 0 auto;
   padding: 28px 20px;
   align-items: stretch;
@@ -788,7 +793,7 @@ body[data-module="system"] #sheet-steps-nav { display: none; }
 /* 批量打印 / 文档打印：面板外壳（内部为 subpage-inner 双栏，外壳本身不参与分栏） */
 #print-batch.subpage, #print-docs.subpage, #docs-watermark.subpage,
 #docs-convert.subpage, #docs-pdf.subpage, #docs-ocr.subpage, #docs-reader.subpage { display: block; }
-.subpage-inner { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+.subpage-inner { display: grid; grid-template-columns: var(--side-col) 1fr; gap: var(--layout-gap); align-items: start; }
 .pb-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
 .pb-tab {
   padding: 7px 18px;
@@ -969,7 +974,7 @@ body[data-module="system"] #sheet-steps-nav { display: none; }
   margin-left: 6px;
   vertical-align: 1px;
 }
-.batch-rename { display: grid; grid-template-columns: 340px 1fr; gap: 16px; }
+.batch-rename { display: grid; grid-template-columns: var(--side-col) 1fr; gap: var(--layout-gap); }
 .rename-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .batch-back { margin-top: 8px; width: 100%; }
 .batch-table-wrap { flex-direction: column; align-items: stretch; padding: 14px 16px; gap: 8px; }
@@ -1080,8 +1085,8 @@ body[data-module="system"] #sheet-steps-nav { display: none; }
 .empty-state .es-hint { font-size: 12.5px; line-height: 1.7; }
 .subpage {
   display: grid;
-  grid-template-columns: 340px 1fr;
-  gap: 16px;
+  grid-template-columns: var(--side-col) 1fr;
+  gap: var(--layout-gap);
   align-items: start;
 }
 /* 内联颜色选择（透明填充 / 合成底色）：label 为两端对齐 flex，色块靠右 */
@@ -1231,6 +1236,36 @@ body[data-module="system"] #sheet-steps-nav { display: none; }
   .panel { padding: 12px; }
   #matte-view { max-height: 52vh; }
   .radio-row { flex-wrap: wrap; gap: 10px; }
+}
+
+/* 窄桌面（≤1120px，应用窗口最小宽 960）：双栏侧栏收窄，给画布 / 预览 / 表格让宽，
+   防止 340px 侧栏挤得右侧操作区过窄 */
+@media (max-width: 1120px) {
+  :root { --side-col: 300px; --side-col-step: 280px; }
+  .pm-filters .input { width: 180px; }
+  .rename-cell { min-width: 160px; }
+}
+
+/* 宽屏（≥1600px，覆盖 1920 及以上）：侧栏加宽、间距放大、首页菜单双列、
+   字号微调——避免内容锁死小尺寸导致大屏两侧大片留白、观感过密 */
+@media (min-width: 1600px) {
+  :root { --side-col: 380px; --side-col-step: 360px; --layout-gap: 20px; }
+  main { padding: 24px 32px; }
+  .topbar { padding: 14px 32px; }
+  .home-view { max-width: 1280px; padding: 32px 28px; gap: 26px; }
+  .home-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .settings-wrap { max-width: 860px; }
+  .panel { padding: 18px; }
+  .canvas-wrap { padding: 20px; }
+  .feature-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .pb-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  /* 字号 / 组件微调：大屏下整体观感更舒展 */
+  .module-tab { font-size: 14px; padding: 7px 22px; }
+  .hc-title { font-size: 18px; }
+  .hc-desc { font-size: 13.5px; }
+  .panel h3 { font-size: 14.5px; }
+  .spec-name { font-size: 13.5px; }
+  button.primary, button.secondary { font-size: 14.5px; padding: 11px 18px; }
 }
 
 /* ============================================================
