@@ -1,9 +1,12 @@
 /* ============================================================
  * docs-reader.js — 文档工具子功能：PDF 阅读器
  * 打开本机 PDF 逐页浏览（纯本地，pdf.js 渲染，复用 pdfcore.loadPdf）：
+ *  - 打开：选择文件或拖拽 PDF 到阅读页；
  *  - 翻页：上一页/下一页按钮 + 键盘（←/→/PgUp/PgDn/空格）；
  *  - 缩放：适应宽度 / 适应页面 / 自定义档位（Ctrl+滚轮或 ± 按钮）；
- *  - 跳转：输入页码直达任意页。
+ *  - 跳转：输入页码直达任意页；
+ *  - 清空：一键关闭当前 PDF 回到空态；
+ *  - 打印：桌面版整本渲染后经 IPC 一次发送，支持单面/双面。
  * 仅渲染当前页；翻页/缩放竞态用渲染序号丢弃过期帧。
  * 渲染尺寸按 devicePixelRatio 放大保证高分屏清晰，超大面积自动降采样。
  * ============================================================ */
@@ -20,6 +23,11 @@
   var renderSeq = 0;         // 渲染序号：序号过期即丢弃，防快速翻页帧错乱
   var baseW = 1, baseH = 1;  // 当前页 72dpi 基准尺寸（pt）
   var resizeTimer = null;
+
+  /* 打印（桌面版）：与 print-batch.js 文档打印同一渲染参数（≈180dpi、宽上限 2400px） */
+  var printApi = window.zunhongPrint || null;
+  var printerN = 0;          // 可用打印机台数（浏览器模式恒 0）
+  var printing = false;
 
   var ZOOMS = [25, 33, 50, 67, 75, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400];
   var MAX_RENDER_PX = 30 * 1000 * 1000;  // 单页渲染像素上限（防超大页面爆内存）
@@ -48,6 +56,8 @@
     $('dr-prev').disabled = !numPages || cur <= 1;
     $('dr-next').disabled = !numPages || cur >= numPages;
     $('dr-zoom-val').textContent = effectivePct() + '%';
+    $('dr-clear').disabled = !pdf;
+    if (printApi) $('dr-print').disabled = !pdf || printerN === 0;
   }
 
   /* ---------- 渲染当前页 ---------- */
@@ -140,9 +150,132 @@
     }
   }
 
+  /* ---------- 清空 / 打印 ---------- */
+
+  /* 清空：关闭当前 PDF 回到空态（缩放模式一并复位） */
+  function clearDoc() {
+    if (!pdf) return;
+    try { pdf.cleanup(); } catch (e) { /* 句柄释放失败不阻断界面复位 */ }
+    pdf = null;
+    numPages = 0;
+    cur = 0;
+    mode = 'width';
+    zoom = 100;
+    renderSeq++;                     // 作废可能还在路上的渲染帧
+    $('dr-fit').value = 'width';
+    var canvas = $('dr-canvas');
+    canvas.hidden = true;
+    canvas.style.width = '';
+    $('dr-empty').hidden = false;
+    $('dr-file-name').textContent = '未打开文件';
+    $('dr-jump').value = '';
+    setStatus('');
+    syncUi();
+    toast('已清空当前 PDF', false, 'check');
+  }
+
+  /* 桌面版：刷新打印机列表（进入子页时调用，与文档打印面板一致） */
+  async function refreshPrinters() {
+    if (!printApi) return;
+    try {
+      printerN = await App.print.fillPrinterSelect($('dr-printer'), $('dr-print-status'), $('dr-print'));
+    } catch (e) {
+      printerN = 0;
+      $('dr-print-status').textContent = '读取打印机失败：' + ((e && e.message) || e);
+    }
+    syncUi();
+  }
+
+  /* 整本渲染 → dataURLs（参数对齐 print-batch.js 文档打印：2.5x ≈180dpi、宽上限 2400px） */
+  var PRINT_SCALE = 2.5;
+  var PRINT_MAX_W = 2400;
+
+  async function renderAllForPrint() {
+    var urls = [];
+    for (var i = 1; i <= numPages; i++) {
+      $('dr-print-status').textContent = '正在渲染 ' + i + ' / ' + numPages + ' 页…';
+      var page = await pdf.getPage(i);
+      var v1 = page.getViewport({ scale: 1 });
+      var vp = page.getViewport({ scale: Math.min(PRINT_SCALE, PRINT_MAX_W / v1.width) });
+      var c = document.createElement('canvas');
+      c.width = Math.floor(vp.width);
+      c.height = Math.floor(vp.height);
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, c.width, c.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      urls.push(c.toDataURL('image/jpeg', 0.92));
+    }
+    return urls;
+  }
+
+  async function runPrint() {
+    if (printing) return;
+    if (!pdf) { toast('请先打开 PDF 文件', true); return; }
+    if (!printApi) { toast('浏览器模式不支持直接打印，请使用桌面版', true); return; }
+    printing = true;
+    $('dr-print').disabled = true;
+    var status = $('dr-print-status');
+    var fail = null;
+    try {
+      var urls = await renderAllForPrint();
+      status.textContent = '正在发送打印任务…';
+      var dup = $('dr-duplex').value;
+      var res = await printApi.printImage({
+        dataUrls: urls,
+        printerName: $('dr-printer').value || undefined,
+        /* 主进程仅识别 longEdge/shortEdge，单面传 simplex 走默认 */
+        duplex: dup === 'longEdge' || dup === 'shortEdge' ? dup : 'simplex'
+      });
+      if (!res || !res.ok) fail = (res && res.error) || '未知错误';
+    } catch (e) {
+      fail = (e && e.message) || String(e);
+    }
+    printing = false;
+    syncUi();
+    if (fail) {
+      setStatus('打印失败：' + fail);
+      toast('打印失败：' + fail, true);
+    } else {
+      App.ui.statusText(status, '已发送打印任务（' + numPages + ' 页，' +
+        ($('dr-duplex').value === 'simplex' ? '单面' : '双面') + '）', 'check');
+      toast('已发送到打印机', false, 'check');
+    }
+  }
+
+  /* ---------- 拖拽打开（拖到阅读子页任意位置均可） ---------- */
+  function bindDragDrop() {
+    var sec = $('docs-reader');
+    var view = $('dr-view');
+    var depth = 0;   // dragenter/leave 计数：穿过子元素时不闪烁
+    sec.addEventListener('dragenter', function (e) {
+      e.preventDefault();
+      depth++;
+      view.classList.add('dr-over');
+    });
+    sec.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    });
+    sec.addEventListener('dragleave', function () {
+      depth = Math.max(0, depth - 1);
+      if (!depth) view.classList.remove('dr-over');
+    });
+    sec.addEventListener('drop', function (e) {
+      e.preventDefault();
+      depth = 0;
+      view.classList.remove('dr-over');
+      var files = Array.prototype.slice.call((e.dataTransfer && e.dataTransfer.files) || []);
+      var pdfs = files.filter(function (f) { return /\.pdf$/i.test(f.name); });
+      if (!pdfs.length) { toast('请拖入 PDF 文件', true); return; }
+      loadFile(pdfs[0]);
+    });
+  }
+
   function enter() {
     setStatus('');
     syncUi();
+    if (printApi) refreshPrinters();  // 打印机可能插拔，进入时重查
   }
 
   App.docsReader = {
@@ -150,8 +283,9 @@
     _test: {
       gotoRef: gotoPage,
       stepZoomRef: stepZoom,
+      clearRef: clearDoc,
       stateRef: function () { return { cur: cur, numPages: numPages, mode: mode, zoom: zoom }; },
-      setDocRef: function (doc) { pdf = doc; if (doc) { numPages = doc.numPages; cur = 1; } },
+      setDocRef: function (doc) { pdf = doc; if (doc) { numPages = doc.numPages; cur = 1; } syncUi(); },
       clearDocRef: function () {
         if (pdf) { try { pdf.cleanup(); } catch (e) { /* 忽略 */ } }
         pdf = null; numPages = 0; cur = 0;
@@ -164,6 +298,9 @@
     $('dr-file').addEventListener('change', function () {
       loadFile((this.files || [])[0]);
     });
+    $('dr-clear').addEventListener('click', clearDoc);
+    $('dr-print').addEventListener('click', runPrint);
+    bindDragDrop();
     $('dr-prev').addEventListener('click', function () { gotoPage(cur - 1); });
     $('dr-next').addEventListener('click', function () { gotoPage(cur + 1); });
     $('dr-go').addEventListener('click', function () {
@@ -196,6 +333,11 @@
     });
     /* 窗口缩放时适应宽度/适应页面需重算 */
     window.addEventListener('resize', scheduleRender);
+    /* 浏览器模式：无打印桥，隐藏打印控件显示提示（与 print.js 面板行为一致） */
+    if (!printApi) {
+      $('dr-print-box').hidden = true;
+      $('dr-print-unsup').hidden = false;
+    }
     syncUi();
   };
 })(window.App);

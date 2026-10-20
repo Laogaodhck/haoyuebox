@@ -180,6 +180,8 @@ withServer(PORT, async () => {
    'docs-reader', 'dr-pick', 'dr-file', 'dr-file-name', 'dr-prev', 'dr-page-ind', 'dr-next',
    'dr-jump', 'dr-go', 'dr-fit', 'dr-zoom-out', 'dr-zoom-val', 'dr-zoom-in', 'dr-status',
    'dr-back', 'dr-view', 'dr-canvas', 'dr-empty',
+   'dr-clear', 'dr-print-box', 'dr-printer', 'dr-duplex', 'dr-print', 'dr-print-unsup',
+   'dr-print-status',
    'pd-pick', 'pd-count', 'pd-unsupported', 'pd-mode', 'pd-printer', 'pd-duplex', 'pd-copies', 'pd-note',
    'pd-clear', 'pd-run', 'pd-status', 'pd-back', 'pd-list', 'pd-table', 'pd-empty', 'pd-check-all'
   ].forEach(function (id) {
@@ -196,6 +198,9 @@ withServer(PORT, async () => {
     && doc.querySelector('script[src="js/docs-convert.js"]')
     && doc.querySelector('script[src="js/docs-pdf.js"]')
     && doc.querySelector('script[src="js/docs-reader.js"]'), 'pdfcore / docs-convert / docs-pdf / docs-reader 脚本已引入');
+  assert(doc.querySelector('#dr-duplex option[value="simplex"]')
+    && doc.querySelector('#dr-duplex option[value="longEdge"]')
+    && doc.querySelector('#dr-duplex option[value="shortEdge"]'), '阅读器单双面打印三档选项齐备');
   assert(doc.querySelector('#pb-duplex option[value="simplex"]')
     && doc.querySelector('#pb-duplex option[value="longEdge"]')
     && doc.querySelector('#pb-duplex option[value="shortEdge"]'), '单双面三档选项齐备（图片面板）');

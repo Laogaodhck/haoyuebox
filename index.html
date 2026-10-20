@@ -1720,10 +1720,13 @@
 
       <div class="panel dw-side">
         <h3>打开文件</h3>
-        <button id="dr-pick" class="ghost dw-block">选择 PDF 文件</button>
+        <div class="dr-btns">
+          <button id="dr-pick" class="ghost" type="button">选择 PDF 文件</button>
+          <button id="dr-clear" class="ghost" type="button" disabled title="关闭当前 PDF">清空</button>
+        </div>
         <input id="dr-file" type="file" accept=".pdf" hidden>
         <div id="dr-file-name" class="dw-hint">未打开文件</div>
-        <div class="dw-hint">全程本机离线阅读，不上传任何内容。</div>
+        <div class="dw-hint">也可把 PDF 文件直接拖到本页面打开；全程本机离线，不上传任何内容。</div>
 
         <h3>翻页</h3>
         <div class="dr-nav">
@@ -1750,6 +1753,23 @@
         </div>
         <div class="dw-hint">键盘 ←/→（或 PgUp / PgDn）翻页；按住 Ctrl 滚动滚轮可缩放。</div>
 
+        <h3>打印</h3>
+        <div id="dr-print-box">
+          <div class="dw-row"><span>打印机</span>
+            <select id="dr-printer"></select>
+          </div>
+          <div class="dw-row"><span>打印模式</span>
+            <select id="dr-duplex">
+              <option value="simplex" selected>单面</option>
+              <option value="longEdge">双面（长边翻页）</option>
+              <option value="shortEdge">双面（短边翻页）</option>
+            </select>
+          </div>
+          <button id="dr-print" class="ghost dw-block" type="button" disabled title="打印当前 PDF 全部页">打印全部页</button>
+          <div id="dr-print-status" class="dw-status"></div>
+        </div>
+        <div id="dr-print-unsup" class="dw-hint" hidden>浏览器模式不支持直接打印，请使用桌面版。</div>
+
         <div id="dr-status" class="dw-status"></div>
         <button id="dr-back" class="ghost soon-back"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>返回文档工具</button>
       </div>
@@ -1757,7 +1777,7 @@
       <div class="panel dr-stage">
         <div id="dr-view">
           <canvas id="dr-canvas" hidden></canvas>
-          <div id="dr-empty" class="dw-hint">选择 PDF 文件后在此阅读；支持连续翻页、缩放与页码跳转。</div>
+          <div id="dr-empty" class="dw-hint">选择或拖入 PDF 文件后在此阅读；支持连续翻页、缩放与页码跳转。</div>
         </div>
       </div>
 

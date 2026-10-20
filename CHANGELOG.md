@@ -5,7 +5,7 @@
 ## [1.3.7] - 2026-10-20
 
 ### 新增
-- **文档工具新增「PDF 阅读器」子功能**：打开本机 PDF 逐页浏览（纯本地，pdf.js 渲染，复用 pdfcore.loadPdf）。支持翻页（上一页/下一页按钮 + 键盘 ←/→/PgUp/PgDn/空格）、缩放（适应宽度 / 适应页面 / 自定义 15 档 25%–400%，支持 Ctrl+滚轮与 ± 按钮）与页码跳转（输入页码回车或点「跳转」直达）。渲染按 devicePixelRatio 放大保证高分屏清晰，单页渲染设 3000 万像素上限防超大页面爆内存；快速翻页竞态经渲染序号丢弃过期帧；换文件/退出时释放 pdf.js 句柄（cleanup）。界面沿用文档工具既有 dw-side/dw-stage 双栏版式与 ghost 按钮风格，入口为文档工具菜单第 6 张卡片（print-open-reader），返回走既有 showOnly 路由（print-batch.js showOnly 纳入 docs-reader）
+- **文档工具新增「PDF 阅读器」子功能**：打开本机 PDF 逐页浏览（纯本地，pdf.js 渲染，复用 pdfcore.loadPdf）。支持翻页（上一页/下一页按钮 + 键盘 ←/→/PgUp/PgDn/空格）、缩放（适应宽度 / 适应页面 / 自定义 15 档 25%–400%，支持 Ctrl+滚轮与 ± 按钮）与页码跳转（输入页码回车或点「跳转」直达）。渲染按 devicePixelRatio 放大保证高分屏清晰，单页渲染设 3000 万像素上限防超大页面爆内存；快速翻页竞态经渲染序号丢弃过期帧；换文件/退出时释放 pdf.js 句柄（cleanup）。界面沿用文档工具既有 dw-side/dw-stage 双栏版式与 ghost 按钮风格，入口为文档工具菜单第 6 张卡片（print-open-reader），返回走既有 showOnly 路由（print-batch.js showOnly 纳入 docs-reader）。另支持：**拖拽打开**（PDF 拖到阅读页任意位置即可打开，dragenter/leave 计数高亮不闪烁）；**一键清空**（关闭当前 PDF 回到空态，缩放模式同步复位）；**整本打印**（桌面版逐页渲染 ≈180dpi 后经既有 print:printImage 一次发送，支持单面 / 双面长边 / 双面短边，浏览器模式隐藏打印控件并提示）
 
 ### 修复
 - **修复覆盖安装弹「尊泓工具箱 无法关闭。请手动关闭它，然后单击重试以继续。」**：覆盖安装前安装器会静默运行旧版卸载程序，机器上存在挂起/无窗口的旧进程（不响应 WM_CLOSE）时旧版卸载连续 5 次失败即弹此框卡住安装；默认运行检测的优雅关闭与强杀对此类进程也可能漏杀。现经 electron-builder `nsis.include`（新增 assets/installer.nsh）定义 `customCheckAppRunning`，在默认检测之前先静默强杀：PowerShell 按安装目录路径精确匹配 Stop-Process（不误杀别处同名便携版）+ `taskkill /F /T` 按映像名兜底（/T 连子进程），最多 4 轮检测-强杀；仍杀不掉回落默认提示框（行为不劣于修复前）。卸载程序同样受益
