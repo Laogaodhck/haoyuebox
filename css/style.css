@@ -746,22 +746,64 @@ body[data-module="system"] #sheet-steps-nav { display: none; }
 .dw-list-row .dw-res { flex: none; }
 .dw-list-row.ok .dw-res { color: var(--green); }
 .dw-list-row.bad .dw-res { color: var(--danger); }
-/* OCR 文字识别：结果编辑框（随 dw-stage 弹性列宽自适应） */
-.do-text {
+/* OCR 文字识别：A4 固定版心（210:297，横向 297:210），内部滚动，白纸黑字 */
+.do-page-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   width: 100%;
-  min-height: 320px;
-  resize: vertical;
-  padding: 10px 12px;
+  flex-wrap: wrap;
+}
+.do-page-label { font-size: 12.5px; color: var(--text-dim); }
+.do-seg.pb-tabs { margin-bottom: 0; gap: 6px; }
+.do-seg .pb-tab { padding: 4px 14px; font-size: 12.5px; }
+.do-page-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  overflow: auto;
+}
+.do-page {
+  /* 固定 A4 比例：宽度驱动、高度随比例推导，永不变形 */
+  width: min(100%, 520px);
+  aspect-ratio: 210 / 297;
+  padding: 20px 18px;
+  background: #fff;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--bg-hover);
-  color: var(--text);
-  font-size: 13px;
-  line-height: 1.7;
-  font-family: inherit;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+  display: flex;
+  overflow: hidden;
 }
-.do-text:focus { outline: none; border-color: var(--accent); }
-.do-text::placeholder { color: var(--text-dim); }
+.do-page.landscape { width: min(100%, 760px); aspect-ratio: 297 / 210; }
+.do-page .do-text {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  resize: none;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #1b1b1b;
+  font-size: 13px;
+  line-height: 1.75;
+  font-family: inherit;
+  overflow-y: auto;
+}
+.do-page .do-text:focus { outline: none; }
+.do-page .do-text::placeholder { color: #9aa0a6; }
+/* 矮窗口降宽保比例（A4 高度不超出可视区太多） */
+@media (max-height: 880px) {
+  .do-page { width: min(100%, 430px); padding: 16px 14px; }
+  .do-page.landscape { width: min(100%, 620px); }
+}
+@media (max-height: 740px) {
+  .do-page { width: min(100%, 340px); padding: 12px 12px; }
+  .do-page.landscape { width: min(100%, 500px); }
+}
 /* PDF 阅读器：侧栏翻页/缩放导航 + 右侧滚动阅读区 */
 .dr-btns { display: flex; gap: 8px; margin-bottom: 8px; }
 .dr-btns .ghost { flex: 1; margin-bottom: 0; }

@@ -714,8 +714,35 @@
       blocks: blocks,
       conf: confN ? confSum / confN : null,
       lineCount: cleaned.length,
-      hasTable: !!table
+      hasTable: !!table,
+      page: pageExtent(cleaned)
     };
+  }
+
+  // 页面外接尺寸（px）：优先词级 bbox，缺失时退回行级
+  function pageExtent(lines) {
+    var pw = 0, ph = 0;
+    lines.forEach(function (l) {
+      l.words.forEach(function (w) {
+        var bb = w.bbox || {};
+        if (bb.x1 != null) pw = Math.max(pw, bb.x1);
+        if (bb.y1 != null) ph = Math.max(ph, bb.y1);
+      });
+    });
+    if (!pw || !ph) {
+      lines.forEach(function (l) {
+        if (l.x1 != null) pw = Math.max(pw, l.x1);
+        if (l.y1 != null) ph = Math.max(ph, l.y1);
+      });
+    }
+    return { w: Math.round(pw), h: Math.round(ph) };
+  }
+
+  // 页面方向判定：宽高比 > 1.2 判为横向（横向扫描件 / 表格截图），否则竖向
+  function pageOrientation(doc) {
+    var p = (doc && doc.page) || {};
+    if (!p.w || !p.h) return 'p';
+    return (p.w / p.h) > 1.2 ? 'l' : 'p';
   }
 
   // 结构化块 → 文本视图（段落空行分隔、表格网格渲染）
@@ -752,6 +779,7 @@
     buildFromBlocks: buildFromBlocks,
     buildDoc: buildDoc,
     renderDocText: renderDocText,
+    pageOrientation: pageOrientation,
     _test: {
       toGray: toGray,
       downscaleGray: downscaleGray,
@@ -776,7 +804,8 @@
       detectTable: detectTable,
       renderGrid: renderGrid,
       rebuildBlocks: rebuildBlocks,
-      rebuildParagraphs: rebuildParagraphs
+      rebuildParagraphs: rebuildParagraphs,
+      pageExtent: pageExtent
     }
   };
 })(window.App);

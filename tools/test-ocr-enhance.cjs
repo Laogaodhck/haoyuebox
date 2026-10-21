@@ -348,5 +348,26 @@ let blocksA;
     'renderDocText 渲染表格块');
 }
 
+/* ---------- 17. 页面尺寸与方向判定 ---------- */
+{
+  const docT2 = global.window.App.ocrEnhance.buildDoc({ blocks: blocksA });
+  assert(docT2.page && docT2.page.w > 0 && docT2.page.h > 0,
+    'buildDoc 产出页面外接尺寸（' + JSON.stringify(docT2.page) + '）');
+  assert(docT2.page.w === 430 && docT2.page.h === 94, '页面尺寸取词级 bbox 最大边界');
+  assert(global.window.App.ocrEnhance.pageOrientation(docT2) === 'l',
+    '宽 > 高时判为横向（430×94）');
+  const tall = global.window.App.ocrEnhance.buildDoc({
+    blocks: [{ paragraphs: [{ lines: [
+      { text: 'A', bbox: { x0: 10, y0: 10, x1: 200, y1: 40 }, words: [word('A', 10, 10, 200, 40, 90)] },
+      { text: 'B', bbox: { x0: 10, y0: 60, x1: 180, y1: 90 }, words: [word('B', 10, 60, 180, 90, 90)] },
+      { text: 'C', bbox: { x0: 10, y0: 110, x1: 160, y1: 140 }, words: [word('C', 10, 110, 160, 140, 90)] },
+      { text: 'D', bbox: { x0: 10, y0: 160, x1: 190, y1: 190 }, words: [word('D', 10, 160, 190, 190, 90)] }
+    ] }] }]
+  });
+  assert(global.window.App.ocrEnhance.pageOrientation(tall) === 'p',
+    '竖向页（200×190 比例 < 1.2）判为竖向');
+  assert(global.window.App.ocrEnhance.pageOrientation(null) === 'p', '无文档回退竖向');
+}
+
 console.log('\n共 ' + (pass + fail) + ' 项断言：通过 ' + pass + '，失败 ' + fail);
 process.exit(fail ? 1 : 0);

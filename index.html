@@ -51,7 +51,7 @@
   <aside class="home-declare">
     <img class="home-logo" src="assets/icon.png" alt="尊泓工具箱">
     <h2 class="home-name">尊泓工具箱</h2>
-    <div class="home-version">桌面离线版 v1.4.0</div>
+    <div class="home-version">桌面离线版 v1.4.1</div>
     <div class="home-divider"></div>
     <h3 class="home-h3">软件声明</h3>
     <ul class="home-declare-list">
@@ -1513,7 +1513,19 @@
       </div>
 
       <div class="panel dw-stage">
-        <textarea id="do-text" class="do-text" spellcheck="false" placeholder="识别结果将显示在此处，可直接编辑…"></textarea>
+        <div class="do-page-bar">
+          <span id="do-page-label" class="do-page-label">A4 竖向（210 × 297 mm）</span>
+          <div class="pb-tabs do-seg">
+            <button id="do-page-p" class="pb-tab active" type="button">竖向</button>
+            <button id="do-page-l" class="pb-tab" type="button">横向</button>
+          </div>
+        </div>
+        <!-- A4 固定版心：按 210:297（横向 297:210）固定比例呈现，内部滚动，导出沿用同一方向 -->
+        <div class="do-page-wrap">
+          <div id="do-page" class="do-page">
+            <textarea id="do-text" class="do-text" spellcheck="false" placeholder="识别结果将显示在此处，可直接编辑…"></textarea>
+          </div>
+        </div>
         <div id="do-meta" class="dw-hint"></div>
         <div class="dw-file-btns">
           <button id="do-copy" class="ghost" disabled>复制文本</button>
@@ -1521,7 +1533,7 @@
           <button id="do-docx" class="ghost" disabled>导出 DOCX</button>
           <button id="do-xlsx" class="ghost" disabled>导出 Excel</button>
         </div>
-        <div id="do-empty-hint" class="dw-hint">选择文件并点击「开始识别」，识别全程在本机完成；结果可编辑、复制，或导出为 TXT / DOCX（Word）/ Excel（检测到表格时可用，每张表格一个工作表）。</div>
+        <div id="do-empty-hint" class="dw-hint">选择文件并点击「开始识别」，识别全程在本机完成；结果可编辑、复制，或导出为 TXT / DOCX（Word，页面方向随上方切换）/ Excel（检测到表格时可用，每张表格一个工作表）。</div>
       </div>
 
     </div>

@@ -36,6 +36,7 @@
   var running = false;
   var lastUnits = null;    // 最近一次识别的单元（含结构化 doc，供 DOCX 导出）
   var lastFullText = null; // 最近一次识别写入文本框的原文（判断是否被用户编辑）
+  var orient = 'p';        // 结果区页面方向：p 竖向 / l 横向（同时决定 DOCX 页面方向）
 
   function toast(msg, isErr) { App.ui.toast(msg, isErr); }
 
@@ -156,9 +157,16 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // word/document.xml：逐行成段（A4 纵向），空行输出空段落保留排版（纯文本路径）
-  function buildDocxXml(text) {
-    return buildDocxXmlFromUnits([{ label: '', text: String(text || '') }]);
+  // word/document.xml：逐行成段（A4，方向随 opts.landscape），空行输出空段落保留排版
+  function buildDocxXml(text, opts) {
+    return buildDocxXmlFromUnits([{ label: '', text: String(text || '') }], opts);
+  }
+
+  // 页面尺寸：A4 竖向 11906×16838 twips，横向转置并标 orient
+  function pageSizeXml(landscape) {
+    return landscape
+      ? '<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>'
+      : '<w:pgSz w:w="11906" w:h="16838"/>';
   }
 
   // 段落 XML：indent=1 输出首行缩进（2 字符 ≈ 480 twips），jc 非左对齐时输出对齐
@@ -195,9 +203,10 @@
   }
 
   // 识别单元 → document.xml 正文：结构化块（段落缩进 + 真表格）优先，
-  // 无结构时逐行成段（与旧行为一致）
-  function buildDocxXmlFromUnits(units) {
+  // 无结构时逐行成段（与旧行为一致）；opts.landscape 控制 A4 页面方向
+  function buildDocxXmlFromUnits(units, opts) {
     var list = units || [];
+    var landscape = !!(opts && opts.landscape);
     var multi = list.length > 1;
     var body = '';
     list.forEach(function (u, idx) {
@@ -218,17 +227,17 @@
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
       '<w:body>' + body +
-      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>' +
+      '<w:sectPr>' + pageSizeXml(landscape) + '</w:sectPr>' +
       '</w:body></w:document>';
   }
 
   // 最小 OOXML 三件套 → ZipUtil.store 入参（name + Uint8Array）。
   // 入参为字符串时走纯文本路径；为数组时走结构化路径（[{label, text, doc}]）
-  function buildDocxFiles(input) {
+  function buildDocxFiles(input, opts) {
     var enc = new TextEncoder();
     var xml = (typeof input === 'string')
-      ? buildDocxXml(input)
-      : buildDocxXmlFromUnits(input);
+      ? buildDocxXml(input, opts)
+      : buildDocxXmlFromUnits(input, opts);
     return [
       { name: '[Content_Types].xml', data: enc.encode(
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
@@ -285,6 +294,22 @@
   }
 
   /* ================= UI 状态 ================= */
+
+  // 结果区方向：切换版心比例、标签与按钮选中态（导出沿用同一方向）
+  function setOrient(o) {
+    orient = o === 'l' ? 'l' : 'p';
+    var page = $('do-page');
+    if (page) page.classList.toggle('landscape', orient === 'l');
+    var pBtn = $('do-page-p'), lBtn = $('do-page-l');
+    if (pBtn && lBtn) {
+      pBtn.classList.toggle('active', orient === 'p');
+      lBtn.classList.toggle('active', orient === 'l');
+    }
+    var label = $('do-page-label');
+    if (label) {
+      label.textContent = orient === 'l' ? 'A4 横向（297 × 210 mm）' : 'A4 竖向（210 × 297 mm）';
+    }
+  }
 
   function setStatus(msg) { $('do-status').textContent = msg || ''; }
 
@@ -414,6 +439,7 @@
         lastUnits = units;
         lastFullText = joinUnits(units);
         $('do-text').value = lastFullText;
+        setOrient(detectOrient(units));
         updateMeta();
         exportsEnable(true, anyTableFlag(units));
         setStatus('识别完成：成功 ' + okN + ' 项' + (errN ? '，失败 ' + errN + ' 项' : '') +
@@ -426,6 +452,21 @@
       $('do-run').disabled = false;
       running = false;
     }
+  }
+
+  // 按本次识别结果推断结果区方向（横向页占多数则用横向；无结构信息保持竖向）。
+  // 优先用 ocrEnhance.pageOrientation（单一判定口径），模块缺失时按宽高比本地回退。
+  function detectOrient(units) {
+    var l = 0, p = 0;
+    (units || []).forEach(function (u) {
+      var page = u.doc && u.doc.page;
+      if (!page || !page.w || !page.h) return;
+      var isL = (App.ocrEnhance && typeof App.ocrEnhance.pageOrientation === 'function')
+        ? App.ocrEnhance.pageOrientation(u.doc) === 'l'
+        : (page.w / page.h) > 1.2;
+      if (isL) l++; else p++;
+    });
+    return l > p ? 'l' : 'p';
   }
 
   // 逐项识别结果登记：保留表格标记与结构化文档模型，文本缺省给空串
@@ -497,7 +538,8 @@
       // （编辑后导出以用户文本为准，回退纯文本段落）
       var structured = lastUnits && lastFullText != null && text === lastFullText &&
         lastUnits.some(function (u) { return u.doc && u.doc.blocks && u.doc.blocks.length; });
-      var blob = window.ZipUtil.store(buildDocxFiles(structured ? lastUnits : text));
+      var blob = window.ZipUtil.store(buildDocxFiles(structured ? lastUnits : text,
+        { landscape: orient === 'l' }));
       App.ui.download(blob, exportBaseName(itemNames()) + '.docx');
     } catch (e) {
       toast('导出 DOCX 失败：' + ((e && e.message) || e), true);
@@ -532,11 +574,12 @@
     }
   }
 
-  /* 每次进入面板：只复位状态行与计数，保留已选文件与识别结果 */
+  /* 每次进入面板：只复位状态行与计数，保留已选文件、识别结果与页面方向 */
   function enter() {
     setStatus('');
     renderCount();
     updateMeta();
+    setOrient(orient);
   }
 
   App.docsOcr = {
@@ -550,7 +593,9 @@
       buildDocxFiles: buildDocxFiles,
       paraXml: paraXml,
       tableXml: tableXml,
+      pageSizeXml: pageSizeXml,
       buildDocxXmlFromUnits: buildDocxXmlFromUnits,
+      detectOrient: detectOrient,
       /* 主链路冒烟钩子（verify-ocr.cjs 用）：真实创建/复用 worker、识别、清理文本。
        * 纯函数断言覆盖不到「worker 初始化 → 语言包加载 → recognize → 回调」链路，
        * 该钩子让整条链可在真实浏览器里跑断言。
@@ -581,6 +626,9 @@
     $('do-txt').addEventListener('click', exportTxt);
     $('do-docx').addEventListener('click', exportDocx);
     if ($('do-xlsx')) $('do-xlsx').addEventListener('click', exportXlsx);
+    if ($('do-page-p')) $('do-page-p').addEventListener('click', function () { setOrient('p'); });
+    if ($('do-page-l')) $('do-page-l').addEventListener('click', function () { setOrient('l'); });
     $('do-text').addEventListener('input', updateMeta);
+    setOrient(orient);
   };
 })(window.App);

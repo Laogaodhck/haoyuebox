@@ -140,6 +140,37 @@ withServer(PORT, async (port) => {
     assert(doc.xlsx.hasHeader === true, '工作表首行表头加粗样式');
     assert(doc.xlsx.numeric === true, '数字单元格保持数值类型（含右对齐样式）');
     assert(doc.xlsx.size > 500, 'ZipUtil 打出非空 XLSX 包（' + doc.xlsx.size + ' 字节）');
+
+    /* A4 固定版心与竖向/横向切换（真实布局）：比例恒为 A4，切换即改比例与导出方向 */
+    await page.click('.module-tab[data-module="print"]');
+    await page.click('#print-open-ocr');
+    await page.waitForFunction(() => {
+      const el = document.getElementById('docs-ocr');
+      return el && !el.hidden && el.getBoundingClientRect().width > 0;
+    }, null, { timeout: 15000 });
+    const ratio = (sel) => page.evaluate((s) => {
+      const el = document.querySelector(s);
+      const r = el.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height), cls: el.className };
+    }, sel);
+    const p0 = await ratio('#do-page');
+    assert(!/landscape/.test(p0.cls), '结果区默认竖向');
+    assert(Math.abs(p0.w / p0.h - 210 / 297) < 0.02,
+      '版心比例符合 A4 竖向 210:297（实际 ' + p0.w + '×' + p0.h + '）');
+    await page.click('#do-page-l');
+    const p1 = await ratio('#do-page');
+    assert(/landscape/.test(p1.cls) && Math.abs(p1.w / p1.h - 297 / 210) < 0.02,
+      '切换横向后比例符合 A4 横向 297:210（实际 ' + p1.w + '×' + p1.h + '）');
+    assert(await page.evaluate(() => document.getElementById('do-page-label').textContent.indexOf('横向') >= 0),
+      '横向时标签同步为 A4 横向');
+    const landXml = await page.evaluate(() => window.App.docsOcr._test.buildDocxXml('横', { landscape: true }));
+    assert(landXml.indexOf('w:orient="landscape"') >= 0 && landXml.indexOf('w:w="16838"') >= 0,
+      '横向导出 DOCX 页面尺寸转置并标 orient');
+    await page.click('#do-page-p');
+    const p2 = await ratio('#do-page');
+    assert(!/landscape/.test(p2.cls), '切回竖向恢复版心');
+    assert(await page.evaluate(() => document.getElementById('do-page-p').classList.contains('active')),
+      '竖向按钮选中态同步');
   } finally {
     await browser.close();
   }

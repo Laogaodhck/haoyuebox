@@ -118,5 +118,36 @@ assert(dec2.decode(files2[2].data) === T.buildDocxXml('x\ny'), 'buildDocxFiles �
 const files3 = T.buildDocxFiles([{ label: '', doc: { blocks: [{ type: 'p', text: 'S', indent: 0 }] } }]);
 assert(dec2.decode(files3[2].data).includes('S'), 'buildDocxFiles 数组入参走结构化路径');
 
+/* ---------- 8. A4 版心方向（竖向默认 / 横向转置） ---------- */
+assert(T.pageSizeXml(false) === '<w:pgSz w:w="11906" w:h="16838"/>', '竖向页面尺寸 11906×16838');
+assert(T.pageSizeXml(true) === '<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>',
+  '横向页面尺寸转置并标 orient=landscape');
+assert(T.buildDocxXml('x').includes('<w:pgSz w:w="11906" w:h="16838"/>'), '默认导出为竖向');
+assert(T.buildDocxXml('x', { landscape: true }).includes('w:orient="landscape"'),
+  '纯文本路径支持横向导出');
+const landUnits = T.buildDocxXmlFromUnits([{ label: '', doc: { blocks: [{ type: 'p', text: '横', indent: 0 }] } }],
+  { landscape: true });
+assert(landUnits.includes('<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>'),
+  '结构化路径支持横向导出');
+assert(landUnits.includes('<w:tbl') === false && landUnits.includes('横'), '横向导出内容不受影响');
+const landFiles = T.buildDocxFiles('a\nb', { landscape: true });
+assert(new TextDecoder().decode(landFiles[2].data).includes('orient="landscape"'),
+  'buildDocxFiles 字符串入参透传方向');
+
+/* ---------- 9. 方向自动判定 ---------- */
+{
+  const portrait = T.detectOrient([{ doc: { page: { w: 800, h: 1200 } } }]);
+  assert(portrait === 'p', '竖向页（宽高比 < 1.2）判定为竖向');
+  const landscape = T.detectOrient([{ doc: { page: { w: 1400, h: 900 } } }]);
+  assert(landscape === 'l', '横向页（宽高比 > 1.2）判定为横向');
+  const mixed = T.detectOrient([
+    { doc: { page: { w: 1400, h: 900 } } },
+    { doc: { page: { w: 1400, h: 900 } } },
+    { doc: { page: { w: 800, h: 1200 } } }
+  ]);
+  assert(mixed === 'l', '多页横向占多数时取横向');
+  assert(T.detectOrient([{ text: '无结构' }]) === 'p', '无结构信息回退竖向');
+}
+
 console.log('\n共 ' + (pass + fail) + ' 项断言：通过 ' + pass + '，失败 ' + fail);
 process.exit(fail ? 1 : 0);
