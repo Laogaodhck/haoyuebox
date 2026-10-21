@@ -16,7 +16,7 @@ const PORT = 8437;
 const checker = createChecker();
 const assert = checker.assert;
 
-withServer(PORT, async () => {
+withServer(PORT, async (port) => {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
@@ -82,7 +82,7 @@ withServer(PORT, async () => {
       Object.defineProperty(window, 'zunhongArchive', { value: bridge });
     });
 
-    await page.goto('http://localhost:' + PORT + '/');
+    await page.goto('http://localhost:' + port + '/');
     await sleep(400);
 
     // ---------- 首页入口与模块切换 ----------
@@ -320,7 +320,7 @@ withServer(PORT, async () => {
     // ---------- 浏览器环境（无桥接）降级 ----------
     const page2 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
     page2.on('pageerror', e => pageErrors.push(e.message));
-    await page2.goto('http://localhost:' + PORT + '/');
+    await page2.goto('http://localhost:' + port + '/');
     await sleep(400);
     await page2.click('#home-archive');
     await page2.click('#archive-open-compress');

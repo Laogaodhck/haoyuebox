@@ -11,7 +11,7 @@ const PHOTO = resolvePhoto();
 const checker = createChecker();
 const assert = checker.assert;
 
-withServer(PORT, async () => {
+withServer(PORT, async (port) => {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
@@ -20,7 +20,7 @@ withServer(PORT, async () => {
     const downloads = [];
     page.on('download', d => downloads.push(d));
 
-    await page.goto('http://localhost:' + PORT + '/');
+    await page.goto('http://localhost:' + port + '/');
     await page.click('#home-sheet');                 // 进入排版模块
     await page.setInputFiles('#sheet-file-input', PHOTO);
     await sleep(1500);

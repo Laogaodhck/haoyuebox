@@ -15,7 +15,7 @@ const PORT = 8435;
 const checker = createChecker();
 const assert = checker.assert;
 
-withServer(PORT, async () => {
+withServer(PORT, async (port) => {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
@@ -37,7 +37,7 @@ withServer(PORT, async () => {
       };
     });
 
-    await page.goto('http://localhost:' + PORT + '/');
+    await page.goto('http://localhost:' + port + '/');
     await sleep(400);
 
     // ---------- 准备 OPFS 测试数据 ----------

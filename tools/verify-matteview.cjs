@@ -13,13 +13,13 @@ const PHOTO = resolvePhoto();
 const checker = createChecker();
 const assert = checker.assert;
 
-withServer(PORT, async () => {
+withServer(PORT, async (port) => {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
     page.on('pageerror', e => console.log('  [pageerror]', e.message));
 
-    await page.goto('http://localhost:' + PORT + '/');
+    await page.goto('http://localhost:' + port + '/');
     await page.click('#home-photo'); // 从首页进入照片模块
     await page.click('#photo-open-idphoto'); // 进入「证照生成」子功能
     await page.setInputFiles('#file-input', PHOTO);

@@ -12,8 +12,12 @@
 ;      的同名便携版进程）；
 ;   2. taskkill /F /T 按映像名兜底（覆盖无 Get-CimInstance 的老系统；/T
 ;      连 7z 等子进程一起结束；也会结束同名便携版，覆盖安装场景可接受）；
-;   3. 最多 4 轮「检测-强杀」，仍有幸存进程则回落 electron-builder 默认
-;      流程（保留本地化提示框，行为不劣于修复前）。
+;   3. 最多 4 轮「检测-强杀」；
+;   4. 仍有幸存进程（典型：旧进程以管理员身份运行、或属于其他用户会话，
+;      普通权限 taskkill 返回拒绝访问）时发起一次提权强杀——PowerShell
+;      Start-Process -Verb RunAs 弹一次 UAC，授权后以管理员 taskkill /F /T
+;      终结；安装器本已提权时 RunAs 静默执行不弹框；用户拒绝 UAC 或仍失败
+;      则回落 electron-builder 默认流程（保留本地化提示框，行为不劣于修复前）。
 ; ============================================================
 
 !include "getProcessInfo.nsh"
@@ -24,15 +28,19 @@ Var /GLOBAL ZH_PsOk ; 0=PowerShell 可用 2=不可用 1=未探测
 # 掉，必须在此补声明，否则 -WX 下 warning 6000 直接构建失败
 Var /GLOBAL IsPowerShellAvailable
 
+!macro _ZH_DETECT_RUNNING
+  # 检测：按映像名查存活进程（tasklist+findstr，快且不依赖 PowerShell）。
+  # 退出码入 $R9：0=找到进程（需要处理），非 0=无进程。
+  nsExec::Exec `"$CmdPath" /C tasklist /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FO CSV /NH | "$SYSDIR\findstr.exe" /B /I /C:"\"${APP_EXECUTABLE_FILENAME}\""`
+  Pop $R9
+!macroend
+
 !macro customCheckAppRunning
   StrCpy $ZH_PsOk 1
   StrCpy $R8 0
 zh_recheck:
   IntOp $R8 $R8 + 1
-  # 检测：按映像名查存活进程（tasklist+findstr，快且不依赖 PowerShell）。
-  # 0=找到进程（需要处理），非 0=无进程（结束）。
-  nsExec::Exec `"$CmdPath" /C tasklist /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FO CSV /NH | "$SYSDIR\findstr.exe" /B /I /C:"\"${APP_EXECUTABLE_FILENAME}\""`
-  Pop $R9
+  !insertmacro _ZH_DETECT_RUNNING
   IntCmp $R9 0 0 zh_clear zh_clear
   # 惰性探测 PowerShell（仅首次，失败标记为不可用不再试）
   StrCmp $ZH_PsOk 2 zh_tk
@@ -53,7 +61,23 @@ zh_tk:
   nsExec::Exec `"$CmdPath" /C taskkill /F /T /IM "${APP_EXECUTABLE_FILENAME}"`
   Pop $0
   Sleep 1500
-  IntCmp $R8 4 zh_clear zh_recheck zh_clear ; 最多 4 轮
+  IntCmp $R8 4 zh_final zh_recheck zh_final ; 最多 4 轮后进入提权强杀
+zh_final:
+  # 4 轮普通强杀后复查：进程已退则直接走默认流程收尾
+  !insertmacro _ZH_DETECT_RUNNING
+  IntCmp $R9 0 0 zh_clear zh_clear
+  # PowerShell 不可用时无提权通道，回落默认提示
+  StrCmp $ZH_PsOk 2 zh_clear zh_ekill
+zh_ekill:
+  # 提权强杀：Start-Process -Verb RunAs 弹一次 UAC（安装器已提权则静默），
+  # 授权后的 taskkill 拥有管理员权限，可终结以管理员运行的旧进程。
+  # 用户拒绝 UAC → catch → exit 1，照常回落。
+  DetailPrint `正在请求权限以结束 ${PRODUCT_NAME} …`
+  nsExec::Exec `"$PowerShellPath" -NoProfile -Command "try { Start-Process -FilePath '$SYSDIR\taskkill.exe' -ArgumentList '/F /T /IM \"${APP_EXECUTABLE_FILENAME}\"' -Verb RunAs -Wait } catch { exit 1 }"`
+  Pop $0
+  Sleep 1500
+  !insertmacro _ZH_DETECT_RUNNING
+  IntCmp $R9 0 0 zh_clear zh_clear ; 提权击杀成功 → 走默认流程收尾
 zh_clear:
   # 同步探测结果给默认流程（非 0 视为不可用，走 tasklist/taskkill 路径）
   StrCpy $IsPowerShellAvailable $ZH_PsOk

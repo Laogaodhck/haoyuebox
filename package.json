@@ -1,7 +1,7 @@
 {
   "name": "zunhong-toolbox",
   "productName": "尊泓工具箱",
-  "version": "1.3.9",
+  "version": "1.3.10",
   "description": "尊泓工具箱 - 纯本地离线证件照制作工具（AI 人像分割 / 换底 / 排版打印 / 批量打印 / 压缩解压）",
   "main": "electron/main.js",
   "author": "laogao <846193@qq.com>",

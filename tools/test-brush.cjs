@@ -25,8 +25,8 @@ vc.on('error', (m) => errors.push('console.error: ' + m));
 const checker = createChecker();
 const assert = checker.assert;
 
-withServer(PORT, async () => {
-  const dom = await JSDOM.fromURL('http://localhost:' + PORT + '/', {
+withServer(PORT, async (port) => {
+  const dom = await JSDOM.fromURL('http://localhost:' + port + '/', {
     runScripts: 'dangerously',
     resources: 'usable',
     virtualConsole: vc,

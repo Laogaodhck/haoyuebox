@@ -2,6 +2,12 @@
 
 本项目所有显著变更记录于此。版本号遵循语义化版本（主版本.次版本.修订号）。
 
+## [1.3.10] - 2026-10-21
+
+### 修复
+- **修复测试套件在系统临时端口碰撞下整段假失败**：npm test 门禁实跑发现，机器上无关进程的出站连接恰好占用固定端口 8441 时，`withServer` 虽已自动换端口重试，但 11 个套件（test-dom/test-brush/test-batch-rename/verify-archive/verify-batch/verify-brush/verify-hair/verify-matteview/verify-ocr/verify-sheet/verify-sheet-save）的回调未接实端口参数、页面仍连硬编码端口，服务落到新端口后浏览器端 ECONNREFUSED 假失败。现统一改为回调接收实端口并以此拼 URL（与 verify-print-batch 既有正确写法对齐）
+- **修复覆盖安装仍可能弹「尊泓工具箱 无法关闭。请手动关闭它，然后单击重试以继续。」**（v1.3.7 静默强杀修复的客户机实报跟进）：安装器为普通权限运行，旧进程若以管理员身份运行（或属于其他用户会话），`taskkill /F /T` 与 PowerShell `Stop-Process` 均返回「拒绝访问」，4 轮强杀全部无效后仍回落默认弹框。现 assets/installer.nsh 在 4 轮普通强杀失败后、回落默认提示框之前增加**一次提权强杀**：PowerShell `Start-Process -Verb RunAs` 触发一次 UAC 授权，授权后以管理员权限 taskkill 终结旧进程并静默继续安装；安装器本已提权时 RunAs 静默执行不弹框；用户拒绝 UAC 或提权后仍失败才回落原默认提示框（行为不劣于修复前）。检测逻辑提取为内部宏复用
+
 ## [1.3.9] - 2026-10-21
 
 ### 安全加固

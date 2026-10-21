@@ -18,7 +18,7 @@ const PHOTO = resolvePhoto();
 const checker = createChecker();
 const assert = checker.assert;
 
-withServer(PORT, async () => {
+withServer(PORT, async (port) => {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
@@ -26,7 +26,7 @@ withServer(PORT, async () => {
     page.on('pageerror', e => pageErrors.push(e.message));
 
     const t0 = Date.now();
-    await page.goto('http://localhost:' + PORT + '/');
+    await page.goto('http://localhost:' + port + '/');
     await page.click('#home-photo');
     await page.click('#photo-open-idphoto'); // 进入「证照生成」子功能
     await page.setInputFiles('#file-input', PHOTO);

@@ -57,11 +57,11 @@ function flush(ms) { return new Promise((r) => setTimeout(r, ms || 120)); }
 // 桩必须在页面脚本引导前注入（batch.js 初始化时探测 API 支持情况）
 const dirRef = { current: null };
 
-withServer(PORT, async () => {
+withServer(PORT, async (port) => {
   const errors = [];
   const vc = new VirtualConsole();
   vc.on('jsdomError', (e) => errors.push(String(e.message || e).split('\n')[0]));
-  const dom = await JSDOM.fromURL('http://localhost:' + PORT + '/', {
+  const dom = await JSDOM.fromURL('http://localhost:' + port + '/', {
     runScripts: 'dangerously',
     resources: 'usable',
     virtualConsole: vc,

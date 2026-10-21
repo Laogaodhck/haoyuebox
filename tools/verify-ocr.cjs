@@ -13,13 +13,13 @@ const PORT = 8440;
 const checker = createChecker();
 const assert = checker.assert;
 
-withServer(PORT, async () => {
+withServer(PORT, async (port) => {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
     page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
 
-    await page.goto('http://localhost:' + PORT + '/');
+    await page.goto('http://localhost:' + port + '/');
     // 等 app.js 引导完成、docsOcr 模块注册
     await page.waitForFunction(() => window.App && window.App.docsOcr && window.App.docsOcr._test
       && typeof window.App.docsOcr._test.ocrRef === 'function', null, { timeout: 30000 });
