@@ -117,7 +117,7 @@
       if (s > bestS) { bestS = s; bestA = a; }
     }
     var fine = bestA;
-    for (var a2 = bestA - 2; a2 <= bestA + 2 + 1e-9; a2 += 0.5) {
+    for (var a2 = bestA - 2; a2 <= bestA + 2 + 1e-9; a2 += 0.25) {
       var s2 = score(a2);
       if (s2 > bestS) { bestS = s2; fine = a2; }
     }
@@ -314,12 +314,21 @@
 
   /* ================= 增强主入口 ================= */
 
-  // 完整增强管线。返回 {px, info}；info 含 skew / brightness / blur / 动作标记。
-  function enhance(px) {
+  // 完整增强管线。opts: {mode: 'full'|'gray'|'off', k, sharpenAmount, autoInvert, minSkew}
+  //  mode='full' 二值化（默认，适合低分辨率/低光照/反色）；'gray' 仅灰度+拉伸/锐化（保留抗锯齿，
+  //  适合干净件与纹理背景）；'off' 只做纠偏与统计。
+  // 返回 {px, info}；info 含 skew / brightness / blur / 动作标记（含极性翻转）
+  function enhance(px, opts) {
+    var o = opts || {};
+    var mode = o.mode || 'full';
+    var k = typeof o.k === 'number' ? o.k : 0.25;
+    var sharpenAmount = typeof o.sharpenAmount === 'number' ? o.sharpenAmount : 0.6;
+    var autoInvert = o.autoInvert !== false;
+    var minSkew = typeof o.minSkew === 'number' ? o.minSkew : 0.6;
     var w = px.width, h = px.height;
     var gray = toGray(px);
     var skew = estimateSkew(gray, w, h);
-    var deskewed = Math.abs(skew) >= 0.6 ? deskewShearRGBA(px, skew) : px;
+    var deskewed = Math.abs(skew) >= minSkew ? deskewShearRGBA(px, skew) : px;
     var work = deskewed === px ? { data: null, width: w, height: h } : deskewed;
     var gray2 = deskewed === px ? gray : toGray(deskewed);
     // 亮度 / 对比度 / 模糊度统计（降采样上算，省时）
@@ -328,23 +337,51 @@
     for (var i = 0; i < ds.g.length; i++) mean += ds.g[i];
     mean /= ds.g.length;
     var blurVar = laplacianVar(ds.g, ds.w, ds.h);
-    var norm = percentileNorm(gray2, work.width, work.height);
-    var sharpened = false;
-    if (blurVar < 60 && work.width > 32) { norm = unsharp(norm, work.width, work.height, 0.6); sharpened = true; }
-    var bin = sauvolaBinarize(norm, work.width, work.height);
-    bin = denoiseBinary(bin, work.width, work.height);
-    var out = binToRGBA(bin, work.width, work.height);
-    return {
-      px: out,
-      info: {
-        skew: skew,
-        deskewed: deskewed !== px,
-        brightness: Math.round(mean),
-        blur: Math.round(blurVar),
-        sharpened: sharpened,
-        lowLight: mean < 100
-      }
+    var info = {
+      skew: skew,
+      deskewed: deskewed !== px,
+      brightness: Math.round(mean),
+      blur: Math.round(blurVar),
+      sharpened: false,
+      inverted: false,
+      lowLight: mean < 100,
+      mode: mode
     };
+    if (mode === 'off') {
+      if (deskewed === px) return { px: px, info: info };
+      return { px: deskewed, info: info };
+    }
+    var norm = percentileNorm(gray2, work.width, work.height);
+    // 暗底浅字：Sauvola 假定"暗字亮底"，直接在深底图上会整幅判白。
+    // 二值化前先取反（仅 full 档，且整体明显偏暗时），post-check 仍保留兜底。
+    if (mode === 'full' && autoInvert && mean < 110) {
+      for (var pi = 0; pi < norm.length; pi++) norm[pi] = 255 - norm[pi];
+      info.inverted = true;
+    }
+    if (blurVar < 60 && work.width > 32) {
+      norm = unsharp(norm, work.width, work.height, sharpenAmount);
+      info.sharpened = true;
+    }
+    if (mode === 'gray') {
+      var rgba = new Uint8ClampedArray(norm.length * 4);
+      for (var gi = 0, gj = 0; gi < norm.length; gi++, gj += 4) {
+        var v = norm[gi];
+        rgba[gj] = v; rgba[gj + 1] = v; rgba[gj + 2] = v; rgba[gj + 3] = 255;
+      }
+      return { px: { data: rgba, width: work.width, height: work.height }, info: info };
+    }
+    var bin = sauvolaBinarize(norm, work.width, work.height, { k: k });
+    bin = denoiseBinary(bin, work.width, work.height);
+    // 明暗极性归一（兜底）：未预取反但二值化后墨点仍过半 → 整幅取反
+    if (autoInvert && !info.inverted) {
+      var ink = 0;
+      for (var j = 0; j < bin.length; j++) if (bin[j] === 0) ink++;
+      if (ink / bin.length > 0.5) {
+        for (var m = 0; m < bin.length; m++) bin[m] = bin[m] === 0 ? 255 : 0;
+        info.inverted = true;
+      }
+    }
+    return { px: binToRGBA(bin, work.width, work.height), info: info };
   }
 
   /* ================= 文本后处理 ================= */
@@ -502,7 +539,10 @@
       l.words.forEach(function (wd) {
         var bb = wd.bbox || {};
         if (bb.x0 == null) return;
-        words.push({ text: wd.text, x0: bb.x0, x1: bb.x1, y0: bb.y0, y1: bb.y1 });
+        words.push({
+          text: wd.text, x0: bb.x0, x1: bb.x1, y0: bb.y0, y1: bb.y1,
+          conf: (typeof wd.confidence === 'number') ? wd.confidence : null
+        });
       });
     });
     if (words.length < 6) return null;
@@ -519,7 +559,7 @@
       lastCy = cy;
     });
     rows.forEach(function (r) { r.sort(function (a, b) { return a.x0 - b.x0; }); });
-    if (rows.length < 2) return null;
+    if (rows.length < 3) return null;   // 少于 3 行不足以区分"表格"与"普通多行文本"
     // 聚列：全词左缘聚类（容差 0.5·词宽中位数），统计各列支持行数
     var ws2 = words.map(function (w) { return w.x1 - w.x0; }).sort(function (a, b) { return a - b; });
     var mw = ws2[(ws2.length / 2) | 0] || 20;
@@ -550,17 +590,18 @@
             cell.text += ' ' + w.text;
             cell.x0 = Math.min(cell.x0, w.x0);
             cell.x1 = Math.max(cell.x1, w.x1);
+            if (w.conf != null) { cell.confSum += w.conf; cell.confN++; }
           } else {
-            grid[ri][ci] = { text: w.text, x0: w.x0, x1: w.x1 };
+            grid[ri][ci] = { text: w.text, x0: w.x0, x1: w.x1, confSum: (w.conf || 0), confN: (w.conf != null ? 1 : 0) };
           }
         }
       });
     });
-    // 列支持率：≥ max(2, 半数行) 才保留；行覆盖率不足则放弃
+    // 列支持率：≥ 75% 行（且至少 3 行）才保留；行覆盖率不足则放弃
     var colSupport = anchors.map(function (_, ci) {
       return grid.filter(function (row) { return row[ci] != null; }).length;
     });
-    var keep = colSupport.map(function (n) { return n >= Math.max(2, rows.length * 0.5); });
+    var keep = colSupport.map(function (n) { return n >= Math.max(3, rows.length * 0.75); });
     var keptIdx = [];
     keep.forEach(function (k, ci) { if (k) keptIdx.push(ci); });
     if (keptIdx.length < 2) return null;
@@ -572,39 +613,83 @@
         if (cell != null) filled++;
       });
     });
-    if (total < 4 || filled / total < 0.5) return null;
+    if (total < 6 || filled / total < 0.7) return null;
     // 每列对齐推断：x0 离散小 → 左对齐；x1 离散小（且明显小于 x0）→ 右对齐；
     // 中心离散最小 → 居中。容差取词宽中位数 40%。
+    // 稳定性过滤：三个边里至少有一个在容差内，否则该"列"只是普通文本的偶然对齐 → 丢弃
     var tolA = Math.max(8, mw * 0.4);
     function spread(arr) {
       var mn = Math.min.apply(null, arr), mx = Math.max.apply(null, arr);
       return mx - mn;
     }
-    var aligns = [], widths = [];
+    var cols = [];
     keptIdx.forEach(function (ci) {
       var cells = grid.map(function (row) { return row[ci]; }).filter(Boolean);
       var x0s = cells.map(function (c) { return c.x0; });
       var x1s = cells.map(function (c) { return c.x1; });
       var cs = cells.map(function (c) { return (c.x0 + c.x1) / 2; });
       var spL = spread(x0s), spR = spread(x1s), spC = spread(cs);
+      var stable = (spL <= tolA) || (spR <= tolA) || (spC <= tolA);
+      if (!stable) return;
       var al = 'left';
       if (spC <= tolA && spC < spL && spC < spR) al = 'center';
       else if (spR <= tolA && spR < spL) al = 'right';
-      aligns.push(al);
+      cols.push({
+        idx: ci,
+        align: al,
+        width: Math.max(1, Math.max.apply(null, x1s) - Math.min.apply(null, x0s))
+      });
     });
-    // 相对列宽：列内格子的最大水平跨度
-    widths = keptIdx.map(function (ci) {
-      var cells = grid.map(function (row) { return row[ci]; }).filter(Boolean);
-      var mn = Math.min.apply(null, cells.map(function (c) { return c.x0; }));
-      var mx = Math.max.apply(null, cells.map(function (c) { return c.x1; }));
-      return Math.max(1, mx - mn);
+    if (cols.length < 2) return null;
+    // 强判别：普通多行正文每行词数远多于列数（一句 10 个词），表格每格 1–2 个词。
+    // 中位数词数 > 列数×1.8+1 直接判为非表格，避免把正文当成表格后"按列裁掉"其余文字。
+    var wpr = rows.map(function (r) { return r.length; }).sort(function (a, b) { return a - b; });
+    var medWords = wpr[(wpr.length / 2) | 0] || 0;
+    if (medWords > cols.length * 1.8 + 1) return null;
+    // 列间稳定间隙：表格列之间有明显空白（≥ 词宽中位数 25%）；正文词间距远小于此，
+    // 该判据是"表格 vs 多列排版正文"的主要分水岭
+    for (var gi = 0; gi + 1 < cols.length; gi++) {
+      var gaps = [];
+      for (var ri2 = 0; ri2 < grid.length; ri2++) {
+        var cellA = grid[ri2][cols[gi].idx];
+        var cellB = grid[ri2][cols[gi + 1].idx];
+        if (cellA && cellB) gaps.push(cellB.x0 - cellA.x1);
+      }
+      if (!gaps.length) continue;
+      gaps.sort(function (a, b) { return a - b; });
+      if (gaps[(gaps.length / 2) | 0] < mw * 0.25) return null;
+    }
+    // 行带（每行 y 范围）与单元格裁剪框，供低置信单元格重识别
+    var rowBands = rows.map(function (r) {
+      var y0 = Math.min.apply(null, r.map(function (w) { return w.y0; }));
+      var y1 = Math.max.apply(null, r.map(function (w) { return w.y1; }));
+      return { y0: y0, y1: y1 };
     });
+    var boxes = grid.map(function (row, ri) {
+      return cols.map(function (c) {
+        var cell = row[c.idx];
+        return cell ? { x0: cell.x0, y0: rowBands[ri].y0, x1: cell.x1, y1: rowBands[ri].y1 } : null;
+      });
+    });
+    var aligns = cols.map(function (c) { return c.align; });
+    var widths = cols.map(function (c) { return c.width; });
     return {
       rows: grid.map(function (row) {
-        return row.map(function (cell, ci) { return keep[ci] ? (cell == null ? '' : cell.text) : null; })
-          .filter(function (_, ci) { return keep[ci]; });
+        return cols.map(function (c) {
+          var cell = row[c.idx];
+          return cell == null ? '' : cell.text;
+        });
       }),
-      colCount: keptIdx.length,
+      // 单元格平均置信度（与 rows 同形，空单元格为 null），供低置信单元格重识别
+      confs: grid.map(function (row) {
+        return cols.map(function (c) {
+          var cell = row[c.idx];
+          return (cell && cell.confN) ? Math.round(cell.confSum / cell.confN) : null;
+        });
+      }),
+      boxes: boxes,
+      rowBands: rowBands,
+      colCount: cols.length,
       aligns: aligns,
       widths: widths,
       band: {
@@ -706,7 +791,10 @@
         return cy < table.band.y0 || cy > table.band.y1;
       });
       blocks = rebuildBlocks(outLines);
-      blocks.push({ type: 'table', rows: table.rows, aligns: table.aligns, widths: table.widths });
+      blocks.push({
+        type: 'table', rows: table.rows, aligns: table.aligns, widths: table.widths,
+        confs: table.confs, boxes: table.boxes, rowBands: table.rowBands, band: table.band
+      });
     } else {
       blocks = rebuildBlocks(cleaned);
     }

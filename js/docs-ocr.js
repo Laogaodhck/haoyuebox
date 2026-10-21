@@ -68,13 +68,240 @@
     }
   }
 
-  // 就地增强 canvas 像素（纠偏 / 拉伸 / 锐化 / 二值化 / 去噪），返回 info
-  function enhanceCanvas(c) {
+  // 就地增强 canvas 像素（增强档位见 App.ocrEnhance.enhance 的 mode），返回 info
+  function enhanceCanvas(c, mode) {
     var ctx = c.getContext('2d');
     var img = ctx.getImageData(0, 0, c.width, c.height);
-    var r = App.ocrEnhance.enhance(img);
-    ctx.putImageData(r.px, 0, 0);
+    var r = App.ocrEnhance.enhance(img, { mode: mode || 'full' });
+    // 纠偏会改变高度：尺寸变化时必须同步调整画布，否则底部内容被裁掉
+    if (c.width !== r.px.width || c.height !== r.px.height) {
+      c.width = r.px.width;
+      c.height = r.px.height;
+      ctx = c.getContext('2d');
+    }
+    // 必须包装为 ImageData：putImageData 拒绝普通 {data,width,height} 对象
+    // （此前直接传对象会抛 TypeError，被上层 catch 静默回退原图，导致增强从未生效）
+    ctx.putImageData(new ImageData(r.px.data, r.px.width, r.px.height), 0, 0);
     return r.info;
+  }
+
+  /* ================= 多通道识别（精度优先，带预算上限） ================= */
+
+  var MULTI = {
+    lowConf: 60,     // 行均置信度低于此值（严重劣化）→ 换版式通道重识别
+    pixelConf: 55,   // 低于此值才无条件启用灰度变体（避免清晰件白跑一遍）
+    minLinePx: 22,   // 行高中位数低于此值视为低分辨率 → 放大 2x 重识别
+    cellConf: 70,    // 单元格置信度低于此值 → 单元格裁剪重识别
+    maxCells: 60,    // 单元格重识别次数上限（耗时保护）
+    // 基座通道：tesseract.js worker 的默认 tessedit_pageseg_mode 是 SINGLE_BLOCK(6)，
+    // 显式写 6 才能既复现 v1.4.1 行为、又不受上一次调用残留参数影响
+    psmBase: 6,
+    psmAuto: 3,      // AUTO：多栏 / 版式复杂、基座漏行时尝试
+    psmSparse: 11,   // 稀疏文字（海报 / 截图标注）
+    gain: 1.05       // 备选通道需超过当前评分 5% 才采纳（避免抖动式换通道）
+  };
+
+  // 识别参数：仅指定分页模式。
+  // 注意：不要开启 preserve_interword_spaces——它改变分词粒度（把列间空格并入词），
+  // 会破坏基于词级 bbox 的列聚类，实测导致表格列丢失（见 docs/ocr-accuracy-optimization.md）。
+  function psmParams(psm) {
+    return { tessedit_pageseg_mode: String(psm) };
+  }
+
+  function scaleCanvas(src, factor) {
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(src.width * factor));
+    c.height = Math.max(1, Math.round(src.height * factor));
+    var ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(src, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  // 复制画布（增强会就地改写像素，变体必须各自持有副本）
+  function cloneCanvas(src) {
+    var c = document.createElement('canvas');
+    c.width = src.width;
+    c.height = src.height;
+    c.getContext('2d').drawImage(src, 0, 0);
+    return c;
+  }
+
+  // 平均亮度（降采样估算，判暗底/反色底）
+  function meanBrightness(canvas) {
+    var s = Math.max(1, Math.round(160 / Math.max(canvas.width, canvas.height) * 100) / 100);
+    var small = scaleCanvas(canvas, Math.min(1, s));
+    var d = small.getContext('2d').getImageData(0, 0, small.width, small.height).data;
+    var sum = 0, n = 0;
+    for (var i = 0; i < d.length; i += 4) { sum += d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114; n++; }
+    return n ? sum / n : 255;
+  }
+
+  // 页面统计：字符数、行数、字符加权平均置信度、行高中位数
+  function pageStats(data) {
+    var lines = [];
+    ((data && data.blocks) || []).forEach(function (b) {
+      (b.paragraphs || []).forEach(function (p) {
+        (p.lines || []).forEach(function (l) {
+          if (!l) return;
+          var txt = typeof l.text === 'string' ? l.text.trim() : '';
+          var conf = (typeof l.confidence === 'number') ? l.confidence : 0;
+          var h = (l.bbox && l.bbox.y1 != null) ? (l.bbox.y1 - l.bbox.y0) : 0;
+          lines.push({ len: txt.length, conf: conf, h: h });
+        });
+      });
+    });
+    var chars = 0, wsum = 0, hs = [];
+    lines.forEach(function (l) {
+      chars += l.len;
+      wsum += l.len * l.conf;
+      if (l.h > 0) hs.push(l.h);
+    });
+    hs.sort(function (a, b) { return a - b; });
+    return {
+      chars: chars,
+      lines: lines.length,
+      meanConf: chars ? wsum / chars : 0,
+      medLineH: hs.length ? hs[(hs.length / 2) | 0] : 0
+    };
+  }
+
+  // 通道评分：字符量 × 置信度平方/1e4（置信度优先，避免"多识别多错"的通道胜出）
+  function passScore(data) {
+    var st = pageStats(data);
+    return st.chars * Math.pow(st.meanConf / 100, 2);
+  }
+
+  // 质量门控多通道识别。实测结论（docs/ocr-accuracy-optimization.md）：
+  //  原图直识在多数场景最优，无条件二值化反而损害清晰件与纹理背景；
+  //  因此先跑原图，仅在质量信号差时才启用对应像素变体，且变体需超过当前评分 5% 才采纳。
+  //  通道 1 原图（基座 PSM）→ 通道 2 低分辨率 2x / 1.5x 放大 + 灰度增强 →
+  //  通道 3 暗底/反色二值化（含极性归一）→ 通道 4 AUTO / 稀疏 PSM。
+  //  strategy='legacy' 复现 v1.4.1 行为（单遍原图），供评测对比。
+  async function recognizeSmart(wk, sourceCanvas, opts) {
+    var o = opts || {};
+    var psmBase = o.psm || MULTI.psmBase;
+    // 显式指定 PSM：worker 的分页参数有状态，若沿用上次调用（单元格 PSM 7 / 稀疏 PSM 11）
+    // 会污染后续识别，出现"同图不同结果"。
+    var base = await wk.recognize(sourceCanvas, psmParams(psmBase), OUT_OPTS);
+    if (o.strategy === 'legacy') {
+      return {
+        res: base, passes: 1, psm: psmBase, scale: 1, enh: 'off',
+        canvas: sourceCanvas, enhInfo: null, stats: pageStats(base && base.data)
+      };
+    }
+    var best = { res: base, enh: 'off', scale: 1, psm: psmBase, canvas: sourceCanvas, enhInfo: null };
+    var bestScore = passScore(base.data);
+    var passes = 1;
+    var st = pageStats(base.data);
+    var variants = [];
+    if (o.enhance !== false) {
+      var bright = meanBrightness(sourceCanvas);
+      var longEdge = Math.max(sourceCanvas.width, sourceCanvas.height);
+      // 小字判定：行高 <18px，或行高 <24px 且画布本身很小（截图/缩略图）；
+      // 大画布上的 20px 文字无需放大（放大只增耗时）
+      var tinyText = st.medLineH > 0 && (st.medLineH < 18 || (st.medLineH < 24 && longEdge < 1200));
+      if (tinyText) {
+        variants.push({ prep: null, scale: 2 });        // 纯放大：小字场景
+        variants.push({ prep: 'gray', scale: 1.5 });    // 放大 + 灰度增强
+      } else if (st.meanConf < MULTI.pixelConf || bright < 200) {
+        // 低置信或整体偏暗（扫描件/照片）才做灰度增强；清晰件不白跑
+        variants.push({ prep: 'gray', scale: 1 });
+      }
+      if (bright < 110) {
+        variants.push({ prep: 'full', scale: 1 });      // 暗底 / 反色底：二值化 + 极性归一
+      }
+    }
+    for (var i = 0; i < variants.length; i++) {
+      var v = variants[i];
+      var c = v.scale === 1 ? cloneCanvas(sourceCanvas) : scaleCanvas(sourceCanvas, v.scale);
+      var info = null;
+      if (v.prep) {
+        try { info = enhanceCanvas(c, v.prep); } catch (e) { continue; }
+      }
+      var r = await wk.recognize(c, psmParams(psmBase), OUT_OPTS);
+      passes++;
+      var sc = passScore(r.data);
+      if (sc > bestScore * MULTI.gain) {
+        best = { res: r, enh: v.prep || 'off', scale: v.scale, psm: psmBase, canvas: c, enhInfo: info };
+        bestScore = sc;
+      }
+    }
+    var stB = pageStats(best.res.data);
+    if (stB.meanConf < MULTI.lowConf || stB.lines <= 2) {
+      var altPsm = stB.lines <= 2 ? MULTI.psmSparse : MULTI.psmAuto;
+      var altSrc = best.scale === 1 ? sourceCanvas : scaleCanvas(sourceCanvas, best.scale);
+      if (best.enh !== 'off') altSrc = best.canvas;
+      var r4 = await wk.recognize(altSrc, psmParams(altPsm), OUT_OPTS);
+      passes++;
+      if (passScore(r4.data) > bestScore * MULTI.gain) {
+        best = { res: r4, enh: best.enh, scale: best.scale, psm: altPsm, canvas: altSrc, enhInfo: best.enhInfo };
+      }
+    }
+    return {
+      res: best.res, passes: passes, psm: best.psm, scale: best.scale,
+      enh: best.enh, canvas: best.canvas, enhInfo: best.enhInfo,
+      stats: pageStats(best.res && best.res.data)
+    };
+  }
+
+  // 恢复默认识别参数（单元格重识别后调用，避免污染后续页面/文件）
+  async function resetParams(wk) {
+    try { await wk.setParameters(psmParams(MULTI.psmBase)); } catch (e) { /* 引擎未就绪时忽略 */ }
+  }
+
+  // 裁剪单元格（外扩 3px 容差）
+  function cropCanvas(canvas, box) {
+    var x0 = Math.max(0, Math.floor(box.x0) - 3);
+    var y0 = Math.max(0, Math.floor(box.y0) - 3);
+    var x1 = Math.min(canvas.width, Math.ceil(box.x1) + 3);
+    var y1 = Math.min(canvas.height, Math.ceil(box.y1) + 3);
+    var w = x1 - x0, h = y1 - y0;
+    if (w < 4 || h < 4) return null;
+    var c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    c.getContext('2d').drawImage(canvas, x0, y0, w, h, 0, 0, w, h);
+    return c;
+  }
+
+  // 低置信单元格重识别：整页识别对单元格串列/串行敏感，裁剪为单行（PSM 7）后
+  // 重新识别，仅在置信度明显更高（+3）时替换。次数受 maxCells 预算约束。
+  async function refineTableCells(wk, canvas, doc) {
+    if (!doc || !doc.blocks || !canvas) return 0;
+    var refined = 0, budget = MULTI.maxCells;
+    for (var i = 0; i < doc.blocks.length && budget > 0; i++) {
+      var b = doc.blocks[i];
+      if (!b || b.type !== 'table' || !b.boxes || !b.confs) continue;
+      for (var ri = 0; ri < b.rows.length && budget > 0; ri++) {
+        for (var ci = 0; ci < b.rows[ri].length && budget > 0; ci++) {
+          var conf = b.confs[ri][ci];
+          var box = b.boxes[ri][ci];
+          var cur = String(b.rows[ri][ci] || '');
+          if (!box || conf == null || !cur || conf >= MULTI.cellConf) continue;
+          // 仅对「数字型单元格」重识别：实测中文短格裁剪后易把 摊→难（置信更高但更错），
+          // 而数字格（金额/数量）在单行 PSM 下收益稳定且可校验
+          if (!/^[\d.,¥$%+\-/\s]+$/.test(cur)) continue;
+          budget--;
+          var crop = cropCanvas(canvas, box);
+          if (!crop) continue;
+          var r = await wk.recognize(crop, psmParams(7), OUT_OPTS);
+          var text = String((r.data && r.data.text) || '').replace(/\s+/g, ' ').trim();
+          var conf2 = (r.data && typeof r.data.confidence === 'number') ? r.data.confidence : 0;
+          // 采纳条件（防"裁剪碎片当作更优结果"）：置信度至少 +10 且达 75，
+          // 且字数与原文接近（0.8–1.25 倍）——中文单字替换比多字更危险，必须严格
+          var ratio = text ? text.replace(/\s+/g, '').length / Math.max(1, cur.replace(/\s+/g, '').length) : 0;
+          if (text && conf2 >= conf + 10 && conf2 >= 75 && ratio >= 0.8 && ratio <= 1.25) {
+            b.rows[ri][ci] = text;
+            b.confs[ri][ci] = Math.round(conf2);
+            refined++;
+          }
+        }
+      }
+    }
+    if (refined) await resetParams(wk);
+    return refined;
   }
 
   // 从识别结果构建输出文本：智能排版（blocks → 结构化文档模型）或纯文本
@@ -368,10 +595,38 @@
     renderCount();
   }
 
+  // 清空：文件列表与识别结果区一并复位（结果文本、统计、导出按钮、结构化缓存、状态行）
   function clearFiles() {
     items = [];
+    lastUnits = null;
+    lastFullText = null;
+    $('do-text').value = '';
+    var input = $('do-file');
+    if (input) input.value = '';
     renderCount();
+    updateMeta();
+    exportsEnable(false, false);
     setStatus('');
+  }
+
+  // 单页处理：质量门控多通道识别 → 版面构建 → 低置信表格单元格重识别（预算内）
+  async function recognizePage(wk, canvas, mode, acc, canEnhance) {
+    var smart = await recognizeSmart(wk, canvas, { enhance: canEnhance !== false });
+    acc.passes += smart.passes;
+    if (smart.psm !== MULTI.psmBase) acc.psmAlt++;
+    if (smart.scale > 1) acc.rescaled++;
+    if (smart.enh !== 'off') acc.enhanced++;
+    if (smart.enhInfo) noteEnh(acc.enhFlags, smart.enhInfo);
+    var built = buildResult(smart.res, mode);
+    if (built && built.doc && built.hasTable) {
+      // 单元格裁剪必须用「实际参与识别的那张画布」（可能是放大/增强后的变体）
+      var fixed = await refineTableCells(wk, smart.canvas, built.doc);
+      if (fixed) {
+        acc.cells += fixed;
+        built.text = App.ocrEnhance ? App.ocrEnhance.renderDocText(built.doc.blocks) : built.text;
+      }
+    }
+    return built;
   }
 
   async function run() {
@@ -389,7 +644,10 @@
     var canEnhance = enhanceOn && App.ocrEnhance && typeof App.ocrEnhance.enhance === 'function';
     var units = [];
     var okN = 0, errN = 0;
-    var enhFlags = { deskew: false, lowLight: false, sharpen: false };
+    var smartAcc = {
+      passes: 0, psmAlt: 0, rescaled: 0, cells: 0, enhanced: 0,
+      enhFlags: { deskew: false, lowLight: false, sharpen: false, inverted: false }
+    };
     try {
       if (!worker) setStatus('正在加载识别内核（约 12 MB，仅首次较慢，全程本机）…');
       var wk = await ensureWorker(langKey);
@@ -403,9 +661,7 @@
                 curLabel = '识别 ' + it.file.name + ' 第 ' + p + '/' + pdf.numPages + ' 页：';
                 setStatus(curLabel + '0%');
                 var canvas = await core.renderPage(pdf, p, 2, 2000);
-                if (canEnhance) noteEnh(enhFlags, tryEnhance(canvas));
-                var res = await wk.recognize(canvas, {}, OUT_OPTS);
-                pushUnit(units, buildResult(res, mode), it.file.name + ' 第' + p + '页');
+                pushUnit(units, await recognizePage(wk, canvas, mode, smartAcc, canEnhance), it.file.name + ' 第' + p + '页');
                 okN++;
               }
             } finally {
@@ -415,9 +671,7 @@
             curLabel = '识别 ' + it.file.name + '：';
             setStatus(curLabel + '0%');
             var imgCanvas = await fileToCanvas(it.file);
-            if (canEnhance) noteEnh(enhFlags, tryEnhance(imgCanvas));
-            var res2 = await wk.recognize(imgCanvas, {}, OUT_OPTS);
-            pushUnit(units, buildResult(res2, mode), it.file.name);
+            pushUnit(units, await recognizePage(wk, imgCanvas, mode, smartAcc, canEnhance), it.file.name);
             okN++;
           }
         } catch (e) {
@@ -443,7 +697,7 @@
         updateMeta();
         exportsEnable(true, anyTableFlag(units));
         setStatus('识别完成：成功 ' + okN + ' 项' + (errN ? '，失败 ' + errN + ' 项' : '') +
-          (anyTableFlag(units) ? '，含表格还原' : '') + enhNoteText(enhFlags) +
+          (anyTableFlag(units) ? '，含表格还原' : '') + enhNoteText(smartAcc.enhFlags) + smartNoteText(smartAcc) +
           '，结果可在右侧编辑后复制或导出。');
       } else {
         setStatus('');
@@ -474,19 +728,23 @@
     units.push({ label: label, text: built.text || '', hasTable: !!built.hasTable, doc: built.doc || null });
   }
 
-  // 增强失败不阻断识别：回退原图
-  function tryEnhance(canvas) {
-    try { return enhanceCanvas(canvas); } catch (e) {
-      console.warn('[zunhong] 图像增强失败，使用原图识别:', e);
-      return null;
-    }
-  }
-
   function noteEnh(flags, info) {
     if (!info) return;
     if (info.deskewed) flags.deskew = true;
     if (info.lowLight) flags.lowLight = true;
     if (info.sharpened) flags.sharpen = true;
+    if (info.inverted) flags.inverted = true;
+  }
+
+  // 多通道统计摘要（让用户知道多花的算力用在哪）
+  function smartNoteText(acc) {
+    var parts = [];
+    if (acc.passes > 1) parts.push('多通道 ' + acc.passes + ' 遍');
+    if (acc.enhanced) parts.push('增强通道 ' + acc.enhanced + ' 次');
+    if (acc.psmAlt) parts.push('换版式 ' + acc.psmAlt + ' 次');
+    if (acc.rescaled) parts.push('放大重识别 ' + acc.rescaled + ' 次');
+    if (acc.cells) parts.push('单元格校正 ' + acc.cells + ' 格');
+    return parts.length ? '（' + parts.join('、') + '）' : '';
   }
 
   function enhNoteText(flags) {
@@ -494,6 +752,7 @@
     if (flags.deskew) notes.push('纠偏');
     if (flags.lowLight) notes.push('低光照优化');
     if (flags.sharpen) notes.push('锐化');
+    if (flags.inverted) notes.push('反色归一');
     return notes.length ? '（图像增强：' + notes.join(' / ') + '）' : '';
   }
 
@@ -596,6 +855,52 @@
       pageSizeXml: pageSizeXml,
       buildDocxXmlFromUnits: buildDocxXmlFromUnits,
       detectOrient: detectOrient,
+      recognizeSmart: recognizeSmart,
+      refineTableCells: refineTableCells,
+      pageStats: pageStats,
+      passScore: passScore,
+      MULTI: MULTI,
+      /* 原始识别（不增强、不版面）：供评测工具比较不同参数形态与通道 */
+      rawRecognize: async function (canvas, options, lang) {
+        var wk = await ensureWorker(lang || 'both');
+        var res = await wk.recognize(canvas, options || undefined, OUT_OPTS);
+        return {
+          text: (res.data && res.data.text) || '',
+          conf: (res.data && typeof res.data.confidence === 'number') ? res.data.confidence : 0,
+          stats: pageStats(res.data)
+        };
+      },
+      /* 评测钩子（tools/eval-ocr.cjs 用）：整条管线（增强 → 多通道识别 → 版面 → 单元格校正），
+       * strategy='legacy' 复现 v1.4.1 旧行为，用于优化前后对比。 */
+      pipelineEval: async function (canvas, opts) {
+        var o = opts || {};
+        var wk = await ensureWorker(o.lang || 'both');
+        var strategy = o.strategy || 'auto';
+        // 增强由 recognizeSmart 内部按质量门控决定；此处仅传开关（false/'off' 关闭像素变体）
+        var smart = await recognizeSmart(wk, canvas, {
+          strategy: strategy,
+          enhance: o.enhance !== false && o.enhance !== 'off'
+        });
+        var built = buildResult(smart.res, o.mode || 'auto');
+        var refined = 0;
+        if (built && built.doc && built.hasTable && o.cellRefine !== false && strategy !== 'legacy') {
+          refined = await refineTableCells(wk, smart.canvas, built.doc);
+          if (refined) built.text = App.ocrEnhance.renderDocText(built.doc.blocks);
+        }
+        return {
+          text: built.text,
+          hasTable: !!built.hasTable,
+          doc: built.doc,
+          conf: built.conf,
+          stats: smart.stats,
+          passes: smart.passes,
+          psm: smart.psm,
+          scale: smart.scale,
+          enhMode: smart.enh,
+          enh: smart.enhInfo,
+          refinedCells: refined
+        };
+      },
       /* 主链路冒烟钩子（verify-ocr.cjs 用）：真实创建/复用 worker、识别、清理文本。
        * 纯函数断言覆盖不到「worker 初始化 → 语言包加载 → recognize → 回调」链路，
        * 该钩子让整条链可在真实浏览器里跑断言。

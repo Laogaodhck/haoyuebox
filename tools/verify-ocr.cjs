@@ -171,6 +171,26 @@ withServer(PORT, async (port) => {
     assert(!/landscape/.test(p2.cls), '切回竖向恢复版心');
     assert(await page.evaluate(() => document.getElementById('do-page-p').classList.contains('active')),
       '竖向按钮选中态同步');
+
+    /* 清空列表：同时复位识别结果区（文本 / 统计 / 导出按钮 / 空态提示） */
+    const cleared = await page.evaluate(() => {
+      const ta = document.getElementById('do-text');
+      ta.value = '识别结果示例文本';
+      const ids = ['do-copy', 'do-txt', 'do-docx', 'do-xlsx'];
+      ids.forEach(function (id) { document.getElementById(id).disabled = false; });
+      document.getElementById('do-clear').click();
+      return {
+        text: ta.value,
+        allDisabled: ids.every(function (id) { return document.getElementById(id).disabled; }),
+        meta: document.getElementById('do-meta').textContent,
+        hintShown: !document.getElementById('do-empty-hint').hidden,
+        label: document.getElementById('do-clear').textContent
+      };
+    });
+    assert(cleared.text === '', '清空列表同时清空识别结果文本');
+    assert(cleared.allDisabled === true, '清空后导出按钮（含 Excel）全部禁用');
+    assert(cleared.meta === '' && cleared.hintShown === true, '清空后统计行复位并回到空态提示');
+    assert(/列表与结果/.test(cleared.label), '按钮文案明示清空范围（列表与结果）');
   } finally {
     await browser.close();
   }

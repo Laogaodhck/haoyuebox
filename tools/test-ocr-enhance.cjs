@@ -369,5 +369,69 @@ let blocksA;
   assert(global.window.App.ocrEnhance.pageOrientation(null) === 'p', '无文档回退竖向');
 }
 
+/* ---------- 18. 增强档位与极性归一 ---------- */
+{
+  const E = global.window.App.ocrEnhance;
+  const px = makePx(200, 100, [255, 255, 255]);
+  drawRect(px, 20, 40, 80, 10, 0);
+  const off = E.enhance(px, { mode: 'off' });
+  assert(off.px === px && off.info.mode === 'off', "mode='off' 原样返回（仅统计）");
+  const gray = E.enhance(px, { mode: 'gray' });
+  const gsample = gray.px.data;
+  let isGray = true;
+  for (let i = 0; i < gsample.length; i += 4) {
+    if (gsample[i] !== gsample[i + 1] || gsample[i + 1] !== gsample[i + 2]) { isGray = false; break; }
+  }
+  assert(isGray, "mode='gray' 输出灰度（R=G=B）");
+  let middle = 0;
+  for (let i = 0; i < gsample.length; i += 4) if (gsample[i] > 20 && gsample[i] < 235) middle++;
+  assert(middle === 0, "mode='full' 为二值化输出（灰阶仅 0/255）" + '（中间灰 ' + middle + '）');
+
+  // 暗底浅字：二值化后墨点过半 → 自动取反，输出以白底为主
+  const dark = makePx(240, 120, [25, 25, 25]);
+  for (let y = 40; y < 80; y += 12) drawRect(dark, 20, y, 200, 6, 235);
+  const inv = E.enhance(dark, { mode: 'full' });
+  assert(inv.info.inverted === true, '暗底浅字自动极性归一（inverted=true）');
+  let white = 0;
+  for (let i = 0; i < inv.px.data.length; i += 4) if (inv.px.data[i] === 255) white++;
+  assert(white > inv.px.data.length / 4 * 0.5, '极性归一后以白底为主（白 ' + white + '）');
+  const noInv = E.enhance(dark, { mode: 'full', autoInvert: false });
+  assert(noInv.info.inverted === false, 'autoInvert=false 时不取反');
+}
+
+/* ---------- 19. 表格误判防护（正文不得被当作表格） ---------- */
+{
+  // 4 行普通正文：每行 5 个词（词数远多于列数）→ 不得判为表格
+  function proseRow(y, words) {
+    return {
+      text: words.join(' '), bbox: { x0: 60, y0: y, x1: 1100, y1: y + 24 },
+      words: words.map(function (t, i) { return word(t, 60 + i * 170, y, 60 + i * 170 + 150, y + 24, 90); })
+    };
+  }
+  const prose = [{ paragraphs: [{ lines: [
+    proseRow(10, ['尊泓', '工具', '箱', 'OCR', '样本']),
+    proseRow(40, ['今天', '天气', '很', '好', '适合']),
+    proseRow(70, ['识别', '结果', '需要', '人工', '复核']),
+    proseRow(100, ['排版', '还原', '与', '原件', '一致'])
+  ] }] }];
+  const table = T.detectTable(T.collectLines(prose));
+  assert(table === null, '多词正文不被误判为表格');
+
+  // 真表格：每行 3 个词 = 3 列 → 仍应检出，并带置信度与裁剪框
+  const real = [{ paragraphs: [{ lines: [
+    { text: '项目 数量 金额', bbox: { x0: 40, y0: 10, x1: 600, y1: 34 }, words: [word('项目', 40, 10, 160, 34, 92), word('数量', 240, 10, 360, 34, 90), word('金额', 460, 10, 600, 34, 88)] },
+    { text: '合计 9 1280', bbox: { x0: 40, y0: 40, x1: 600, y1: 64 }, words: [word('合计', 40, 40, 160, 64, 91), word('9', 340, 40, 360, 64, 95), word('1280', 520, 40, 600, 64, 93)] },
+    { text: '均摊 12 106', bbox: { x0: 40, y0: 70, x1: 600, y1: 94 }, words: [word('均摊', 40, 70, 160, 94, 89), word('12', 335, 70, 360, 94, 94), word('106', 530, 70, 600, 94, 92)] }
+  ] }] }];
+  const realTable = T.detectTable(T.collectLines(real));
+  assert(!!realTable && realTable.colCount === 3, '真表格仍被检出（3 列）');
+  assert(realTable.aligns.join(',') === 'left,right,right',
+    '列对齐为 左/右/右（实际 ' + (realTable.aligns || []).join(',') + '）');
+  assert(Array.isArray(realTable.confs) && realTable.confs[0].length === 3 &&
+    typeof realTable.confs[1][2] === 'number', '单元格置信度矩阵与列对齐');
+  assert(Array.isArray(realTable.boxes) && realTable.boxes[0][0].y1 > realTable.boxes[0][0].y0,
+    '单元格裁剪框含有效纵向范围');
+}
+
 console.log('\n共 ' + (pass + fail) + ' 项断言：通过 ' + pass + '，失败 ' + fail);
 process.exit(fail ? 1 : 0);
