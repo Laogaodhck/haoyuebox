@@ -227,7 +227,9 @@ async function listArchive(payload) {
   const exe = engine.resolve7zPath();
   if (!exe) return { ok: false, error: engine.no7zError() };
   const archive = payload && typeof payload.archive === 'string' ? payload.archive : '';
-  if (!archive || !fs.existsSync(archive)) return { ok: false, error: '压缩包不存在' };
+  /* 与 compress/extract 同规：路径须为绝对路径（防渲染层传入相对路径按 CWD 解析） */
+  if (!archive || !path.isAbsolute(archive)) return { ok: false, error: '压缩包路径非法' };
+  if (!fs.existsSync(archive)) return { ok: false, error: '压缩包不存在' };
   return new Promise((resolve) => {
     const child = spawn(exe, args7z.buildListArgs({ archive, pass: payload.pass }),
       { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -272,10 +274,16 @@ async function listArchive(payload) {
   });
 }
 
-function registerArchiveIpc(ipcMain, getWin) {
+function registerArchiveIpc(ipcMain, getWin, onPaths) {
+  /* 路径来源登记（可选回调）：pickPaths/statPaths 返回的本机路径上报给主进程，
+   * 供 print:readFile 做会话级白名单校验（渲染进程被攻破时无法凭空指定路径读文件） */
+  const record = (metas) => {
+    if (typeof onPaths === 'function' && Array.isArray(metas)) onPaths(metas);
+    return metas;
+  };
   ipcMain.handle('archive:check7z', () => engine.check7z());
-  ipcMain.handle('archive:pickPaths', (e, kind) => pickPaths(getWin, kind));
-  ipcMain.handle('archive:statPaths', (e, paths) => statPaths(paths));
+  ipcMain.handle('archive:pickPaths', async (e, kind) => record(await pickPaths(getWin, kind)));
+  ipcMain.handle('archive:statPaths', async (e, paths) => record(await statPaths(paths)));
   ipcMain.handle('archive:saveDialog', (e, defaultName) => saveDialog(getWin, defaultName));
   ipcMain.handle('archive:desktopPath', () => app.getPath('desktop'));
   ipcMain.handle('archive:compress', (e, payload) => compress(getWin, payload));

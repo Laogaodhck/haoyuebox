@@ -104,6 +104,16 @@ function registerPrintIpc() {
     if (process.platform !== 'win32') {
       return { ok: false, error: '当前系统不支持打印机属性对话框' };
     }
+    /* 打印机名白名单校验（与 system.js printTestPage 同规）：
+     * 名字必须来自本机枚举列表，杜绝渲染层伪造名称直达系统调用 */
+    try {
+      const printers = await mainWindow.webContents.getPrintersAsync();
+      if (!(printers || []).some((p) => p.name === printerName)) {
+        return { ok: false, error: '打印机不在本机列表中' };
+      }
+    } catch (err) {
+      return { ok: false, error: '打印机枚举失败' };
+    }
     const { spawn } = require('child_process');
     return new Promise((resolve) => {
       // rundll32 printui.dll,PrintUIEntry /p /n "打印机名" → 打印机属性
@@ -168,7 +178,26 @@ function registerPrintIpc() {
   });
 }
 registerPrintIpc();
-registerArchiveIpc(ipcMain, () => mainWindow);
+/* print:readFile 会话级路径白名单：只允许读取经 archive:pickPaths（对话框选择）
+ * 或 archive:statPaths（拖拽）登记过的本机路径。纵深防御——渲染进程即使被
+ * 攻破（XSS 已被 CSP 大幅压缩），也无法凭空指定任意磁盘路径读取文件。
+ * 归一化键与 7z-args.normPathKey 同思路：resolve 消解相对段 + Windows 不区分大小写 */
+const readPathWhitelist = new Set();
+const READ_PATH_MAX = 5000; // 容量上限：单次超限时整体清空（正常使用远达不到）
+function normReadPathKey(p) {
+  let s = path.resolve(String(p));
+  if (process.platform === 'win32') s = s.toLowerCase();
+  return s;
+}
+function allowReadPaths(metas) {
+  (Array.isArray(metas) ? metas : []).forEach((m) => {
+    if (m && typeof m.path === 'string' && m.path) {
+      if (readPathWhitelist.size >= READ_PATH_MAX) readPathWhitelist.clear();
+      readPathWhitelist.add(normReadPathKey(m.path));
+    }
+  });
+}
+registerArchiveIpc(ipcMain, () => mainWindow, allowReadPaths);
 /* 系统工具：网络检测（固定白名单 DNS 节点）+ 打印机向导/设置页/测试页 */
 registerSystemIpc(ipcMain, () => mainWindow);
 /* 版本检测/升级标记/数据备份（覆盖安装与版本更新的本机侧支撑） */
@@ -187,6 +216,10 @@ ipcMain.handle('archive-icons:restore', (e, exts) => archiveIcons.restore(exts))
 const FILE_READ_EXTS = ['pdf', 'txt', 'docx', 'doc', 'jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'];
 ipcMain.handle('print:readFile', async (e, filePath) => {
   if (!filePath || typeof filePath !== 'string') return { ok: false, error: '未指定文件' };
+  /* 会话级白名单：路径必须先经文件选择对话框/拖拽登记（见 allowReadPaths） */
+  if (!readPathWhitelist.has(normReadPathKey(filePath))) {
+    return { ok: false, error: '文件未经选择授权，请重新选择文件' };
+  }
   const ext = path.extname(filePath).replace(/^\./, '').toLowerCase();
   if (FILE_READ_EXTS.indexOf(ext) < 0) return { ok: false, error: '不支持的文件类型：' + ext };
   try {

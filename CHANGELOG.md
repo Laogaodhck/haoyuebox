@@ -2,6 +2,14 @@
 
 本项目所有显著变更记录于此。版本号遵循语义化版本（主版本.次版本.修订号）。
 
+## [未发布]
+
+### 安全加固
+- **IPC 入口白名单补齐**（2026-10-21 全项目安全审查低危项整改）：
+  - `print:showProperties` 打印机名先经 `getPrintersAsync()` 枚举白名单校验（与 `system:printTestPage` 同规），渲染层伪造的名称不再直达 `printui.dll` 系统调用
+  - `print:readFile` 增加会话级路径白名单：`registerArchiveIpc` 新增可选 `onPaths` 回调，把 `archive:pickPaths`（对话框选择）与 `archive:statPaths`（拖拽）返回的本机路径登记进主进程白名单；`readFile` 校验归一化键（`path.resolve` + Windows 大小写不敏感）通过后才读文件，上限 5000 条超限整体清空。纵深防御：渲染进程即使被攻破（XSS 已被 CSP 大幅压缩），也无法凭空指定任意磁盘路径读取文件
+  - `archive:list` 与 compress/extract 同规强制 `path.isAbsolute`，相对路径不再按 CWD 解析
+
 ## [1.3.8] - 2026-10-20
 
 ### 改进
