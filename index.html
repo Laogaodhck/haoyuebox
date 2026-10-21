@@ -51,7 +51,7 @@
   <aside class="home-declare">
     <img class="home-logo" src="assets/icon.png" alt="尊泓工具箱">
     <h2 class="home-name">尊泓工具箱</h2>
-    <div class="home-version">桌面离线版 v1.3.10</div>
+    <div class="home-version">桌面离线版 v1.4.0</div>
     <div class="home-divider"></div>
     <h3 class="home-h3">软件声明</h3>
     <ul class="home-declare-list">
@@ -1461,7 +1461,7 @@
         <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg></span>
         <span class="hc-body">
           <span class="hc-title">OCR 文字识别 <span class="hc-badge">可用</span></span>
-          <span class="hc-desc">图片 / 扫描 PDF 提取文字 · 中英文 · 导出 TXT / DOCX</span>
+          <span class="hc-desc">图片 / 扫描 PDF 提取文字 · 表格还原 · 导出 TXT / DOCX / Excel</span>
         </span>
         <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
       </button>
@@ -1496,7 +1496,16 @@
             <option value="en">仅英文</option>
           </select>
         </div>
-        <div class="dw-hint">首次识别需加载本地识别内核（约 12 MB），之后重复使用；切换语言包会重新初始化。扫描件清晰度越高效果越好。</div>
+
+        <h3>识别选项</h3>
+        <label class="check-row"><input type="checkbox" id="do-enhance" checked> 自动图像增强（纠偏 / 低光照 / 锐化）</label>
+        <div class="dw-row"><span>结果模式</span>
+          <select id="do-mode">
+            <option value="auto" selected>智能排版（表格还原）</option>
+            <option value="plain">纯文本</option>
+          </select>
+        </div>
+        <div class="dw-hint">开启增强后自动纠偏、拉伸暗淡照片并压掉复杂背景；智能排版按原始布局还原段落与表格，并提取证件号 / 手机号 / 日期。首次识别需加载本地识别内核（约 12 MB），之后重复使用；切换语言包会重新初始化。</div>
 
         <button id="do-run" class="ghost dw-block">开始识别</button>
         <div id="do-status" class="dw-status"></div>
@@ -1510,8 +1519,9 @@
           <button id="do-copy" class="ghost" disabled>复制文本</button>
           <button id="do-txt" class="ghost" disabled>导出 TXT</button>
           <button id="do-docx" class="ghost" disabled>导出 DOCX</button>
+          <button id="do-xlsx" class="ghost" disabled>导出 Excel</button>
         </div>
-        <div id="do-empty-hint" class="dw-hint">选择文件并点击「开始识别」，识别全程在本机完成；结果可编辑、复制，或导出为 TXT / DOCX（Word）。</div>
+        <div id="do-empty-hint" class="dw-hint">选择文件并点击「开始识别」，识别全程在本机完成；结果可编辑、复制，或导出为 TXT / DOCX（Word）/ Excel（检测到表格时可用，每张表格一个工作表）。</div>
       </div>
 
     </div>
@@ -1940,6 +1950,8 @@
 <script src="js/docs-pdf.js"></script>
 <script src="js/docs-reader.js"></script>
 <script src="vendor/ocr/tesseract.min.js"></script>
+<script src="js/xlsx-lite.js"></script>
+<script src="js/ocr-enhance.js"></script>
 <script src="js/docs-ocr.js"></script>
 </body>
 </html>

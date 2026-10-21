@@ -46,6 +46,100 @@ withServer(PORT, async (port) => {
     assert(/123/.test(flat), 'OCR 识别出 123（实际: ' + JSON.stringify(r && r.text) + '）');
     assert(typeof r.conf === 'number' && r.conf > 30,
       '识别置信度 > 30（实际: ' + (r && r.conf) + '）');
+
+    /* 增强链路冒烟：低对比度（深灰字浅灰底）+ 倾斜 2.5° 的退化图，
+     * 走 opts.enhance 管线（纠偏 + 百分位拉伸 + Sauvola 二值化）后应仍可识别。
+     * 同时确认 App.ocrEnhance 模块已挂载。 */
+    assert(await page.evaluate(() => !!(window.App && window.App.ocrEnhance
+      && typeof window.App.ocrEnhance.enhance === 'function')), 'App.ocrEnhance 模块已挂载');
+    const r2 = await page.evaluate(async () => {
+      const c = document.createElement('canvas');
+      c.width = 560; c.height = 160;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#d9d9d9';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.save();
+      ctx.translate(280, 80);
+      ctx.rotate(-2.5 * Math.PI / 180);
+      ctx.fillStyle = '#666666';
+      ctx.font = 'bold 48px sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('HELLO 123', -160, 0);
+      ctx.restore();
+      const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
+      const file = new File([blob], 'ocr-degraded.png', { type: 'image/png' });
+      return await window.App.docsOcr._test.ocrRef(file, 'both', { enhance: true });
+    }, null, { timeout: 180000 });
+    const flat2 = String((r2 && r2.text) || '').replace(/\s+/g, '');
+    assert(/HELLO/i.test(flat2), '增强链路识别出 HELLO（实际: ' + JSON.stringify(r2 && r2.text) + '）');
+    assert(/123/.test(flat2), '增强链路识别出 123（实际: ' + JSON.stringify(r2 && r2.text) + '）');
+
+    /* 结构化导出链路（真实浏览器内跑）：合成 blocks（含左右不同对齐的两列表格）
+     * → buildDoc 结构化模型 → buildDocxXmlFromUnits → 断言真 w:tbl / tblGrid / 列对齐，
+     * 并确认 ZipUtil.store 能打出非空 DOCX 包。覆盖「导出保持行列与对齐」的回归。 */
+    const doc = await page.evaluate(async () => {
+      const word = (text, x0, y0, x1, y1, conf) => ({ text, confidence: conf, bbox: { x0, y0, x1, y1 } });
+      const row = (y, c1, c2, x2, x3) => ({
+        text: c1 + ' ' + c2, bbox: { x0: 20, y0: y, x1: 400, y1: y + 24 },
+        words: [word(c1, 20, y, 140, y + 24, 90), word(c2, x2, y, x3, y + 24, 90)]
+      });
+      const blocks = [{ paragraphs: [{ lines: [
+        row(10, '项目', '数量', 300, 400),
+        row(40, '合计', '9', 340, 400),
+        row(70, '均摊', '12', 320, 400)
+      ] }] }];
+      const built = window.App.ocrEnhance.buildFromBlocks({ blocks });
+      const xml = window.App.docsOcr._test.buildDocxXmlFromUnits([{ label: '', doc: built.doc }]);
+      const files = window.App.docsOcr._test.buildDocxFiles([{ label: '', doc: built.doc }]);
+      const xmlFromFiles = new TextDecoder().decode(files[2].data);
+      let zipSize = 0;
+      try {
+        const blob = window.ZipUtil.store(files);
+        zipSize = blob && blob.size ? blob.size : 0;
+      } catch (e) { zipSize = -1; }
+      return {
+        hasTable: built.hasTable,
+        textHasCells: built.text.indexOf('合计') >= 0 && built.text.indexOf('均摊') >= 0,
+        aligns: (built.doc.blocks.filter(function (b) { return b.type === 'table'; })[0] || {}).aligns,
+        hasTbl: xml.indexOf('<w:tbl>') >= 0,
+        gridCols: (xml.match(/<w:gridCol w:w="\d+"\/>/g) || []).length,
+        rightJc: (xml.match(/<w:jc w:val="right"\/>/g) || []).length,
+        xmlSame: xmlFromFiles === xml,
+        zipSize: zipSize,
+        /* Excel 结构化导出：每个表格块一张工作表 */
+        xlsx: (function () {
+          var builtXl = window.App.xlsxLite.buildXlsxFromUnits([{ label: '扫描件', doc: built.doc }]);
+          if (!builtXl) return { ok: false };
+          var sheet = new TextDecoder().decode(
+            builtXl.files.filter(function (f) { return f.name === 'xl/worksheets/sheet1.xml'; })[0].data);
+          var size = 0;
+          try { size = window.ZipUtil.store(builtXl.files).size; } catch (e) { size = -1; }
+          return {
+            ok: true,
+            parts: builtXl.files.length,
+            stats: builtXl.stats,
+            hasHeader: sheet.indexOf('<c r="A1" s="3"') >= 0,
+            numeric: /<c r="B2" s="2"><v>\d+<\/v><\/c>/.test(sheet),
+            size: size
+          };
+        })()
+      };
+    });
+    assert(doc.hasTable === true && doc.textHasCells === true, '版面模型识别出表格并保留单元格文本');
+    assert(Array.isArray(doc.aligns) && doc.aligns[1] === 'right',
+      '右对齐列被识别（实际 ' + JSON.stringify(doc.aligns) + '）');
+    assert(doc.hasTbl === true && doc.gridCols === 2, 'DOCX 导出含真表格且两列（gridCol=' + doc.gridCols + '）');
+    assert(doc.rightJc === 3, 'DOCX 单元格保留右对齐（jc 数 ' + doc.rightJc + '）');
+    assert(doc.xmlSame === true, 'buildDocxFiles 结构化路径与 XML 生成一致');
+    assert(doc.zipSize > 500, 'ZipUtil 打出非空 DOCX 包（' + doc.zipSize + ' 字节）');
+
+    /* Excel 结构化导出（真实浏览器内）：表格 → 工作表部件 + 表头样式 + 数值单元格 + 可打包 */
+    assert(!!doc.xlsx && doc.xlsx.ok === true, 'App.xlsxLite 可生成表格工作簿');
+    assert(doc.xlsx.parts === 6 && doc.xlsx.stats.sheets === 1,
+      '单表工作簿 6 个部件 / 1 个工作表（实际 ' + doc.xlsx.parts + ' / ' + doc.xlsx.stats.sheets + '）');
+    assert(doc.xlsx.hasHeader === true, '工作表首行表头加粗样式');
+    assert(doc.xlsx.numeric === true, '数字单元格保持数值类型（含右对齐样式）');
+    assert(doc.xlsx.size > 500, 'ZipUtil 打出非空 XLSX 包（' + doc.xlsx.size + ' 字节）');
   } finally {
     await browser.close();
   }

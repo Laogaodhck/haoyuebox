@@ -115,7 +115,8 @@ withServer(PORT, async (port) => {
    'batch-open-printbatch', 'batch-open-addwm', 'soon-batch-back',
    'print-open-docs', 'print-open-convert', 'print-open-pdf', 'print-open-ocr', 'print-open-watermark',
    'do-pick', 'do-file', 'do-count', 'do-empty', 'do-clear', 'do-lang', 'do-run', 'do-status',
-   'do-back', 'do-text', 'do-meta', 'do-copy', 'do-txt', 'do-docx', 'do-empty-hint'
+   'do-back', 'do-text', 'do-meta', 'do-copy', 'do-txt', 'do-docx', 'do-empty-hint',
+   'do-enhance', 'do-mode', 'do-xlsx'
   ].forEach(function (id) {
     assert(!!doc.getElementById(id), '控件 #' + id + ' 存在');
   });

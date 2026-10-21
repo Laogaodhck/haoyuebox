@@ -69,5 +69,54 @@ assert(ct.includes('wordprocessingml.document.main+xml'), 'Content_Types 声明 
 const rels = dec.decode(files[1].data);
 assert(rels.includes('officeDocument') && rels.includes('word/document.xml'), '.rels 指向主文档');
 
+/* ---------- 7. 结构化 DOCX 导出（段落缩进 + 真表格） ---------- */
+assert(T.paraXml('正文', 1) ===
+  '<w:p><w:pPr><w:ind w:firstLine="480"/></w:pPr><w:r><w:t xml:space="preserve">正文</w:t></w:r></w:p>',
+  '段落 XML：indent 输出首行缩进');
+assert(T.paraXml('x', 0, 'right').includes('<w:jc w:val="right"/>'), '段落 XML：右对齐输出 jc');
+assert(!T.paraXml('x', 0, 'left').includes('<w:jc'), '段落 XML：左对齐省略 jc（默认）');
+assert(T.paraXml('a&<b', 0).includes('a&amp;&lt;b'), '段落 XML：内容转义');
+
+const tXml = T.tableXml({
+  rows: [['名', '12'], ['额', '9']],
+  aligns: ['left', 'right'],
+  widths: [2, 1]
+}, 9026);
+assert(tXml.startsWith('<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/>'), '表格 XML 以 tbl + 百分比宽开始');
+assert(tXml.includes('<w:tblBorders>') && tXml.includes('<w:insideH w:val="single"'), '表格 XML 全边框');
+assert((tXml.match(/<w:gridCol w:w="\d+"\/>/g) || []).length === 2, '表格 XML tblGrid 两列');
+assert(tXml.indexOf('w:w="6017"') >= 0 && tXml.indexOf('w:w="3009"') >= 0,
+  '列宽按相对比例分配（2:1 → 6017/3009 dxa）');
+assert((tXml.match(/<w:jc w:val="right"\/>/g) || []).length === 2, '右对齐列两格均输出 jc');
+assert((tXml.match(/<w:tc>/g) || []).length === 4, '2×2 表 4 个单元格');
+
+const docXml2 = T.buildDocxXmlFromUnits([
+  { label: '', doc: { blocks: [
+    { type: 'p', text: '首行缩进段', indent: 1 },
+    { type: 'table', rows: [['名', '12']], aligns: ['left', 'right'], widths: [2, 1] }
+  ] } }
+]);
+assert(docXml2.includes('<w:ind w:firstLine="480"/>'), '结构化导出段落带缩进');
+assert(docXml2.includes('<w:tbl>'), '结构化导出含真表格');
+assert(/<\/w:tbl><w:p><\/w:p>/.test(docXml2.replace(/<w:pPr>[\s\S]*?<\/w:pPr>/g, '')) ||
+  /<\/w:tbl>.{0,40}<w:p><w:r><w:t xml:space="preserve"><\/w:t>/.test(docXml2),
+  '表格为最后块级元素时其后补空段落');
+assert(!docXml2.includes('====='), '单项导出不加分隔头');
+
+const docXml3 = T.buildDocxXmlFromUnits([
+  { label: 'a.jpg', doc: { blocks: [{ type: 'p', text: 'A 段', indent: 0 }] } },
+  { label: 'b.jpg', text: 'B1\nB2' }
+]);
+assert(docXml3.includes('===== a.jpg ====='), '多项导出加分隔头');
+assert(docXml3.includes('===== b.jpg =====') && docXml3.includes('B1') && docXml3.includes('B2'),
+  '无结构单元回退逐行成段');
+
+// 兼容：字符串入参仍走纯文本路径
+const files2 = T.buildDocxFiles('x\ny');
+const dec2 = new TextDecoder();
+assert(dec2.decode(files2[2].data) === T.buildDocxXml('x\ny'), 'buildDocxFiles 字符串入参兼容旧路径');
+const files3 = T.buildDocxFiles([{ label: '', doc: { blocks: [{ type: 'p', text: 'S', indent: 0 }] } }]);
+assert(dec2.decode(files3[2].data).includes('S'), 'buildDocxFiles 数组入参走结构化路径');
+
 console.log('\n共 ' + (pass + fail) + ' 项断言：通过 ' + pass + '，失败 ' + fail);
 process.exit(fail ? 1 : 0);
