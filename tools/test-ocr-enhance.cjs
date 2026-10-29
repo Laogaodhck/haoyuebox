@@ -70,6 +70,10 @@ function barDoc(w, h) {
   assert(Math.abs(est2) <= 1.0, '纠偏后倾角归零（实际 ' + est2 + '°）');
   const straightEst = T.estimateSkew(grayOf(straight), 520, 300);
   assert(Math.abs(straightEst) <= 0.75, '水平文档倾角≈0（实际 ' + straightEst + '°）');
+  // 公开接口：接受像素对象（识别编排传 canvas，Node 下用像素对象验证同一算法）
+  const pub = global.window.App.ocrEnhance.skewAngle(skewed);
+  assert(Math.abs(pub - 3) <= 1.0, '公开 skewAngle 与 estimateSkew 一致（实际 ' + pub + '°）');
+  assert(global.window.App.ocrEnhance.skewAngle(null) === 0, 'skewAngle 空输入返回 0');
 }
 
 /* ---------- 4. 百分位拉伸 / 拉普拉斯模糊度 / 锐化 ---------- */
@@ -174,6 +178,9 @@ assert(T.fixDigitContext('编号 IlZSBG123') === '编号 112586123', '数字串�
 assert(T.fixDigitContext('ZOO OK lOve') === 'ZOO OK lOve', '纯字母单词不受影响');
 assert(T.fixDigitContext('房间 l02 室') === '房间 102 室', 'l+数字 组合纠为 1');
 assert(T.fixDigitContext('plain text') === 'plain text', '普通西文不变');
+assert(T.fixDigitContext('型号 A12-38B') === '型号 A12-38B', '含真实字母的型号串不改写（B 不被误改为 8）');
+assert(T.fixDigitContext('货号 X7-2B 与 K9/O2') === '货号 X7-2B 与 K9/O2', '含真实字母的编号不改写');
+assert(T.fixDigitContext('单号 #20261021-01') === '单号 #20261021-01', '纯数字单号不变');
 
 /* ---------- 10. 身份证校验与纠错 ---------- */
 {
@@ -432,6 +439,41 @@ let blocksA;
   assert(Array.isArray(realTable.boxes) && realTable.boxes[0][0].y1 > realTable.boxes[0][0].y0,
     '单元格裁剪框含有效纵向范围');
 }
+
+/* ---------- 20. 同格多词（CJK 被拆成多个 word）的表格列聚类 ---------- */
+{
+  // 与评测 table 场景同构：「项 目」「均 摊」被 Tesseract 拆成两个词，
+  // 旧实现按中心距归列会把「合计」吸到相邻锚点，导致整列串位、首字被丢。
+  const rowsDef = [
+    [['项', 90, 115], ['目', 124, 139], ['数量', 748, 800], ['金额', 1058, 1109]],
+    [['合计', 91, 142], ['9', 786, 799], ['1,280.50', 1009, 1109]],
+    [['均', 90, 114], ['摊', 123, 141], ['12', 772, 799], ['106.71', 1030, 1105]],
+    [['备注', 90, 142], ['3', 787, 798], ['0.00', 1059, 1109]]
+  ];
+  const lines = rowsDef.map(function (ws, ri) {
+    const y = 130 + ri * 100;
+    return {
+      text: ws.map(function (w) { return w[0]; }).join(' '),
+      bbox: { x0: ws[0][1], y0: y, x1: ws[ws.length - 1][2], y1: y + 26 },
+      words: ws.map(function (w) { return word(w[0], w[1], y, w[2], y + 26, 90); })
+    };
+  });
+  const t = T.detectTable(T.collectLines([{ paragraphs: [{ lines: lines }] }]));
+  assert(!!t && t.colCount === 3, '同格多词表格检出 3 列（实际 ' + (t && t.colCount) + '）');
+  assert(!!t && t.rows[0].join('|') === '项目|数量|金额',
+    '同格多词合并为首列单格（实际 ' + (t && t.rows[0].join('|')) + '）');
+  assert(!!t && t.rows[2].join('|') === '均摊|12|106.71',
+    '多词单元格整列不串位（实际 ' + (t && t.rows[2].join('|')) + '）');
+  assert(!!t && t.aligns.join(',') === 'left,right,right',
+    '多词合并后对齐推断仍为 左/右/右（实际 ' + (t && t.aligns.join(',')) + '）');
+}
+
+/* ---------- 21. 中文标点与日期空格归一 ---------- */
+assert(T.normalizeLine('备注 : 识别结果') === '备注：识别结果', '中文后 ASCII 冒号归一为全角');
+assert(T.normalizeLine('联系人 : 张伟') === '联系人：张伟', '中文后带空格冒号归一');
+assert(T.normalizeLine('Email: a@b.com') === 'Email: a@b.com', '西文上下文的冒号保持半角');
+assert(T.normalizeLine('日期 2026 年 10 月 21 日') === '日期 2026年10月21日',
+  '数字与年月日之间的空格去除');
 
 console.log('\n共 ' + (pass + fail) + ' 项断言：通过 ' + pass + '，失败 ' + fail);
 process.exit(fail ? 1 : 0);

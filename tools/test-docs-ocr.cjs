@@ -149,5 +149,26 @@ assert(new TextDecoder().decode(landFiles[2].data).includes('orient="landscape"'
   assert(T.detectOrient([{ text: '无结构' }]) === 'p', '无结构信息回退竖向');
 }
 
+/* ---------- 11. 行重叠率（纠偏通道结构判据） ---------- */
+{
+  const overlapped = T.lineOverlapRatio({
+    blocks: [{ paragraphs: [{ lines: [
+      { bbox: { y0: 10, y1: 60 } },
+      { bbox: { y0: 40, y1: 90 } }
+    ] }] }]
+  });
+  assert(overlapped === 1, '相邻行 bbox 垂直重叠计满（1/1）');
+  const separated = T.lineOverlapRatio({
+    blocks: [{ paragraphs: [{ lines: [
+      { bbox: { y0: 10, y1: 34 } },
+      { bbox: { y0: 60, y1: 84 } },
+      { bbox: { y0: 110, y1: 134 } }
+    ] }] }]
+  });
+  assert(separated === 0, '行间留白无重叠');
+  assert(T.lineOverlapRatio(null) === 0, '空数据不报错');
+  assert(T.MULTI.skewDeg > 0, '纠偏通道有倾斜阈值');
+}
+
 console.log('\n共 ' + (pass + fail) + ' 项断言：通过 ' + pass + '，失败 ' + fail);
 process.exit(fail ? 1 : 0);

@@ -97,8 +97,8 @@ CI（`.github/workflows/ci.yml`）在 push / PR 时跑语法扫描、ESLint 与 
 
 - **人像分割**：MediaPipe 六分类模型 + 分块精修、导向滤波、滞后阈值、发丝混色净化与间隙透底，
   导出写入真实 300DPI 元数据（PNG pHYs / JPEG JFIF）。详见 `js/segmenter.js`。
-- **OCR**：Tesseract LSTM 离线引擎，先原图直识、按质量信号启用放大 / 增强 / 二值化 / 备用分页模式；
-  词级 bbox 重建段落与表格，导出 DOCX（真表格 + 缩进）与 Excel（每表一个工作表）。
+- **OCR**：Tesseract LSTM 离线引擎，先原图直识，再按质量信号启用纠偏 / 放大 / 增强 / 二值化 / 备用分页模式；
+  词级 bbox 重建段落与表格（同格词合并、按边缘聚列），导出 DOCX（真表格 + 缩进）与 Excel（每表一个工作表）。
   详见 [docs/ocr-enhancement.md](docs/ocr-enhancement.md) 与 [docs/ocr-accuracy-optimization.md](docs/ocr-accuracy-optimization.md)。
 - **安全边界**：`contextIsolation` + `sandbox` + CSP；`preload.js` 仅暴露白名单 IPC，渲染层无 Node 能力；
   7z 经 `spawn` 数组传参不经 shell，用户输入无注入风险；压缩包图标仅接管无关联的 .7z / .zip。

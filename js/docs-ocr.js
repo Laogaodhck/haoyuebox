@@ -94,6 +94,7 @@
     minLinePx: 22,   // 行高中位数低于此值视为低分辨率 → 放大 2x 重识别
     cellConf: 70,    // 单元格置信度低于此值 → 单元格裁剪重识别
     maxCells: 60,    // 单元格重识别次数上限（耗时保护）
+    skewDeg: 1.2,    // 倾斜角超过此值 → 增加纯纠偏通道（行 bbox 重叠会导致行被并段）
     // 基座通道：tesseract.js worker 的默认 tessedit_pageseg_mode 是 SINGLE_BLOCK(6)，
     // 显式写 6 才能既复现 v1.4.1 行为、又不受上一次调用残留参数影响
     psmBase: 6,
@@ -174,11 +175,33 @@
     return st.chars * Math.pow(st.meanConf / 100, 2);
   }
 
+  // 版面结构分：相邻行 bbox 发生垂直重叠的比例（越小越好）。
+  // 倾斜页的旋转行 bbox 会互相覆盖，段落重建因此把多行并成一段；
+  // 字符评分看不出这个退化，纠偏通道采纳时用它做结构判据。
+  function lineOverlapRatio(data) {
+    var boxes = [];
+    ((data && data.blocks) || []).forEach(function (b) {
+      (b.paragraphs || []).forEach(function (p) {
+        (p.lines || []).forEach(function (l) {
+          if (l && l.bbox && l.bbox.y0 != null && l.bbox.y1 != null) boxes.push(l.bbox);
+        });
+      });
+    });
+    if (boxes.length < 2) return 0;
+    boxes.sort(function (a, b) { return a.y0 - b.y0; });
+    var n = 0;
+    for (var i = 1; i < boxes.length; i++) {
+      if (boxes[i].y0 < boxes[i - 1].y1 - 1) n++;
+    }
+    return n / (boxes.length - 1);
+  }
+
   // 质量门控多通道识别。实测结论（docs/ocr-accuracy-optimization.md）：
   //  原图直识在多数场景最优，无条件二值化反而损害清晰件与纹理背景；
   //  因此先跑原图，仅在质量信号差时才启用对应像素变体，且变体需超过当前评分 5% 才采纳。
-  //  通道 1 原图（基座 PSM）→ 通道 2 低分辨率 2x / 1.5x 放大 + 灰度增强 →
-  //  通道 3 暗底/反色二值化（含极性归一）→ 通道 4 AUTO / 稀疏 PSM。
+  //  通道 1 原图（基座 PSM）→ 通道 2 倾斜 >1.2° 时的纯纠偏 →
+  //  通道 3 低分辨率 2x / 1.5x 放大 + 灰度增强 →
+  //  通道 4 暗底/反色二值化（含极性归一）→ 通道 5 AUTO / 稀疏 PSM。
   //  strategy='legacy' 复现 v1.4.1 行为（单遍原图），供评测对比。
   async function recognizeSmart(wk, sourceCanvas, opts) {
     var o = opts || {};
@@ -198,6 +221,13 @@
     var st = pageStats(base.data);
     var variants = [];
     if (o.enhance !== false) {
+      // 倾斜 >1.2°：Tesseract 行切分不稳，且旋转后的行 bbox 互相重叠，
+      // 版面重建会把多行并成一段。此时增加"纯纠偏"通道（只做几何校正，不改像素）。
+      var skew = 0;
+      if (App.ocrEnhance && typeof App.ocrEnhance.skewAngle === 'function') {
+        try { skew = App.ocrEnhance.skewAngle(sourceCanvas); } catch (e) { skew = 0; }
+      }
+      if (Math.abs(skew) >= MULTI.skewDeg) variants.push({ prep: 'deskew', scale: 1 });
       var bright = meanBrightness(sourceCanvas);
       var longEdge = Math.max(sourceCanvas.width, sourceCanvas.height);
       // 小字判定：行高 <18px，或行高 <24px 且画布本身很小（截图/缩略图）；
@@ -219,12 +249,23 @@
       var c = v.scale === 1 ? cloneCanvas(sourceCanvas) : scaleCanvas(sourceCanvas, v.scale);
       var info = null;
       if (v.prep) {
-        try { info = enhanceCanvas(c, v.prep); } catch (e) { continue; }
+        // 'deskew' 只做几何纠偏（enhance mode='off'），不二值化/拉伸
+        try { info = enhanceCanvas(c, v.prep === 'deskew' ? 'off' : v.prep); } catch (e) { continue; }
       }
       var r = await wk.recognize(c, psmParams(psmBase), OUT_OPTS);
       passes++;
       var sc = passScore(r.data);
-      if (sc > bestScore * MULTI.gain) {
+      // 纠偏是几何校正：评分允许小幅波动（-2%），但行重叠率必须不劣于当前通道
+      // （倾斜行 bbox 互相覆盖会让段落重建并段，字符评分对此不敏感）；
+      // 其余像素变体必须明确更优（+5%），避免抖动式换通道。
+      var adopt;
+      if (v.prep === 'deskew') {
+        adopt = sc >= bestScore * 0.98 &&
+          lineOverlapRatio(r.data) <= lineOverlapRatio(best.res.data);
+      } else {
+        adopt = sc > bestScore * MULTI.gain;
+      }
+      if (adopt) {
         best = { res: r, enh: v.prep || 'off', scale: v.scale, psm: psmBase, canvas: c, enhInfo: info };
         bestScore = sc;
       }
@@ -889,6 +930,7 @@
       refineTableCells: refineTableCells,
       pageStats: pageStats,
       passScore: passScore,
+      lineOverlapRatio: lineOverlapRatio,
       MULTI: MULTI,
       /* 原始识别（不增强、不版面）：供评测工具比较不同参数形态与通道 */
       rawRecognize: async function (canvas, options, lang) {

@@ -397,18 +397,29 @@
     // 标点前的空格去掉
     s = s.replace(/[ ]+([，。；：、！？）》】])/g, '$1');
     s = s.replace(/([（《【])[ ]+/g, '$1');
+    // 中文后紧跟的 ASCII 标点归一为全角（OCR 常把「备注：」输出为「备注 :」）；
+    // 西文上下文的标点保持原样（Email: / Tel:）
+    s = s.replace(/([\u4e00-\u9fff])\s*([:;,!?])\s*/g, function (m, pre, p) {
+      return pre + ({ ':': '：', ';': '；', ',': '，', '!': '！', '?': '？' })[p];
+    });
+    // 数字与中文日期单位之间的空格去掉（「2026 年 10 月」→「2026年10月」）
+    s = s.replace(/(\d)\s+(?=[年月日])/g, '$1').replace(/([年月日])\s+(?=\d)/g, '$1');
     s = s.replace(/[ \t]+/g, ' ').trim();
     return s;
   }
 
-  // 数字上下文混淆纠错：仅当字母串内含真实数字且串长≥2 时映射，
-  // 纯字母单词（如 ZOO / OK）不受影响。
+  // 数字上下文混淆纠错：仅当令牌含数字、且除易混字符外不含其他字母时映射。
+  // 含 A/C/E/F 等真实字母的令牌是型号/编号（如 A12-38B、B1280），一律不改写——
+  // 否则会把编号尾部的 B 改成 8；纯字母单词（ZOO / OK）同样不受影响。
   var DIGIT_FIX = { O: '0', o: '0', Q: '0', I: '1', l: '1', '|': '1', Z: '2', S: '5', B: '8', G: '6', q: '9', D: '0' };
+  // 按「非中西文标点空白」切令牌，分隔符随原文保留
+  var TOKEN_RE = /[^\s\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+/g;
+  var FIX_RESIDUE = /[0-9OoQIl|ZSBGqD.,:%+\-/$¥\\()[\]]/g;
   function fixDigitContext(s) {
-    return String(s || '').replace(/[0-9OoQIl|ZSBGqD]{2,}/g, function (run) {
-      var hasDigit = /[0-9]/.test(run);
-      if (!hasDigit) return run;
-      return run.replace(/[OoQIl|ZSBGqD]/g, function (c) { return DIGIT_FIX[c]; });
+    return String(s || '').replace(TOKEN_RE, function (tok) {
+      if (!/\d/.test(tok) || !/[A-Za-z]/.test(tok)) return tok;
+      if (tok.replace(FIX_RESIDUE, '')) return tok; // 残留真实字母 → 型号/编号，不改写
+      return tok.replace(/[OoQIl|ZSBGqD]/g, function (c) { return DIGIT_FIX[c]; });
     });
   }
 
@@ -560,60 +571,80 @@
     });
     rows.forEach(function (r) { r.sort(function (a, b) { return a.x0 - b.x0; }); });
     if (rows.length < 3) return null;   // 少于 3 行不足以区分"表格"与"普通多行文本"
-    // 聚列：全词左缘聚类（容差 0.5·词宽中位数），统计各列支持行数
+    // 词宽中位数（对齐容差与间隙判据用）
     var ws2 = words.map(function (w) { return w.x1 - w.x0; }).sort(function (a, b) { return a - b; });
     var mw = ws2[(ws2.length / 2) | 0] || 20;
-    var tol = Math.max(8, mw * 0.5);
-    var anchors = []; // 列锚点 x
-    words.forEach(function (w) {
-      var hit = null;
-      for (var i = 0; i < anchors.length; i++) {
-        if (Math.abs(anchors[i] - w.x0) <= tol) { hit = i; break; }
-      }
-      if (hit == null) anchors.push(w.x0);
-    });
-    anchors.sort(function (a, b) { return a - b; });
-    if (anchors.length < 2) return null;
-    // 每词归入最近列（按中心距），格子记录文本与词级范围（供对齐推断）
-    var grid = rows.map(function () { return anchors.map(function () { return null; }); });
-    rows.forEach(function (r, ri) {
+    // 行内分格：同一单元格的词可能被 Tesseract 拆开（如「项 目」「均 摊」，
+    // 粗体字距被当成词边界），先按水平间隙聚成单元格，再按单元格归列。
+    // 阈值取 0.9·行高：格内字距远小于此，列间定界间隙远大于此。
+    var cellGap = Math.max(12, mh * 0.9);
+    var cellRows = rows.map(function (r) {
+      var cells = [];
       r.forEach(function (w) {
-        var cxx = (w.x0 + w.x1) / 2;
-        var ci = -1, best = 1e18;
-        for (var i = 0; i < anchors.length; i++) {
-          var d = Math.abs(anchors[i] - cxx);
-          if (d < best) { best = d; ci = i; }
-        }
-        if (ci >= 0) {
-          var cell = grid[ri][ci];
-          if (cell) {
-            cell.text += ' ' + w.text;
-            cell.x0 = Math.min(cell.x0, w.x0);
-            cell.x1 = Math.max(cell.x1, w.x1);
-            if (w.conf != null) { cell.confSum += w.conf; cell.confN++; }
-          } else {
-            grid[ri][ci] = { text: w.text, x0: w.x0, x1: w.x1, confSum: (w.conf || 0), confN: (w.conf != null ? 1 : 0) };
-          }
+        var cur2 = cells[cells.length - 1];
+        if (cur2 && w.x0 - cur2.x1 <= cellGap) {
+          var joiner = (CJK_RE.test(cur2.text[cur2.text.length - 1]) || CJK_RE.test(w.text[0])) ? '' : ' ';
+          cur2.text += joiner + w.text;
+          cur2.x1 = Math.max(cur2.x1, w.x1);
+          if (w.conf != null) { cur2.confSum += w.conf; cur2.confN++; }
+        } else {
+          cells.push({
+            text: w.text, x0: w.x0, x1: w.x1,
+            confSum: (w.conf || 0), confN: (w.conf != null ? 1 : 0)
+          });
         }
       });
+      return cells;
     });
+    var allCells = [];
+    cellRows.forEach(function (r) { r.forEach(function (c) { allCells.push(c); }); });
+    if (allCells.length < 4) return null;
+    var cws = allCells.map(function (c) { return c.x1 - c.x0; }).sort(function (a, b) { return a - b; });
+    var medCellW = cws[(cws.length / 2) | 0] || 20;
+    // 归列：同一列的单元格要么左缘对齐（左对齐列），要么右缘对齐（右对齐列），
+    // 要么区间大幅重叠（宽度不一的混合列）。此前按"中心距"归最近锚点，
+    // 会把「合计」(91–142) 吸到相邻锚点 (124) 上，导致整列内容串位、首字被丢。
+    var tolC = Math.max(8, medCellW * 0.3);
+    function overlap(a0, a1, b0, b1) { return Math.min(a1, b1) - Math.max(a0, b0); }
+    var colDefs = []; // {left, right, cells:[{ri, cell}]}
+    cellRows.forEach(function (r, ri) {
+      r.forEach(function (c) {
+        var hit = null;
+        for (var i = 0; i < colDefs.length; i++) {
+          var d = colDefs[i];
+          var minW = Math.min(c.x1 - c.x0, d.right - d.left) || 1;
+          if (Math.abs(c.x0 - d.left) <= tolC || Math.abs(c.x1 - d.right) <= tolC ||
+            overlap(c.x0, c.x1, d.left, d.right) >= minW * 0.5) {
+            hit = d; break;
+          }
+        }
+        if (!hit) { hit = { left: c.x0, right: c.x1, cells: [] }; colDefs.push(hit); }
+        hit.cells.push({ ri: ri, cell: c });
+      });
+    });
+    if (colDefs.length < 2) return null;
+    // 列按左缘排序，保证输出列序与阅读顺序一致
+    colDefs.sort(function (a, b) { return a.left - b.left; });
     // 列支持率：≥ 75% 行（且至少 3 行）才保留；行覆盖率不足则放弃
-    var colSupport = anchors.map(function (_, ci) {
-      return grid.filter(function (row) { return row[ci] != null; }).length;
+    var keepCols = colDefs.filter(function (d) {
+      var rowsHit = {};
+      d.cells.forEach(function (m) { rowsHit[m.ri] = true; });
+      return Object.keys(rowsHit).length >= Math.max(3, cellRows.length * 0.75);
     });
-    var keep = colSupport.map(function (n) { return n >= Math.max(3, rows.length * 0.75); });
-    var keptIdx = [];
-    keep.forEach(function (k, ci) { if (k) keptIdx.push(ci); });
-    if (keptIdx.length < 2) return null;
+    if (keepCols.length < 2) return null;
+    var grid = cellRows.map(function () { return keepCols.map(function () { return null; }); });
+    keepCols.forEach(function (d, ci) {
+      d.cells.forEach(function (m) { grid[m.ri][ci] = m.cell; });
+    });
     var filled = 0, total = 0;
     grid.forEach(function (row) {
-      row.forEach(function (cell, ci) {
-        if (!keep[ci]) return;
+      row.forEach(function (cell) {
         total++;
         if (cell != null) filled++;
       });
     });
     if (total < 6 || filled / total < 0.7) return null;
+    var keptIdx = keepCols.map(function (_, ci) { return ci; });
     // 每列对齐推断：x0 离散小 → 左对齐；x1 离散小（且明显小于 x0）→ 右对齐；
     // 中心离散最小 → 居中。容差取词宽中位数 40%。
     // 稳定性过滤：三个边里至少有一个在容差内，否则该"列"只是普通文本的偶然对齐 → 丢弃
@@ -858,6 +889,16 @@
 
   App.ocrEnhance = {
     enhance: enhance,
+    /* 倾斜角估计（度）：识别编排据此决定是否增加纯纠偏通道（仅统计，不改像素）。
+     * 入参可为 canvas 或 {data,width,height} 像素对象。 */
+    skewAngle: function (src) {
+      if (!src || !src.width || !src.height) return 0;
+      var px = (typeof src.getContext === 'function')
+        ? src.getContext('2d').getImageData(0, 0, src.width, src.height)
+        : src;
+      if (!px || !px.data) return 0;
+      return estimateSkew(toGray(px), px.width, px.height);
+    },
     /* 后处理主入口（docs-ocr 调用）：纯文本模式下做归一 + 数字纠错 */
     polishText: function (raw) {
       var lines = String(raw || '').replace(/\r\n?/g, '\n').split('\n');
