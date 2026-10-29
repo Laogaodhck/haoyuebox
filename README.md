@@ -74,7 +74,7 @@ npm run eval:ocr # OCR 精度评测（8 类场景 CER / 命中率 / 耗时）
 2. `git tag v<version> && git push origin v<version>`
 3. GitHub Actions 自动：测试门禁 → OCR 主链路冒烟 → 打包 → 打包产物 E2E → 上传 Release（含 `latest.yml` 与 blockmap）
 
-CI（`.github/workflows/ci.yml`）在 push / PR 时跑语法扫描与 `npm test`；依赖由 Dependabot 每周巡检。
+CI（`.github/workflows/ci.yml`）在 push / PR 时跑语法扫描、ESLint 与 `npm test`；依赖由 Dependabot 每周巡检。
 
 ## 目录结构
 

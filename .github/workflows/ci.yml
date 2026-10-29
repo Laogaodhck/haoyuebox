@@ -40,5 +40,8 @@ jobs:
           find js electron tools \( -name '*.js' -o -name '*.cjs' \) -print0 \
             | xargs -0 -n1 node --check
 
+      - name: ESLint 静态检查
+        run: npm run lint
+
       - name: 单元与冒烟测试（含 index.html / 模型引用完整性）
         run: npm test
