@@ -112,6 +112,32 @@ assert(del.ok === true, 'deleteBackup 白名单内删除成功');
 const afterDel = handlers['app:readBackup']();
 assert(afterDel && afterDel.file !== latest.file, '删除后 readBackup 回退到次新备份');
 
+/* 同毫秒连续备份：时间戳必须严格递增，否则时间戳并列时
+ * 字典序由随机后缀决定，"最新一份"会取错（CI ubuntu 上曾实际失败）。
+ * 随机后缀固定为递减值——旧实现下最后写入的反而排最前，可稳定复现 */
+const realNow = Date.now;
+const realRandom = Math.random;
+const fixedNow = realNow() + 10000;
+const sameMs = [];
+try {
+  Date.now = () => fixedNow;
+  let seed = 0.9;
+  Math.random = () => { const v = seed; seed -= 0.1; return v; };
+  for (let i = 0; i < 3; i++) {
+    sameMs.push(handlers['app:backupData'](null, JSON.stringify({ sameMs: i })));
+  }
+} finally {
+  Date.now = realNow;
+  Math.random = realRandom;
+}
+const sameMsNames = sameMs.map((r) => r.file);
+assert(sameMs.every((r) => r.ok), '同毫秒连续写入 3 份备份成功');
+assert(sameMsNames[0] < sameMsNames[1] && sameMsNames[1] < sameMsNames[2],
+  '同毫秒备份文件名严格递增（字典序 = 写入序）');
+const sameMsLatest = handlers['app:readBackup']();
+assert(sameMsLatest && sameMsLatest.file === sameMsNames[2]
+  && JSON.parse(sameMsLatest.data).sameMs === 2, '同毫秒备份取到最后写入的一份');
+
 /* 清理临时目录（失败不阻断） */
 try { fs.rmSync(userData, { recursive: true, force: true }); } catch (e) { /* ignore */ }
 try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (e) { /* ignore */ }

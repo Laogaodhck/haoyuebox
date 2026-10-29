@@ -93,12 +93,21 @@ function writeMarker(file, version) {
 /* ---------- 备份文件名与校验 ---------- */
 const BACKUP_NAME_RE = /^data-\d{13,}-[a-z0-9]{4}-v[\w.]*\.json$/i;
 
-/* 备份文件名：毫秒时间戳 + 4 位随机后缀（同毫秒多次备份不互相覆盖）
+/* 进程内单调递增时间戳：同一毫秒内连续备份必须严格递增，
+ * 否则时间戳并列时字典序由随机后缀决定，"最新一份"与裁剪顺序都会错乱 */
+let lastStamp = 0;
+function nextStamp() {
+  const now = Date.now();
+  lastStamp = now > lastStamp ? now : lastStamp + 1;
+  return lastStamp;
+}
+
+/* 备份文件名：毫秒时间戳 + 4 位随机后缀（跨进程同毫秒不互相覆盖）
  * + 版本号。字典序 = 时间序（时间戳定宽），latestBackup 直接取排序末位 */
 function backupName(version) {
   let rand = '';
   while (rand.length < 4) rand += Math.random().toString(36).replace(/[^a-z0-9]/g, '');
-  return 'data-' + Date.now() + '-' + rand.slice(0, 4) + '-v' + String(version).replace(/[^\w.]/g, '') + '.json';
+  return 'data-' + nextStamp() + '-' + rand.slice(0, 4) + '-v' + String(version).replace(/[^\w.]/g, '') + '.json';
 }
 
 /* 备份目录内按文件名取最新（时间戳定宽，字典序=时间序） */
