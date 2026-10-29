@@ -72,16 +72,11 @@ withServer(PORT, async (port) => {
       await w.close();
     });
 
-    // ---------- 未开发占位页：批量加水印（进入 / 返回） ----------
+    // ---------- 占位项收敛：批量加水印不再重复占位（能力归入文档工具） ----------
     await page.click('#home-batch');
-    await page.click('#batch-open-addwm');
-    assert(await page.$eval('#batch-soon', el => !el.hidden), '「批量加水印」占位页可见');
-    assert(await page.$eval('#batch-menu', el => el.hidden), '进入占位页后菜单收纳');
-    assert(/功能开发中/.test(await page.$eval('#batch-soon .soon-badge', el => el.textContent)),
-      '占位页显示「功能开发中」徽标');
-    await page.click('#soon-batch-back');
-    assert(await page.$eval('#batch-soon', el => el.hidden)
-      && await page.$eval('#batch-menu', el => !el.hidden), '占位页返回后菜单恢复');
+    assert(await page.$('#batch-open-addwm') === null, '批量工具不再重复占位「批量加水印」');
+    assert(await page.$('#batch-soon') === null, '旧占位页 #batch-soon 已移除');
+    assert((await page.$$eval('#batch-menu .home-card', els => els.length)) === 5, '批量工具菜单收敛为 5 张可用卡片');
     await page.click('.module-tab[data-module="home"]');
 
     // ---------- 格式转换：扫描 ----------

@@ -34,6 +34,7 @@
   var workerLang = '';   // 当前 worker 已加载的语言包
   var curLabel = '';     // 当前识别项标签（进度显示用）
   var running = false;
+  var task = null;       // 本次识别的取消令牌（App.task）
   var lastUnits = null;    // 最近一次识别的单元（含结构化 doc，供 DOCX 导出）
   var lastFullText = null; // 最近一次识别写入文本框的原文（判断是否被用户编辑）
   var orient = 'p';        // 结果区页面方向：p 竖向 / l 横向（同时决定 DOCX 页面方向）
@@ -540,6 +541,18 @@
 
   function setStatus(msg) { $('do-status').textContent = msg || ''; }
 
+  /* 运行期控件锁：选择/语言/选项/清空一律停用，只留取消按钮可点，
+   * 避免识别过程中文件列表或参数被改动导致结果与设置不一致 */
+  var CTRL_IDS = ['do-pick', 'do-file', 'do-clear', 'do-lang', 'do-enhance', 'do-mode', 'do-run'];
+  function setRunning(on) {
+    running = on;
+    CTRL_IDS.forEach(function (id) {
+      var el = $(id);
+      if (el) el.disabled = on;
+    });
+    $('do-cancel').hidden = !on;
+  }
+
   function itemNames() {
     return items.map(function (it) { return it.file.name; });
   }
@@ -582,8 +595,8 @@
     input.click();
   }
 
-  function onFilesPicked() {
-    var files = Array.prototype.slice.call($('do-file').files || []);
+  function addFiles(files) {
+    if (running) { toast('正在识别中，请先取消或等待完成'); return; }
     if (!files.length) return;
     var skipped = 0;
     files.forEach(function (f) {
@@ -593,6 +606,10 @@
     });
     if (skipped) toast('已跳过 ' + skipped + ' 个不支持的文件（仅支持 JPG / PNG / WebP / BMP / PDF）');
     renderCount();
+  }
+
+  function onFilesPicked() {
+    addFiles(Array.prototype.slice.call($('do-file').files || []));
   }
 
   // 清空：文件列表与识别结果区一并复位（结果文本、统计、导出按钮、结构化缓存、状态行）
@@ -636,14 +653,15 @@
       toast('OCR 引擎未加载，请刷新页面后重试', true);
       return;
     }
-    running = true;
-    $('do-run').disabled = true;
+    task = App.task.create();
+    setRunning(true);
     var langKey = $('do-lang').value;
     var mode = $('do-mode') ? $('do-mode').value : 'auto';
     var enhanceOn = !$('do-enhance') || $('do-enhance').checked;
     var canEnhance = enhanceOn && App.ocrEnhance && typeof App.ocrEnhance.enhance === 'function';
     var units = [];
     var okN = 0, errN = 0;
+    var cancelled = false;
     var smartAcc = {
       passes: 0, psmAlt: 0, rescaled: 0, cells: 0, enhanced: 0,
       enhFlags: { deskew: false, lowLight: false, sharpen: false, inverted: false }
@@ -651,13 +669,16 @@
     try {
       if (!worker) setStatus('正在加载识别内核（约 12 MB，仅首次较慢，全程本机）…');
       var wk = await ensureWorker(langKey);
+      App.task.checkpoint(task);
       for (var i = 0; i < items.length; i++) {
+        App.task.checkpoint(task);
         var it = items[i];
         try {
           if (it.isPdf) {
             var pdf = await core.loadPdf(it.file);
             try {
               for (var p = 1; p <= pdf.numPages; p++) {
+                App.task.checkpoint(task);
                 curLabel = '识别 ' + it.file.name + ' 第 ' + p + '/' + pdf.numPages + ' 页：';
                 setStatus(curLabel + '0%');
                 var canvas = await core.renderPage(pdf, p, 2, 2000);
@@ -668,6 +689,7 @@
               if (pdf) pdf.cleanup();
             }
           } else {
+            App.task.checkpoint(task);
             curLabel = '识别 ' + it.file.name + '：';
             setStatus(curLabel + '0%');
             var imgCanvas = await fileToCanvas(it.file);
@@ -675,15 +697,20 @@
             okN++;
           }
         } catch (e) {
+          if (App.task.isCancelled(e)) throw e;
           errN++;
           console.error('[haoyue] OCR 识别失败:', it.file.name, e);
           toast('识别 ' + it.file.name + ' 失败：' + ((e && e.message) || e), true);
         }
       }
     } catch (e) {
-      errN++;
-      console.error('[haoyue] OCR 引擎初始化失败:', e);
-      toast('识别引擎初始化失败：' + ((e && e.message) || e), true);
+      if (App.task.isCancelled(e)) {
+        cancelled = true;
+      } else {
+        errN++;
+        console.error('[haoyue] OCR 引擎初始化失败:', e);
+        toast('识别引擎初始化失败：' + ((e && e.message) || e), true);
+      }
     }
     /* 收尾全部包在 try 内、finally 复位：此前 joinUnits/updateMeta/exportsEnable
      * 若抛错会跳过 disabled=false 复位，按钮永久锁死、running 永 true */
@@ -696,15 +723,18 @@
         setOrient(detectOrient(units));
         updateMeta();
         exportsEnable(true, anyTableFlag(units));
-        setStatus('识别完成：成功 ' + okN + ' 项' + (errN ? '，失败 ' + errN + ' 项' : '') +
-          (anyTableFlag(units) ? '，含表格还原' : '') + enhNoteText(smartAcc.enhFlags) + smartNoteText(smartAcc) +
-          '，结果可在右侧编辑后复制或导出。');
+        setStatus(cancelled
+          ? '已取消：已完成 ' + okN + ' 项' + (errN ? '，失败 ' + errN + ' 项' : '') +
+            '，已识别结果保留在右侧，可编辑后复制或导出。'
+          : '识别完成：成功 ' + okN + ' 项' + (errN ? '，失败 ' + errN + ' 项' : '') +
+            (anyTableFlag(units) ? '，含表格还原' : '') + enhNoteText(smartAcc.enhFlags) + smartNoteText(smartAcc) +
+            '，结果可在右侧编辑后复制或导出。');
       } else {
-        setStatus('');
+        setStatus(cancelled ? '已取消：未产生识别结果' : '');
       }
     } finally {
-      $('do-run').disabled = false;
-      running = false;
+      setRunning(false);
+      task = null;
     }
   }
 
@@ -927,6 +957,17 @@
     $('do-file').addEventListener('change', onFilesPicked);
     $('do-clear').addEventListener('click', clearFiles);
     $('do-run').addEventListener('click', run);
+    $('do-cancel').addEventListener('click', function () {
+      if (!task) return;
+      task.cancel();
+      setStatus('正在取消识别…');
+    });
+    App.ui.bindFileDrop('docs-ocr', {
+      target: 'do-stage',
+      accept: /\.(pdf|jpe?g|png|webp|bmp)$/i,
+      rejectMsg: '请拖入图片（JPG / PNG / WebP / BMP）或 PDF',
+      onFiles: addFiles
+    });
     $('do-copy').addEventListener('click', copyText);
     $('do-txt').addEventListener('click', exportTxt);
     $('do-docx').addEventListener('click', exportDocx);

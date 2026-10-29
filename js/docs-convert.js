@@ -24,9 +24,23 @@
   var dirHandle = null;
   var mode = 'p2i'; // p2i | i2p | w2p
   var running = false;
+  var task = null;  // 本次转换的取消令牌（App.task）
 
   function toast(msg, isErr) { App.ui.toast(msg, isErr); }
   function setStatus(msg) { $('dc-status').textContent = msg || ''; }
+
+  /* 运行期控件锁：文件/方向/参数/输出目录全部停用，只留取消按钮 */
+  var CTRL_IDS = ['dc-pick', 'dc-file', 'dc-clear', 'dc-tab-p2i', 'dc-tab-i2p', 'dc-tab-w2p',
+    'dc-p2i-fmt', 'dc-p2i-scale', 'dc-i2p-paper', 'dc-i2p-merge', 'dc-dir', 'dc-run'];
+  function setRunning(on) {
+    running = on;
+    CTRL_IDS.forEach(function (id) {
+      var el = $(id);
+      if (el) el.disabled = on;
+    });
+    $('dc-cancel').hidden = !on;
+    if (!on) renderCount();
+  }
 
   function renderCount() {
     var n = items.length;
@@ -54,12 +68,14 @@
     var ext = fmt === 'png' ? '.png' : '.jpg';
     var okN = 0, pageN = 0;
     for (var i = 0; i < items.length; i++) {
+      App.task.checkpoint(task);
       var it = items[i];
       var pdf = null;
       setStatus('转换 ' + (i + 1) + '/' + items.length + '：' + it.file.name);
       try {
         pdf = await core.loadPdf(it.file);
         for (var p = 1; p <= pdf.numPages; p++) {
+          App.task.checkpoint(task);
           var canvas = await core.renderPage(pdf, p, scale);
           var blob = await core.encodeCanvas(canvas, type, fmt === 'png' ? undefined : 0.92);
           // 同名文件（不同文件夹多选）防静默覆盖：探测目录已有则追加 _N 后缀
@@ -70,6 +86,7 @@
         okN++;
         addResult(it.file.name, true, '，' + pdf.numPages + ' 页');
       } catch (e) {
+        if (App.task.isCancelled(e)) throw e;
         addResult(it.file.name, false);
         console.error('[haoyue] PDF 转图片失败:', it.file.name, e);
       } finally {
@@ -114,6 +131,7 @@
       setStatus('合并 ' + items.length + ' 张图片为 PDF…');
       var pages = [];
       for (var i = 0; i < items.length; i++) {
+        App.task.checkpoint(task);
         setStatus('处理图片 ' + (i + 1) + '/' + items.length + '：' + items[i].file.name);
         try {
           // 逐张 try/catch：单张坏图（改扩展名的假 JPEG、0 字节文件）只记失败，
@@ -121,6 +139,7 @@
           pages.push(await imageToPage(items[i].file, paper));
           okN++;
         } catch (e) {
+          if (App.task.isCancelled(e)) throw e;
           addResult(items[i].file.name, false);
           console.error('[haoyue] 图片合并失败:', items[i].file.name, e);
         }
@@ -129,6 +148,7 @@
         setStatus('失败：所有图片均无法解码，未生成 PDF');
         return { okN: 0, pageN: 0, noSummary: true };
       }
+      App.task.checkpoint(task);
       var bytes = App.batchFormat.buildPdf(pages);
       var mergeName = await core.uniqueOutName(out, '图片合并.pdf');
       await core.writeBytes(out, mergeName, bytes);
@@ -138,6 +158,7 @@
       return { okN: okN, pageN: 0, noSummary: true };
     } else {
       for (var j = 0; j < items.length; j++) {
+        App.task.checkpoint(task);
         setStatus('转换 ' + (j + 1) + '/' + items.length + '：' + items[j].file.name);
         try {
           var page = await imageToPage(items[j].file, paper);
@@ -146,6 +167,7 @@
           okN++;
           addResult(singleName, true);
         } catch (e) {
+          if (App.task.isCancelled(e)) throw e;
           addResult(items[j].file.name, false);
           console.error('[haoyue] 图片转 PDF 失败:', items[j].file.name, e);
         }
@@ -245,6 +267,7 @@
   async function runWordToPdf(out) {
     var okN = 0;
     for (var i = 0; i < items.length; i++) {
+      App.task.checkpoint(task);
       var it = items[i];
       setStatus('转换 ' + (i + 1) + '/' + items.length + '：' + it.file.name);
       try {
@@ -254,6 +277,7 @@
         okN++;
         addResult(wName, true);
       } catch (e) {
+        if (App.task.isCancelled(e)) throw e;
         addResult(it.file.name, false);
         console.error('[haoyue] Word 转 PDF 失败:', it.file.name, e);
       }
@@ -267,32 +291,39 @@
     if (running) return;
     if (!items.length) { toast('请先选择要转换的文件'); return; }
     if (!dirHandle) { toast('请先选择输出文件夹'); return; }
-    running = true;
-    $('dc-run').disabled = true;
+    task = App.task.create();
+    setRunning(true);
     $('dc-list').innerHTML = '';
     var out = null;
     try { out = await core.ensureSubDir(dirHandle, SUB_DIR); }
     catch (e) {
-      $('dc-run').disabled = false; running = false;
+      setRunning(false); task = null;
       return toast('无法创建输出文件夹：' + ((e && e.message) || e), true);
     }
     var res;
+    var cancelled = false;
     try {
+      App.task.checkpoint(task);
       if (mode === 'p2i') res = await runPdfToImages(out);
       else if (mode === 'i2p') res = await runImagesToPdf(out);
       else res = await runWordToPdf(out);
       // noSummary：子流程已设置更精确的完成/失败状态行（含部分失败计数），不套通用模板
       if (!res.noSummary) setStatus('完成：成功 ' + res.okN + ' 项' + (res.pageN ? '，共输出 ' + res.pageN + ' 张图片' : '') +
         '，已输出到「' + dirHandle.name + '/' + SUB_DIR + '」，原文件未改动');
+    } catch (e) {
+      if (!App.task.isCancelled(e)) throw e;
+      cancelled = true;
     } finally {
-      $('dc-run').disabled = false;
-      running = false;
+      setRunning(false);
+      task = null;
+    }
+    if (cancelled) {
+      setStatus('已取消：已输出的文件保留在「' + dirHandle.name + '/' + SUB_DIR + '」');
     }
   }
 
-  function onFilesPicked() {
-    var input = $('dc-file');
-    var files = Array.prototype.slice.call(input.files || []);
+  function addFiles(files) {
+    if (running) { toast('正在转换中，请先取消或等待完成'); return; }
     if (!files.length) return;
     var ok = [], skipped = 0;
     files.forEach(function (f) {
@@ -304,6 +335,10 @@
     if (skipped) toast('已跳过 ' + skipped + ' 个与当前方向不符的文件');
     items = ok;
     renderCount();
+  }
+
+  function onFilesPicked() {
+    addFiles(Array.prototype.slice.call($('dc-file').files || []));
   }
 
   function setMode(next) {
@@ -354,6 +389,19 @@
       }
     });
     $('dc-run').addEventListener('click', run);
+    $('dc-cancel').addEventListener('click', function () {
+      if (!task) return;
+      task.cancel();
+      setStatus('正在取消转换…');
+    });
+    App.ui.bindFileDrop('docs-convert', {
+      target: 'dc-stage',
+      accept: function (f) {
+        return mode === 'p2i' ? PDF_RE.test(f.name) : mode === 'i2p' ? IMG_RE.test(f.name) : DOCX_RE.test(f.name);
+      },
+      rejectMsg: '文件类型与当前转换方向不符',
+      onFiles: addFiles
+    });
     setMode('p2i');
   };
 })(window.App);

@@ -83,7 +83,8 @@ contextBridge.exposeInMainWorld('haoyueApp', {
   updateInfo: () => ipcRenderer.invoke('app:updateInfo'),
   backupData: (raw) => ipcRenderer.invoke('app:backupData', raw),
   readBackup: () => ipcRenderer.invoke('app:readBackup'),
-  deleteBackup: (name) => ipcRenderer.invoke('app:deleteBackup', name)
+  deleteBackup: (name) => ipcRenderer.invoke('app:deleteBackup', name),
+  exportLogs: () => ipcRenderer.invoke('app:exportLogs')
 });
 
 /* 应用内更新桥接：检查/下载/安装（仅安装版可用，见 electron/updater.js）。

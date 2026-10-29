@@ -834,9 +834,9 @@ body[data-module="system"] #sheet-steps-nav { display: none; }
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
 }
 #dr-view .dw-hint { text-align: center; margin-top: 40px; }
-/* 拖拽 PDF 悬停高亮：阅读区虚线描边 */
-#dr-view.dr-over { outline: 2px dashed var(--accent); outline-offset: -8px; }
-#dr-view.dr-over .dw-hint { color: var(--accent); }
+/* 文档工具统一拖放高亮：虚线描边 + 提示文字变色 */
+.file-drop-over { outline: 2px dashed var(--accent); outline-offset: -8px; }
+.file-drop-over .dw-hint { color: var(--accent); }
 /* 批量打印 / 文档打印：面板外壳（内部为 subpage-inner 双栏，外壳本身不参与分栏） */
 #print-batch.subpage, #print-docs.subpage, #docs-watermark.subpage,
 #docs-convert.subpage, #docs-pdf.subpage, #docs-ocr.subpage, #docs-reader.subpage { display: block; }

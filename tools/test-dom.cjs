@@ -60,9 +60,23 @@ withServer(PORT, async (port) => {
   assert(typeof win.MatteView.attach === 'function', 'MatteView 就绪');
   assert(typeof win.Cropper.attach === 'function', 'Cropper 就绪');
   assert(win.App && typeof win.App.showModule === 'function', 'App 核心状态就绪');
-  ['ui', 'photo', 'sheet', 'print', 'settings', 'convert', 'compose', 'batchFormat', 'batchWatermark', 'archive', 'printBatch', 'docsOcr'].forEach(function (m) {
+  ['ui', 'photo', 'sheet', 'print', 'settings', 'convert', 'compose', 'batchFormat', 'batchWatermark', 'archive', 'printBatch', 'docsOcr', 'docsPdf', 'docsConvert', 'docsWatermark', 'docsReader'].forEach(function (m) {
     assert(!!win.App && typeof win.App[m] === 'object', 'App.' + m + ' 命名空间已注册');
   });
+  /* 长任务取消令牌 + 文档拖放助手（v1.6.0） */
+  assert(win.App.task && typeof win.App.task.create === 'function' && typeof win.App.task.isCancelled === 'function',
+    'App.task 取消令牌就绪');
+  (function () {
+    var t = win.App.task.create();
+    var threw = false;
+    try { win.App.task.checkpoint(t); } catch (e) { threw = true; }
+    assert(!threw, '未取消任务 checkpoint 直接通过');
+    t.cancel();
+    try { win.App.task.checkpoint(t); } catch (e) { threw = win.App.task.isCancelled(e); }
+    assert(threw, '取消后 checkpoint 抛取消哨兵且可识别');
+    assert(!win.App.task.isCancelled(new Error('boom')), '普通错误不被识别为取消');
+  })();
+  assert(typeof win.App.ui.bindFileDrop === 'function', 'App.ui.bindFileDrop 拖放助手就绪');
   assert(win.Tesseract && typeof win.Tesseract.createWorker === 'function', 'Tesseract OCR 引擎脚本已加载');
   assert(typeof win.App.sheet.init === 'function' && typeof win.App.print.init === 'function',
     'App.sheet / App.print 引导函数就绪');
@@ -100,11 +114,11 @@ withServer(PORT, async (port) => {
   assert(doc.querySelectorAll('#steps-nav .step').length === 4, '照片模块步骤指示器 4 个');
   assert(!!doc.getElementById('photo-menu'), '照片工具子功能菜单存在');
   assert(!!doc.getElementById('photo-flow'), '证照生成流程容器存在');
-  assert(doc.querySelectorAll('#photo-menu .home-card').length === 6, '照片工具菜单 6 张卡片（4 可用 + 2 敬请期待，含证照打印）');
+  assert(doc.querySelectorAll('#photo-menu .home-card').length === 5, '照片工具菜单 5 张卡片（4 可用 + 1 敬请期待）');
   assert(doc.getElementById('photo-open-idphoto') && doc.getElementById('photo-open-convert') && doc.getElementById('photo-open-compose'),
     '证照生成 / 图片转换 / 图片合成入口存在');
   assert(!!doc.getElementById('photo-convert') && !!doc.getElementById('photo-compose'), '图片转换 / 图片合成面板存在');
-  assert(doc.querySelectorAll('#batch-menu .home-card').length === 6, '批量工具菜单 6 张卡片（5 可用 + 1 敬请期待，含批量打印）');
+  assert(doc.querySelectorAll('#batch-menu .home-card').length === 5, '批量工具菜单 5 张卡片（全部可用）');
   assert(doc.getElementById('batch-open-rename') && doc.getElementById('batch-open-watermark') && doc.getElementById('batch-open-format'),
     '批量重命名 / 去除水印 / 格式转换入口存在');
   assert(!!doc.getElementById('batch-format') && !!doc.getElementById('batch-watermark'), '格式转换 / 去除水印面板存在');
@@ -123,19 +137,25 @@ withServer(PORT, async (port) => {
   ['bf-pick', 'bf-run', 'bf-back', 'bf-quality', 'bf-bg', 'bf-pdf-merge', 'bf-out', 'bf-list', 'bf-empty',
    'bw-pick', 'bw-run', 'bw-back', 'bw-mode', 'bw-strength', 'bw-color', 'bw-out', 'bw-undo', 'bw-clear', 'bw-clear-all', 'wm-chips',
    'bw-files', 'bw-tools', 'bw-tool-rect', 'bw-tool-brush', 'bw-tool-erase', 'bw-brush-row', 'bw-brush-size',
-   'photo-open-restore', 'soon-photo-back', 'photo-open-idphotoprint', 'soon-print-back',
-   'batch-open-printbatch', 'batch-open-addwm', 'soon-batch-back',
+   'photo-open-restore', 'soon-photo-back',
+   'batch-open-printbatch',
    'print-open-docs', 'print-open-convert', 'print-open-pdf', 'print-open-ocr', 'print-open-watermark',
-   'do-pick', 'do-file', 'do-count', 'do-empty', 'do-clear', 'do-lang', 'do-run', 'do-status',
+   'do-pick', 'do-file', 'do-count', 'do-empty', 'do-clear', 'do-lang', 'do-run', 'do-cancel', 'do-status',
    'do-back', 'do-text', 'do-meta', 'do-copy', 'do-txt', 'do-docx', 'do-empty-hint',
-   'do-enhance', 'do-mode', 'do-xlsx', 'do-page', 'do-page-p', 'do-page-l', 'do-page-label'
+   'do-enhance', 'do-mode', 'do-xlsx', 'do-page', 'do-page-p', 'do-page-l', 'do-page-label',
+   'dw-cancel', 'dc-cancel', 'dp-cancel',
+   'do-stage', 'dw-stage', 'dc-stage', 'dp-stage', 'set-diag', 'set-diag-hint'
   ].forEach(function (id) {
     assert(!!doc.getElementById(id), '控件 #' + id + ' 存在');
   });
   assert(!!doc.getElementById('wm-canvas') && !!doc.getElementById('wm-empty'), '水印预览画布与空态存在');
-  ['photo-soon', 'print-soon', 'batch-soon', 'system-soon'].forEach(function (id) {
+  ['photo-soon', 'system-soon'].forEach(function (id) {
     var el = doc.getElementById(id);
     assert(!!el && el.hidden, '占位页 #' + id + ' 存在且默认隐藏');
+  });
+  /* 占位项收敛：已实装能力不再以「敬请期待」重复占位 */
+  ['print-soon', 'batch-soon', 'photo-open-idphotoprint', 'batch-open-addwm'].forEach(function (id) {
+    assert(!doc.getElementById(id), '重叠占位项 #' + id + ' 已移除');
   });
   assert(doc.getElementById('ac-drop').classList.contains('drop-zone')
     && doc.getElementById('ax-drop').classList.contains('drop-zone'),

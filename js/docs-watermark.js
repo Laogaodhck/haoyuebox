@@ -23,6 +23,7 @@
   var wmImg = null;      // 水印图 ImageBitmap
   var mode = 'text';     // text | image
   var running = false;
+  var task = null;       // 本次处理的取消令牌（App.task）
   var previewTimer = null;
   var previewGen = 0;    // 预览代数：拖滑块/切文件会快速连发，过期回调必须丢弃
   var pdfCache = { file: null, pdf: null }; // 已解析 PDF 缓存（同文件反复预览不重复读盘）
@@ -140,6 +141,7 @@
     try {
       var pages = [];
       for (var i = 1; i <= pdf.numPages; i++) {
+        App.task.checkpoint(task);
         var canvas = await core.renderPage(pdf, i, 2, 2000);
         paintWatermark(canvas.getContext('2d'), canvas.width, canvas.height, opts);
         var blob = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.92); });
@@ -168,6 +170,20 @@
   /* ================= UI 状态 ================= */
 
   function setStatus(msg) { $('dw-status').textContent = msg || ''; }
+
+  /* 运行期控件锁：文件/样式参数/输出目录全部停用，只留取消按钮 */
+  var CTRL_IDS = ['dw-pick', 'dw-file', 'dw-clear', 'dw-tab-text', 'dw-tab-image',
+    'dw-img-pick', 'dw-img-file', 'dw-text', 'dw-size', 'dw-color', 'dw-opacity',
+    'dw-rotate', 'dw-pos', 'dw-cols', 'dw-img-scale', 'dw-dir', 'dw-run'];
+  function setRunning(on) {
+    running = on;
+    CTRL_IDS.forEach(function (id) {
+      var el = $(id);
+      if (el) el.disabled = on;
+    });
+    $('dw-cancel').hidden = !on;
+    if (!on) renderCount();
+  }
 
   function renderCount() {
     var n = items.length;
@@ -301,9 +317,8 @@
     input.click();
   }
 
-  function onFilesPicked() {
-    var input = $('dw-file');
-    var files = Array.prototype.slice.call(input.files || []);
+  function addFiles(files) {
+    if (running) { toast('正在处理中，请先取消或等待完成'); return; }
     if (!files.length) return;
     var skipped = 0;
     files.forEach(function (f) {
@@ -316,7 +331,12 @@
     schedulePreview();
   }
 
+  function onFilesPicked() {
+    addFiles(Array.prototype.slice.call($('dw-file').files || []));
+  }
+
   function clearFiles() {
+    if (running) return;
     items = [];
     releasePdfCache();
     renderCount();
@@ -362,51 +382,62 @@
       toast('当前环境不支持文件夹写入，请使用桌面版或 Chrome / Edge 浏览器', true);
       return;
     }
-    running = true;
-    $('dw-run').disabled = true;
+    task = App.task.create();
+    setRunning(true);
     $('dw-list').innerHTML = '';
     var out = null;
     try {
       out = await dirHandle.getDirectoryHandle(SUB_DIR, { create: true });
     } catch (e) {
       setStatus('');
-      $('dw-run').disabled = false;
-      running = false;
+      setRunning(false);
+      task = null;
       return toast('无法创建输出文件夹：' + ((e && e.message) || e), true);
     }
-    var okN = 0, errN = 0;
-    for (var i = 0; i < items.length; i++) {
-      var it = items[i];
-      setStatus('处理 ' + (i + 1) + '/' + items.length + '：' + it.file.name);
-      try {
-        if (it.isPdf) {
-          var bytes = await processPdf(it.file, opts);
-          // 同名文件（不同文件夹多选）防静默覆盖：探测已有则追加 _N 后缀
-          var outName = await core.uniqueOutName(out, it.file.name);
-          var fh = await out.getFileHandle(outName, { create: true });
-          var w = await fh.createWritable();
-          await w.write(bytes);
-          await w.close();
-        } else {
-          var blob = await processImage(it.file, opts);
-          var outName2 = await core.uniqueOutName(out, it.file.name);
-          var fh2 = await out.getFileHandle(outName2, { create: true });
-          var w2 = await fh2.createWritable();
-          await w2.write(blob);
-          await w2.close();
+    var okN = 0, errN = 0, cancelled = false;
+    try {
+      for (var i = 0; i < items.length; i++) {
+        App.task.checkpoint(task);
+        var it = items[i];
+        setStatus('处理 ' + (i + 1) + '/' + items.length + '：' + it.file.name);
+        try {
+          if (it.isPdf) {
+            var bytes = await processPdf(it.file, opts);
+            // 同名文件（不同文件夹多选）防静默覆盖：探测已有则追加 _N 后缀
+            var outName = await core.uniqueOutName(out, it.file.name);
+            var fh = await out.getFileHandle(outName, { create: true });
+            var w = await fh.createWritable();
+            await w.write(bytes);
+            await w.close();
+          } else {
+            var blob = await processImage(it.file, opts);
+            var outName2 = await core.uniqueOutName(out, it.file.name);
+            var fh2 = await out.getFileHandle(outName2, { create: true });
+            var w2 = await fh2.createWritable();
+            await w2.write(blob);
+            await w2.close();
+          }
+          okN++;
+          addResult(it.file.name, true);
+        } catch (e) {
+          if (App.task.isCancelled(e)) throw e;
+          errN++;
+          addResult(it.file.name, false);
+          console.error('[haoyue] 加水印失败:', it.file.name, e);
         }
-        okN++;
-        addResult(it.file.name, true);
-      } catch (e) {
-        errN++;
-        addResult(it.file.name, false);
-        console.error('[haoyue] 加水印失败:', it.file.name, e);
       }
+    } catch (e) {
+      if (!App.task.isCancelled(e)) throw e;
+      cancelled = true;
+    } finally {
+      setRunning(false);
+      task = null;
     }
-    setStatus('完成：成功 ' + okN + ' 个' + (errN ? '，失败 ' + errN + ' 个' : '') +
-      '，已输出到「' + dirHandle.name + '/' + SUB_DIR + '」，原文件未改动');
-    $('dw-run').disabled = false;
-    running = false;
+    setStatus(cancelled
+      ? '已取消：已完成 ' + okN + ' 个' + (errN ? '，失败 ' + errN + ' 个' : '') +
+        '，已输出的文件保留在「' + dirHandle.name + '/' + SUB_DIR + '」'
+      : '完成：成功 ' + okN + ' 个' + (errN ? '，失败 ' + errN + ' 个' : '') +
+        '，已输出到「' + dirHandle.name + '/' + SUB_DIR + '」，原文件未改动');
   }
 
   /* 每次进入面板：清结果与状态，释放预览文档句柄，刷新计数与预览 */
@@ -449,6 +480,17 @@
     $('dw-img-pick').addEventListener('click', pickWmImage);
     $('dw-img-file').addEventListener('change', onWmImagePicked);
     $('dw-run').addEventListener('click', run);
+    $('dw-cancel').addEventListener('click', function () {
+      if (!task) return;
+      task.cancel();
+      setStatus('正在取消处理…');
+    });
+    App.ui.bindFileDrop('docs-watermark', {
+      target: 'dw-stage',
+      accept: /\.(pdf|jpe?g|png|webp)$/i,
+      rejectMsg: '请拖入 PDF 或图片（JPG / PNG / WebP）',
+      onFiles: addFiles
+    });
     setMode('text');
   };
 })(window.App);

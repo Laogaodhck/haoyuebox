@@ -19,9 +19,23 @@
   var dirHandle = null;
   var mode = 'merge';    // merge | split | shrink
   var running = false;
+  var task = null;       // 本次处理的取消令牌（App.task）
 
   function toast(msg, isErr) { App.ui.toast(msg, isErr); }
   function setStatus(msg) { $('dp-status').textContent = msg || ''; }
+
+  /* 运行期控件锁：文件/模式/参数/输出目录全部停用，只留取消按钮 */
+  var CTRL_IDS = ['dp-pick', 'dp-file', 'dp-clear', 'dp-tab-merge', 'dp-tab-split', 'dp-tab-shrink',
+    'dp-split-range', 'dp-shrink-quality', 'dp-shrink-scale', 'dp-dir', 'dp-run'];
+  function setRunning(on) {
+    running = on;
+    CTRL_IDS.forEach(function (id) {
+      var el = $(id);
+      if (el) el.disabled = on;
+    });
+    $('dp-cancel').hidden = !on;
+    if (!on) renderList(); // 解锁后重建列表按钮（运行期创建的按钮为禁用态）
+  }
   function fmtKB(bytes) { return bytes > 1024 * 1024 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.round(bytes / 1024) + ' KB'; }
 
   function renderList() {
@@ -42,7 +56,11 @@
         btns.appendChild(mkBtn('上移', function () { move(i, -1); }, 'up'));
         btns.appendChild(mkBtn('下移', function () { move(i, 1); }, 'down'));
       }
-      btns.appendChild(mkBtn('移除', function () { items.splice(i, 1); renderList(); }));
+      btns.appendChild(mkBtn('移除', function () {
+        if (running) return;
+        items.splice(i, 1);
+        renderList();
+      }));
       box.appendChild(row);
     });
   }
@@ -58,11 +76,13 @@
     } else {
       b.textContent = label;
     }
+    b.disabled = running; // 运行期禁止调整列表顺序/移除
     b.addEventListener('click', fn);
     return b;
   }
 
   function move(i, d) {
+    if (running) return;
     var j = i + d;
     if (j < 0 || j >= items.length) return;
     var t = items[i]; items[i] = items[j]; items[j] = t;
@@ -78,6 +98,7 @@
       pdf = await core.loadPdf(file);
       var pages = [];
       for (var p = 1; p <= pdf.numPages; p++) {
+        App.task.checkpoint(task);
         if (onProgress) onProgress(p, pdf.numPages);
         var canvas = await core.renderPage(pdf, p, scale);
         var blob = await core.encodeCanvas(canvas, 'image/jpeg', quality);
@@ -93,6 +114,7 @@
     var pages = [];
     var okN = 0;
     for (var i = 0; i < items.length; i++) {
+      App.task.checkpoint(task);
       var it = items[i];
       setStatus('合并 ' + (i + 1) + '/' + items.length + '：' + it.file.name);
       try {
@@ -104,6 +126,7 @@
         pages = pages.concat(arr);
         okN++;
       } catch (e) {
+        if (App.task.isCancelled(e)) throw e;
         addResult(it.file.name, false);
         console.error('[haoyue] PDF 合并失败:', it.file.name, e);
       }
@@ -133,6 +156,7 @@
       }
       var pages = [];
       for (var k = 0; k < idx.length; k++) {
+        App.task.checkpoint(task);
         setStatus('提取第 ' + idx[k] + ' / ' + pdf.numPages + ' 页');
         var canvas = await core.renderPage(pdf, idx[k], 2);
         var blob = await core.encodeCanvas(canvas, 'image/jpeg', 0.9);
@@ -143,6 +167,7 @@
       addResult(name, true, '，' + pages.length + ' 页');
       return { okN: 1 };
     } catch (e) {
+      if (App.task.isCancelled(e)) throw e;
       // 单文件操作：整体失败时明确报出文件名与原因，而非仅靠全局兜底弹通用错误
       addResult(it.file.name, false);
       console.error('[haoyue] PDF 拆分失败:', it.file.name, e);
@@ -158,6 +183,7 @@
     var scale = +$('dp-shrink-scale').value;       // 1.5 | 1.2 | 1
     var okN = 0, before = 0, after = 0;
     for (var i = 0; i < items.length; i++) {
+      App.task.checkpoint(task);
       var it = items[i];
       before += it.file.size;
       setStatus('压缩 ' + (i + 1) + '/' + items.length + '：' + it.file.name);
@@ -172,6 +198,7 @@
         okN++;
         addResult(name, true, '（' + fmtKB(it.file.size) + ' → ' + fmtKB(bytes.length) + '）');
       } catch (e) {
+        if (App.task.isCancelled(e)) throw e;
         addResult(it.file.name, false);
         console.error('[haoyue] PDF 压缩失败:', it.file.name, e);
       }
@@ -196,33 +223,47 @@
     if (!items.length) { toast('请先选择 PDF 文件'); return; }
     // 拆分模式只保留首个文件（见 onFilesPicked），此处无需多文件检查
     if (!dirHandle) { toast('请先选择输出文件夹'); return; }
-    running = true;
-    $('dp-run').disabled = true;
+    task = App.task.create();
+    setRunning(true);
     $('dp-results').innerHTML = '';
     var out = null;
     try { out = await core.ensureSubDir(dirHandle, SUB_DIR); }
     catch (e) {
-      $('dp-run').disabled = false; running = false;
+      setRunning(false); task = null;
       return toast('无法创建输出文件夹：' + ((e && e.message) || e), true);
     }
+    var cancelled = false;
     try {
+      App.task.checkpoint(task);
       var res = mode === 'merge' ? await runMerge(out)
         : mode === 'split' ? await runSplit(out)
           : await runShrink(out);
       if (!res.noSummary) setStatus('完成：成功 ' + res.okN + ' 项，已输出到「' + dirHandle.name + '/' + SUB_DIR + '」，原文件未改动');
+    } catch (e) {
+      if (!App.task.isCancelled(e)) throw e;
+      cancelled = true;
     } finally {
-      $('dp-run').disabled = false;
-      running = false;
+      setRunning(false);
+      task = null;
+    }
+    if (cancelled) {
+      setStatus(mode === 'shrink'
+        ? '已取消：已输出的文件保留在「' + dirHandle.name + '/' + SUB_DIR + '」'
+        : '已取消：未生成输出文件');
     }
   }
 
-  function onFilesPicked() {
-    var input = $('dp-file');
-    var files = Array.prototype.slice.call(input.files || []).filter(function (f) { return /\.pdf$/i.test(f.name); });
-    if (!files.length) { toast('请选择 PDF 文件'); return; }
+  function addFiles(files) {
+    if (running) { toast('正在处理中，请先取消或等待完成'); return; }
+    files = files.filter(function (f) { return /\.pdf$/i.test(f.name); });
+    if (!files.length) { toast('请选择 PDF 文件', true); return; }
     // 拆分模式一次只处理一个文件：只保留首个（合并/压缩模式累加多选）
     items = mode === 'split' ? [{ file: files[0] }] : items.concat(files.map(function (f) { return { file: f }; }));
     renderList();
+  }
+
+  function onFilesPicked() {
+    addFiles(Array.prototype.slice.call($('dp-file').files || []));
   }
 
   function setMode(next) {
@@ -272,6 +313,17 @@
       }
     });
     $('dp-run').addEventListener('click', run);
+    $('dp-cancel').addEventListener('click', function () {
+      if (!task) return;
+      task.cancel();
+      setStatus('正在取消处理…');
+    });
+    App.ui.bindFileDrop('docs-pdf', {
+      target: 'dp-stage',
+      accept: /\.pdf$/i,
+      rejectMsg: '请拖入 PDF 文件',
+      onFiles: addFiles
+    });
     setMode('merge');
   };
 })(window.App);

@@ -247,35 +247,6 @@
     }
   }
 
-  /* ---------- 拖拽打开（拖到阅读子页任意位置均可） ---------- */
-  function bindDragDrop() {
-    var sec = $('docs-reader');
-    var view = $('dr-view');
-    var depth = 0;   // dragenter/leave 计数：穿过子元素时不闪烁
-    sec.addEventListener('dragenter', function (e) {
-      e.preventDefault();
-      depth++;
-      view.classList.add('dr-over');
-    });
-    sec.addEventListener('dragover', function (e) {
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-    });
-    sec.addEventListener('dragleave', function () {
-      depth = Math.max(0, depth - 1);
-      if (!depth) view.classList.remove('dr-over');
-    });
-    sec.addEventListener('drop', function (e) {
-      e.preventDefault();
-      depth = 0;
-      view.classList.remove('dr-over');
-      var files = Array.prototype.slice.call((e.dataTransfer && e.dataTransfer.files) || []);
-      var pdfs = files.filter(function (f) { return /\.pdf$/i.test(f.name); });
-      if (!pdfs.length) { toast('请拖入 PDF 文件', true); return; }
-      loadFile(pdfs[0]);
-    });
-  }
-
   function enter() {
     setStatus('');
     syncUi();
@@ -304,7 +275,12 @@
     });
     $('dr-clear').addEventListener('click', clearDoc);
     $('dr-print').addEventListener('click', runPrint);
-    bindDragDrop();
+    App.ui.bindFileDrop('docs-reader', {
+      target: 'dr-view',
+      accept: /\.pdf$/i,
+      rejectMsg: '请拖入 PDF 文件',
+      onFiles: function (files) { loadFile(files[0]); }
+    });
     $('dr-prev').addEventListener('click', function () { gotoPage(cur - 1); });
     $('dr-next').addEventListener('click', function () { gotoPage(cur + 1); });
     $('dr-go').addEventListener('click', function () {

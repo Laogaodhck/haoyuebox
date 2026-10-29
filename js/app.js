@@ -753,7 +753,6 @@ window.App = (function () {
     $('photo-compose').hidden = name !== 'compose';
     $('photo-compress').hidden = name !== 'compress';
     $('photo-soon').hidden = name !== 'soon';   // 老照片修复（开发中占位）
-    $('print-soon').hidden = name !== 'printsoon'; // 证照打印（开发中占位，自打印工具迁入）
   }
 
   /* 系统工具子功能：软件卸载/垃圾清理两项暂未开发，占位页共用一套外壳，
@@ -837,6 +836,11 @@ window.App = (function () {
     $('set-mode').textContent = (window.haoyuePrint || window.haoyueArchive || window.haoyueDiag)
       ? '桌面版（Electron）'
       : '浏览器版（功能受限）';
+    var diag = window.haoyueApp && typeof window.haoyueApp.exportLogs === 'function';
+    $('set-diag').disabled = !diag;
+    $('set-diag-hint').textContent = diag
+      ? '导出最近 10 份运行日志（纯文本，不含照片或文件内容），便于排查异常。'
+      : '浏览器版没有本地运行日志；桌面版可导出最近 10 份日志（纯文本）。';
     if (window.App.updaterUI) window.App.updaterUI.refresh();
   }
 
@@ -968,10 +972,6 @@ window.App = (function () {
     /* 未开发子功能占位页（进入 / 返回） */
     { card: 'photo-open-restore',    run: function () { showPhotoSub('soon'); } },
     { card: 'soon-photo-back',       run: function () { showPhotoSub('menu'); } },
-    { card: 'photo-open-idphotoprint', run: function () { showPhotoSub('printsoon'); } },
-    { card: 'soon-print-back',       run: function () { showPhotoSub('menu'); } },
-    { card: 'batch-open-addwm',      run: function () { window.App.batch.showOnly('batch-soon'); } },
-    { card: 'soon-batch-back',       run: function () { window.App.batch.showOnly(null); } },
     /* 批量打印（图片面板）已自打印工具迁入批量工具 */
     { card: 'batch-open-printbatch', run: function () { window.App.batch.showOnly('print-batch'); window.App.printBatch.refreshPrinters(); } },
     /* 文档工具：六项子功能均已实装 */
@@ -1034,6 +1034,23 @@ window.App = (function () {
     $('set-start').addEventListener('change', function () {
       State.startMode = this.value === 'last' ? 'last' : 'home';
       window.App.settings.save();
+    });
+    $('set-diag').addEventListener('click', function () {
+      var bridge = window.haoyueApp;
+      if (!bridge || typeof bridge.exportLogs !== 'function') {
+        toast('浏览器版没有本地日志，请使用桌面版导出', true);
+        return;
+      }
+      var btn = this;
+      btn.disabled = true;
+      bridge.exportLogs().then(function (res) {
+        if (res && res.ok) toast('已导出 ' + res.files + ' 份日志', false, 'check');
+        else if (!res || !res.cancelled) toast('导出失败：' + ((res && res.error) || '未知错误'), true);
+      }).catch(function (e) {
+        toast('导出失败：' + ((e && e.message) || e), true);
+      }).finally(function () {
+        btn.disabled = !(window.haoyueApp && typeof window.haoyueApp.exportLogs === 'function');
+      });
     });
     $('set-reset').addEventListener('click', function () {
       window.App.ui.confirm('确定清空全部本机设置并恢复默认吗？\n（含规格/底色/输出记忆与主题、启动偏好）')
@@ -1208,13 +1225,63 @@ window.App = (function () {
     if (iconName) el.appendChild(makeIcon(iconName));
   }
 
+  /* 长任务取消令牌：模块持有 token，逐项/逐页 checkpoint；
+   * 取消后 checkpoint 抛出哨兵，由 run 的 catch 识别为「已取消」而非失败。
+   * 哨兵对象不携带堆栈信息，只用于身份比较，不会被当作错误上报。 */
+  var TASK_CANCELLED = { cancelled: true };
+  function createTask() {
+    return { cancelled: false, cancel: function () { this.cancelled = true; } };
+  }
+  function checkpoint(task) {
+    if (task && task.cancelled) throw TASK_CANCELLED;
+  }
+  function isCancelled(err) { return err === TASK_CANCELLED; }
+
+  /* 文件拖放统一绑定：section 内任意位置接收拖拽，target 元素显示虚线高亮。
+   * accept 为正则或判定函数（返回 true 保留），onFiles 接收过滤后的文件数组。
+   * 运行期由调用方在 onFiles 内自行守卫（见各文档模块）。 */
+  function bindFileDrop(sectionId, opts) {
+    var sec = $(sectionId);
+    if (!sec) return;
+    var o = opts || {};
+    var target = (o.target && $(o.target)) || sec;
+    var accept = o.accept;
+    var msg = o.rejectMsg || '文件类型不支持';
+    var depth = 0;
+    function accepted(f) {
+      return !accept || (typeof accept === 'function' ? accept(f) : accept.test(f.name));
+    }
+    sec.addEventListener('dragenter', function (e) {
+      e.preventDefault();
+      depth++;
+      target.classList.add('file-drop-over');
+    });
+    sec.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    });
+    sec.addEventListener('dragleave', function () {
+      depth = Math.max(0, depth - 1);
+      if (!depth) target.classList.remove('file-drop-over');
+    });
+    sec.addEventListener('drop', function (e) {
+      e.preventDefault();
+      depth = 0;
+      target.classList.remove('file-drop-over');
+      var files = Array.prototype.slice.call((e.dataTransfer && e.dataTransfer.files) || []).filter(accepted);
+      if (!files.length) { toast(msg, true); return; }
+      if (o.onFiles) o.onFiles(files);
+    });
+  }
+
   var App = {
     State: State,
     showModule: showModule,
     ui: {
       $: $, toast: toast, confirm: confirm, showLoading: showLoading, hideLoading: hideLoading, download: download,
-      icon: makeIcon, statusText: setStatusText
+      icon: makeIcon, statusText: setStatusText, bindFileDrop: bindFileDrop
     },
+    task: { create: createTask, checkpoint: checkpoint, isCancelled: isCancelled },
     photo: {
       showStep: showStep,
       showPhotoSub: showPhotoSub,

@@ -159,7 +159,7 @@
 
   function toast(msg, isErr) { window.App.ui.toast(msg, isErr); }
 
-  var BATCH_PANELS = ['batch-rename', 'batch-format', 'batch-watermark', 'print-batch', 'batch-soon'];
+  var BATCH_PANELS = ['batch-rename', 'batch-format', 'batch-watermark', 'print-batch'];
 
   function showMenu() {
     $('batch-menu').hidden = false;

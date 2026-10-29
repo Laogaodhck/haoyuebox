@@ -74,6 +74,62 @@ app.on('child-process-gone', (_e, details) => appendDiag('child-process-gone', J
 app.on('render-process-gone', (_e, _wc, details) => appendDiag('render-process-gone', JSON.stringify(details)));
 ipcMain.on('app:logError', (_e, msg) => appendDiag('renderer', msg));
 
+/* 诊断日志导出：合并 logs 目录下的最近日志（appendDiag 已轮转保留 10 份），
+   附版本 / 平台 / 时间头，经保存对话框写到用户指定位置。纯本机操作。 */
+ipcMain.handle('app:exportLogs', async () => {
+  try {
+    const dir = path.join(app.getPath('userData'), 'logs');
+    let files = [];
+    try {
+      files = fs.readdirSync(dir).filter((f) => /^app-\d{4}-\d{2}-\d{2}\.log$/.test(f)).sort();
+    } catch (e) { /* 日志目录尚未生成 */ }
+    const head = [
+      '浩玥工具箱 诊断日志',
+      '导出时间：' + new Date().toISOString(),
+      '版本：v' + app.getVersion(),
+      '平台：' + process.platform + ' ' + process.getSystemVersion() + ' ' + process.arch,
+      '日志目录：' + dir,
+      '日志文件：' + files.length + ' 个',
+      ''
+    ];
+    const body = [];
+    let total = 0;
+    const MAX = 2 * 1024 * 1024;
+    for (const f of files) {
+      body.push('===== ' + f + ' =====');
+      let text = '';
+      try {
+        text = fs.readFileSync(path.join(dir, f), 'utf8');
+      } catch (e) {
+        text = '（读取失败：' + ((e && e.message) || e) + '）\n';
+      }
+      total += text.length;
+      if (total > MAX) {
+        body.push('（日志总长超过 2 MB，后续内容已截断）');
+        break;
+      }
+      body.push(text.replace(/\s+$/, ''));
+      body.push('');
+    }
+    if (!files.length) body.push('（暂无日志记录：应用尚未记录任何异常）');
+    const content = head.concat(body).join('\n');
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const opts = {
+      title: '导出诊断日志',
+      defaultPath: path.join(app.getPath('downloads'), 'haoyue-diag-' + stamp + '.txt'),
+      filters: [{ name: '文本文件', extensions: ['txt'] }]
+    };
+    const picked = mainWindow
+      ? await dialog.showSaveDialog(mainWindow, opts)
+      : await dialog.showSaveDialog(opts);
+    if (picked.canceled || !picked.filePath) return { ok: false, cancelled: true };
+    fs.writeFileSync(picked.filePath, content, 'utf8');
+    return { ok: true, file: picked.filePath, files: files.length, bytes: Buffer.byteLength(content, 'utf8') };
+  } catch (err) {
+    return { ok: false, error: String((err && err.message) || err) };
+  }
+});
+
 /* ---------- 打印 IPC：读取本地打印机 + 静默打印图片 ---------- */
 
 /* Windows 默认打印机名（Electron 36+ 移除了 PrinterInfo.isDefault，无替代 API；

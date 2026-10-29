@@ -109,11 +109,8 @@ if (!exe) {
     await win.click('#soon-photo-back');
     assert(await win.$eval('#photo-soon', (el) => el.hidden) && await win.$eval('#photo-menu', (el) => !el.hidden),
       '占位页返回子功能菜单正常');
-    await win.click('#photo-open-idphotoprint');
-    assert(await win.$eval('#print-soon', (el) => !el.hidden), '照片工具「证照打印」占位页可见');
-    await win.click('#soon-print-back');
-    assert(await win.$eval('#print-soon', (el) => el.hidden) && await win.$eval('#photo-menu', (el) => !el.hidden),
-      '证照打印占位页返回菜单正常');
+    assert(await win.$('#photo-open-idphotoprint') === null, '照片工具不再重复占位「证照打印」');
+    assert((await win.$$eval('#photo-menu .home-card', (els) => els.length)) === 5, '照片工具菜单收敛为 5 张卡片');
     await win.click('.module-tab[data-module="print"]');
     assert(await win.$eval('#print-menu', (el) => !el.hidden), '文档工具子功能菜单可见');
     await win.click('#print-open-docs');
