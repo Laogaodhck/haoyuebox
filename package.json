@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "serve": "node tools/server.js",
-    "dist": "electron-builder --win",
+    "dist": "electron-builder --win --publish never",
     "icons": "node tools/make-icons.cjs",
     "test": "node tools/check-refs.cjs && node tools/test-dpi.cjs && node tools/test-compress.cjs && node tools/test-hair-clothes.cjs && node tools/test-server.cjs && node tools/test-print-route.cjs && node tools/test-dom.cjs && node tools/test-tilt.cjs && node tools/test-batch-rename.cjs && node tools/test-brush.cjs && node tools/test-zip.cjs && node tools/test-convert.cjs && node tools/test-compose.cjs && node tools/test-batch-format.cjs && node tools/test-batch-watermark.cjs && node tools/test-archive.cjs && node tools/test-archive-icons.cjs && node tools/test-print-batch.cjs && node tools/test-print-doc.cjs && node tools/test-docs-watermark.cjs && node tools/test-pdfcore.cjs && node tools/test-docs-ocr.cjs && node tools/test-ocr-enhance.cjs && node tools/test-xlsx-lite.cjs && node tools/test-system.cjs && node tools/test-update.cjs && node tools/test-appupdater.cjs && node tools/test-ipc-contract.cjs",
     "verify": "node tools/verify-hair.cjs && node tools/verify-matteview.cjs && node tools/verify-sheet.cjs && node tools/verify-sheet-save.cjs && node tools/verify-archive.cjs && node tools/verify-batch.cjs && node tools/verify-print-batch.cjs && node tools/verify-brush.cjs && node tools/verify-output.cjs && node tools/verify-ocr.cjs && node tools/verify-packaged.cjs",
@@ -23,7 +23,11 @@
     "appId": "com.haoyue.idphoto",
     "productName": "浩玥工具箱",
     "copyright": "老高 · QQ 846193",
-    "publish": null,
+    "publish": {
+      "provider": "github",
+      "owner": "Laogaodhck",
+      "repo": "haoyuebox"
+    },
     "directories": {
       "output": "release-build",
       "buildResources": "assets"
