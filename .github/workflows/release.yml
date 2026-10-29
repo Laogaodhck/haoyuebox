@@ -23,9 +23,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # node 22（npm 10）：npm 11 的 install-scripts allowlist 策略会拦截
           # electron 的 postinstall 与 npm rebuild，导致打包找不到 Electron 二进制
@@ -35,7 +35,7 @@ jobs:
       # electron 与 electron-builder 的下载缓存（NSIS 工具链、winCodeSign、electron zip）
       # Windows 上两者缓存在 ~/AppData/Local 下（~/.cache 是 Linux 约定）；
       # ms-playwright 同路径规律，给 OCR 门禁的 Chromium 复用（版本随 package-lock 变更而失效）
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/AppData/Local/electron/Cache
@@ -134,7 +134,7 @@ jobs:
       # 手动触发且未指定补发 tag 时，不建 Release，只留产物供试装
       - name: 上传构建产物
         if: steps.reltag.outputs.tag == ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: haoyue-idphoto-windows
           path: release-build/*.exe
