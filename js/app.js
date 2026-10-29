@@ -1100,6 +1100,14 @@ window.App = (function () {
     }).catch(function () { /* 桥接异常静默（旧主进程/非桌面环境） */ });
   }
 
+  /* 运行模式标记：浏览器直接打开时首页版本行改为「浏览器版」，
+   * 桌面版保持静态文案（发布校验按 HTML 静态文本核对版本号） */
+  function applyRuntimeTag() {
+    if (window.haoyuePrint || window.haoyueArchive || window.haoyueDiag) return;
+    var el = document.querySelector('.home-version');
+    if (el) el.textContent = el.textContent.replace('桌面离线版', '浏览器版');
+  }
+
   function boot() {
     // 全局兜底：任何未捕获错误都必须关掉加载遮罩并提示，避免“永久转圈”
     window.addEventListener('unhandledrejection', function (e) {
@@ -1127,6 +1135,7 @@ window.App = (function () {
         '<span>当前以 file:// 方式打开，AI 模型无法加载。请双击 start.bat（或用任意静态服务器）打开本工具。</span>';
     }
     window.App.settings.load();   // 恢复上次的规格/背景/输出设置（须在 buildSpecGrid 之前）
+    applyRuntimeTag();
     initModules();
     initUpload();
     initMatte();

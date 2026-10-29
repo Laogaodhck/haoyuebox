@@ -190,8 +190,21 @@
     });
   }
 
+  /* 浏览器模式下网络检测 / 打印机依赖主进程 IPC：
+   * 入口徽章由「可用」降级为「仅桌面版」，避免点进去才发现不可用 */
+  function applyModeBadges() {
+    ['system-open-network', 'system-open-printer'].forEach(function (id) {
+      var card = $(id);
+      var badge = card && card.querySelector('.hc-badge');
+      if (!badge) return;
+      badge.textContent = bridge ? '可用' : '仅桌面版';
+      badge.classList.toggle('off', !bridge);
+    });
+  }
+
   App.system = {
     init: function () {
+      applyModeBadges();
       $('net-probe-btn').addEventListener('click', probeRun);
       $('printer-refresh-btn').addEventListener('click', refreshPrinters);
       $('printer-wizard-btn').addEventListener('click', openWizard);
@@ -200,6 +213,6 @@
     },
     enterNet: enterNet,
     enterPrinter: enterPrinter,
-    _test: { escRef: esc }
+    _test: { escRef: esc, applyModeBadges: applyModeBadges }
   };
 })(window.App);

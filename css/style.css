@@ -957,6 +957,11 @@ body[data-module="system"] #sheet-steps-nav { display: none; }
   color: #d97706;
   border-color: #d97706;
 }
+/* 「仅桌面版」徽章：浏览器模式下运行时降级（灰色，区别于可用/开发中） */
+.hc-badge.off {
+  color: var(--text-dim);
+  border-color: var(--border);
+}
 /* 未开发子功能占位页：居中规划卡片 */
 .soon-wrap {
   grid-column: 1 / -1;
@@ -1244,13 +1249,18 @@ body[data-module="system"] #sheet-steps-nav { display: none; }
 @media (max-width: 860px) {
   #step-matte.active, #step-spec.active, #step-export.active,
   #sheetstep-tpl.active, #sheetstep-import.active, #sheetstep-preview.active, #sheetstep-print.active,
-  .subpage {
+  .subpage, .subpage-inner {
     grid-template-columns: 1fr;
   }
   .panel { order: 2; }
   .stage { order: 1; }
+  /* 文档子页的预览/结果区也属于 .panel，窄屏同样置于操作面板之前 */
+  .panel.dw-stage, .panel.dr-stage { order: 1; }
   .panel .bottom { margin-top: 6px; }
   .topbar { justify-content: center; }
+  /* 模块 Tab 不换行不压缩，超宽时横向滚动（窄窗口下避免标签竖排） */
+  .modules { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .module-tab { flex: 0 0 auto; white-space: nowrap; }
   .dropzone { padding: 48px 18px; }
   .crop-stack canvas { height: min(52vh, 440px); }
   .home-view { grid-template-columns: 1fr; }
@@ -1274,6 +1284,8 @@ body[data-module="system"] #sheet-steps-nav { display: none; }
   .step { flex: 0 0 auto; }
   .brand-name { font-size: 15px; }
   .module-tab { padding: 6px 14px; }
+  /* 子功能菜单双列在 640px 以下会把标题与徽章挤成逐字换行，改单列 */
+  .batch-menu, .photo-menu, .archive-menu { grid-template-columns: 1fr; }
   .home-view { padding: 16px 12px; gap: 14px; }
   .home-declare, .home-card { padding: 18px 16px; }
   .hc-icon svg { width: 32px; height: 32px; }

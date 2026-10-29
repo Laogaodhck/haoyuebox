@@ -52,12 +52,16 @@
   function effectivePct() { return Math.round(displayScale() * 100); }
 
   function syncUi() {
+    var ready = !!pdf;
     $('dr-page-ind').textContent = numPages ? (cur + ' / ' + numPages) : '– / –';
     $('dr-prev').disabled = !numPages || cur <= 1;
     $('dr-next').disabled = !numPages || cur >= numPages;
-    $('dr-zoom-val').textContent = effectivePct() + '%';
-    $('dr-clear').disabled = !pdf;
-    if (printApi) $('dr-print').disabled = !pdf || printerN === 0;
+    /* 空态不显示由基准尺寸推算的伪缩放值（baseW 为 1 时会得到天文数字） */
+    $('dr-zoom-val').textContent = ready ? effectivePct() + '%' : '—';
+    $('dr-zoom-in').disabled = !ready;
+    $('dr-zoom-out').disabled = !ready;
+    $('dr-clear').disabled = !ready;
+    if (printApi) $('dr-print').disabled = !ready || printerN === 0;
   }
 
   /* ---------- 渲染当前页 ---------- */

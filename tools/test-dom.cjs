@@ -10,6 +10,7 @@ const { createChecker, withServer } = require('./_lib.cjs');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = 8439;
+const PKG = require('../package.json');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
 const errors = [];
@@ -108,6 +109,17 @@ withServer(PORT, async (port) => {
     '批量重命名 / 去除水印 / 格式转换入口存在');
   assert(!!doc.getElementById('batch-format') && !!doc.getElementById('batch-watermark'), '格式转换 / 去除水印面板存在');
   assert(doc.querySelectorAll('#batch-format select, #batch-watermark select').length === 5, '两个新面板下拉共 5 个');
+  /* 首页模块卡片文案：须覆盖已实装能力，不用「更多功能陆续上线」掩盖已交付功能 */
+  var homeDescs = ['home-photo', 'home-batch', 'home-print', 'home-system'].map(function (id) {
+    return doc.querySelector('#' + id + ' .hc-desc').textContent;
+  });
+  assert(/抠图换底/.test(homeDescs[0]) && /批量压缩/.test(homeDescs[0]), '首页照片工具文案覆盖抠图换底与图片压缩');
+  assert(/体积优化/.test(homeDescs[1]) && /批量打印/.test(homeDescs[1]), '首页批量工具文案覆盖体积优化与批量打印');
+  assert(/OCR/.test(homeDescs[2]) && /阅读器/.test(homeDescs[2]), '首页文档工具文案覆盖 OCR 与 PDF 阅读器');
+  assert(/开发中/.test(homeDescs[3]), '首页系统工具文案标注开发中项');
+  /* 运行模式标记：无桌面桥接时首页版本行显示「浏览器版」（静态 HTML 保持桌面文案供发布校验） */
+  assert(doc.querySelector('.home-version').textContent === '浏览器版 v' + PKG.version,
+    '浏览器模式首页版本行标记为「浏览器版 v' + PKG.version + '」');
   ['bf-pick', 'bf-run', 'bf-back', 'bf-quality', 'bf-bg', 'bf-pdf-merge', 'bf-out', 'bf-list', 'bf-empty',
    'bw-pick', 'bw-run', 'bw-back', 'bw-mode', 'bw-strength', 'bw-color', 'bw-out', 'bw-undo', 'bw-clear', 'bw-clear-all', 'wm-chips',
    'bw-files', 'bw-tools', 'bw-tool-rect', 'bw-tool-brush', 'bw-tool-erase', 'bw-brush-row', 'bw-brush-size',
@@ -202,6 +214,10 @@ withServer(PORT, async (port) => {
   assert(doc.querySelector('#dr-duplex option[value="simplex"]')
     && doc.querySelector('#dr-duplex option[value="longEdge"]')
     && doc.querySelector('#dr-duplex option[value="shortEdge"]'), '阅读器单双面打印三档选项齐备');
+  /* 阅读器空态：不得用 72dpi 基准尺寸推算缩放（baseW 初始为 1 会显示 101000% 之类伪值） */
+  assert(doc.getElementById('dr-zoom-val').textContent === '—', '阅读器空态缩放显示占位「—」');
+  assert(doc.getElementById('dr-zoom-in').disabled && doc.getElementById('dr-zoom-out').disabled,
+    '阅读器空态禁用缩放按钮');
   assert(doc.querySelector('#pb-duplex option[value="simplex"]')
     && doc.querySelector('#pb-duplex option[value="longEdge"]')
     && doc.querySelector('#pb-duplex option[value="shortEdge"]'), '单双面三档选项齐备（图片面板）');
@@ -212,10 +228,13 @@ withServer(PORT, async (port) => {
     && doc.querySelector('script[src="js/print-batch.js"]'), 'pdf.js / mammoth / print-batch 脚本已引入');
   assert(doc.querySelector('.module-tab[data-module="system"]') && !!doc.getElementById('home-system'),
     '系统工具模块标签与首页卡片存在');
-  assert(doc.querySelectorAll('#system-menu .home-card').length === 5, '系统工具菜单 5 张卡片（2 敬请期待 + 3 可用）');
-  assert(doc.querySelector('#system-open-network .hc-badge:not(.soon)')
-    && doc.querySelector('#system-open-printer .hc-badge:not(.soon)')
-    && doc.querySelector('#system-open-settings .hc-badge:not(.soon)'), '网络检测/添加打印机/设置卡片已标记为可用');
+  assert(doc.querySelectorAll('#system-menu .home-card').length === 5, '系统工具菜单 5 张卡片（2 敬请期待 + 3 入口）');
+  assert(doc.querySelector('#system-open-network .hc-badge.off')
+    && doc.querySelector('#system-open-printer .hc-badge.off')
+    && doc.querySelector('#system-open-network .hc-badge').textContent === '仅桌面版'
+    && doc.querySelector('#system-open-printer .hc-badge').textContent === '仅桌面版'
+    && doc.querySelector('#system-open-settings .hc-badge:not(.soon):not(.off)'),
+    '浏览器模式下网络检测/打印机降级为「仅桌面版」，设置保持可用');
   ['system-open-uninstall', 'system-open-cleanup', 'system-open-network', 'system-open-printer',
    'system-open-settings', 'soon-system-back', 'set-back',
    'system-settings', 'set-theme', 'set-start', 'set-reset', 'set-storage', 'set-ver', 'set-mode',
