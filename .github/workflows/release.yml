@@ -134,7 +134,7 @@ jobs:
       # 手动触发且未指定补发 tag 时，不建 Release，只留产物供试装
       - name: 上传构建产物
         if: steps.reltag.outputs.tag == ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: haoyue-idphoto-windows
           path: release-build/*.exe
