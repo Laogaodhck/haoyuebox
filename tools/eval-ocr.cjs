@@ -17,7 +17,7 @@
  *
  * 运行：node tools/eval-ocr.cjs [--write] [--only=clean,table]
  *   --write  把结果表写入 docs/ocr-eval-report.md
- * 依赖：Chromium（同 verify 系列，支持 ZUNHONG_CHROMIUM）
+ * 依赖：Chromium（同 verify 系列，支持 HAOYUE_CHROMIUM）
  * ============================================================ */
 'use strict';
 const fs = require('fs');
@@ -32,7 +32,7 @@ const ONLY = (process.argv.filter((a) => a.indexOf('--only=') === 0)[0] || '').r
 
 /* ================= 场景定义（确定性合成，含标准答案） ================= */
 
-const TITLE = '尊泓工具箱 OCR 精度评测样本';
+const TITLE = '浩玥工具箱 OCR 精度评测样本';
 const L1 = 'Total 128 items, batch No. A12-38B';
 const L2 = '电话 13812345678 日期 2026年10月21日';
 const L3 = '备注：识别结果需与原件保持一致。';

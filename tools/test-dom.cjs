@@ -480,8 +480,8 @@ withServer(PORT, async (port) => {
 
   /* ---- settings：往返 / 钳制 / 旧键迁移 / 损坏容错（QA-B5 行为覆盖） ---- */
   var ls = win.localStorage;
-  ls.removeItem('zunhong-toolbox-settings');
   ls.removeItem('haoyue-idphoto-settings');
+  ls.removeItem('zunhong-toolbox-settings');
   win.App.State.quality = 0.8;
   win.App.settings.save();
   win.App.State.quality = 0.3;
@@ -490,26 +490,26 @@ withServer(PORT, async (port) => {
   /* v1 旧数据（无版本标）走迁移：越界/非法字段被清出，State 保留原值不采纳 */
   win.App.State.quality = 0.8;
   win.App.State.whiten = 30;
-  ls.setItem('zunhong-toolbox-settings', JSON.stringify({ quality: 2, whiten: -5, fmt: 'gif', theme: 'neon', startMode: 'nope' }));
+  ls.setItem('haoyue-idphoto-settings', JSON.stringify({ quality: 2, whiten: -5, fmt: 'gif', theme: 'neon', startMode: 'nope' }));
   win.App.settings.load();
   assert(win.App.State.quality === 0.8 && win.App.State.whiten === 30,
     'settings 越界数值迁移时清出（State 保留原值）');
   assert(win.App.State.fmt !== 'gif' && win.App.State.theme !== 'neon' && win.App.State.startMode !== 'nope',
     'settings 非法枚举值不采纳（fmt/theme/startMode）');
-  assert(win.App.settings.versionOf(JSON.parse(ls.getItem('zunhong-toolbox-settings'))) === 2,
+  assert(win.App.settings.versionOf(JSON.parse(ls.getItem('haoyue-idphoto-settings'))) === 2,
     'v1 旧数据迁移后已写回 v2 结构');
   /* v2 直存路径：合法但越界的数值仍由 applyFields 钳制 */
-  ls.setItem('zunhong-toolbox-settings', JSON.stringify({ v: 2, quality: 0.3, whiten: 250 }));
+  ls.setItem('haoyue-idphoto-settings', JSON.stringify({ v: 2, quality: 0.3, whiten: 250 }));
   win.App.settings.load();
   assert(win.App.State.quality === 0.5, 'settings quality 钳制下限 0.5');
   assert(win.App.State.whiten === 100, 'settings whiten 钳制上限 100');
-  ls.removeItem('zunhong-toolbox-settings');
-  ls.setItem('haoyue-idphoto-settings', JSON.stringify({ quality: 0.7 }));
+  ls.removeItem('haoyue-idphoto-settings');
+  ls.setItem('zunhong-toolbox-settings', JSON.stringify({ quality: 0.7 }));
   win.App.State.quality = 0.5;
   win.App.settings.load();
-  assert(win.App.State.quality === 0.7, 'settings 旧品牌键（haoyue-idphoto-settings）迁移恢复');
-  assert(ls.getItem('zunhong-toolbox-settings') !== null, 'settings 迁移后写入新存储键');
-  ls.setItem('zunhong-toolbox-settings', '{oops');
+  assert(win.App.State.quality === 0.7, 'settings 旧品牌键（zunhong-toolbox-settings）迁移恢复');
+  assert(ls.getItem('haoyue-idphoto-settings') !== null, 'settings 迁移后写入当前存储键');
+  ls.setItem('haoyue-idphoto-settings', '{oops');
   win.App.settings.load();
   assert(win.App.State.quality === 0.7, 'settings 损坏 JSON 容错不抛错且不改写当前值');
 
@@ -519,7 +519,7 @@ withServer(PORT, async (port) => {
   win.App.batchFormat.buildPdf = origBuildPdf;
   win.document.createElement = origCreate;
   delete win.createImageBitmap;
-  const restoreMark = errors.length; // 行为测试窗口结束：此后的 [zunhong] 错误不再豁免
+  const restoreMark = errors.length; // 行为测试窗口结束：此后的 [haoyue] 错误不再豁免
   assert(doc.querySelectorAll('#sheet-steps-nav .step').length === 4, '排版模块步骤指示器 4 个');
   assert(doc.getElementById('sheetstep-print'), '排版第 4 步打印面板存在');
   const paperSel = doc.getElementById('sheet-paper');
@@ -529,9 +529,9 @@ withServer(PORT, async (port) => {
   assert(doc.getElementById('step-upload').classList.contains('active'), '默认显示上传步骤');
 
   // app.js 引导错误：一律豁免 mediapipe 对 jsdom 缺失 API 的抱怨；行为测试窗口内
-  // 故意走失败路径产生的 [zunhong] console.error 由上方断言逐条验证，仅该窗口豁免；
-  // 窗口之外（引导期 / stub 还原后）的 [zunhong] 错误一律计入——防止过滤器把
-  // 真实诊断错误一起吞掉（QA 审查：原实现全局豁免 [zunhong]）
+  // 故意走失败路径产生的 [haoyue] console.error 由上方断言逐条验证，仅该窗口豁免；
+  // 窗口之外（引导期 / stub 还原后）的 [haoyue] 错误一律计入——防止过滤器把
+  // 真实诊断错误一起吞掉（QA 审查：原实现全局豁免 [haoyue]）
   const noise = /OffscreenCanvas|Worker|WebGL|createImageBitmap|VideoFrame|ImageDecoder|MediaStream/;
   const appErrors = errors.slice(0, preTestErrors).concat(errors.slice(restoreMark))
     .filter((e) => !noise.test(e));

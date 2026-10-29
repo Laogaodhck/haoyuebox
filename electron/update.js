@@ -165,7 +165,7 @@ function registerUpdateIpc(ipcMain, app, diag) {
       fs.mkdirSync(backupDir(), { recursive: true });
       const name = backupName(info.version);
       const payload = JSON.stringify({
-        app: 'zunhong-toolbox',
+        app: 'haoyue-idphoto',
         kind: 'data-backup',
         version: info.version,
         savedAt: new Date().toISOString(),

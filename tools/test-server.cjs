@@ -71,7 +71,7 @@ function request(port, p, opts) {
   const ico = await get(port, '/assets/icon.png');
   assert(ico.status === 200 && ico.type === 'image/png', 'icon.png 可访问');
 
-  const evil = await get(port, '/..%2F..%2Fzunhong%2FREADME.md');
+  const evil = await get(port, '/..%2F..%2Fhaoyue%2FREADME.md');
   assert(evil.status === 403 || evil.status === 404, '路径穿越被拒绝');
 
   const evil2 = await get(port, '/..%2F' + encodeURIComponent(path.basename(ROOT) + '2') + '%2Fsecret.txt');

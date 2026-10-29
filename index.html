@@ -6,7 +6,7 @@
 <!-- 内容安全策略：仅放行本机同源资源 + WASM 编译（MediaPipe 必需）+ data:/blob: 图片；
      禁止远程内容、内联脚本、插件与框架嵌套。与 electron/main.js 响应头注入的策略保持一致。 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
-<title>尊泓工具箱 · 老高 QQ 846193</title>
+<title>浩玥工具箱 · 老高 QQ 846193</title>
 <link rel="icon" href="assets/icon.png">
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -15,7 +15,7 @@
 <header class="topbar">
   <div class="brand">
     <img class="brand-logo" src="assets/icon.png" alt="">
-    <span class="brand-name">尊泓工具箱</span>
+    <span class="brand-name">浩玥工具箱</span>
     <span class="badge">离线版</span>
     <span class="credit">老高 · QQ 846193</span>
   </div>
@@ -49,19 +49,19 @@
 <!-- ========== 首页 ========== -->
 <div id="view-home" class="home-view">
   <aside class="home-declare">
-    <img class="home-logo" src="assets/icon.png" alt="尊泓工具箱">
-    <h2 class="home-name">尊泓工具箱</h2>
-    <div class="home-version">桌面离线版 v1.4.2</div>
+    <img class="home-logo" src="assets/icon.png" alt="浩玥工具箱">
+    <h2 class="home-name">浩玥工具箱</h2>
+    <div class="home-version">桌面离线版 v1.5.0</div>
     <div class="home-divider"></div>
     <h3 class="home-h3">软件声明</h3>
     <ul class="home-declare-list">
       <li>本软件为纯本地离线工具，所有照片均在本机处理，<b>不上传、不收集任何数据</b>。</li>
       <li>AI 抠图基于本地模型推理，断网状态可完整使用全部功能。</li>
-      <li>本软件免费使用，仅供尊泓内部用途，请勿用于非法用途。</li>
+      <li>本软件免费使用，仅供学习用途，请勿用于非法用途。</li>
       <li>软件按"现状"提供，作者不对因使用本软件产生的任何损失负责。</li>
       <li>如有问题或建议，欢迎联系老高。</li>
     </ul>
-    <div class="home-sign">2026@尊泓（湖北）健康有限公司</div>
+    <div class="home-sign">2026@浩玥</div>
   </aside>
   <div class="home-menu">
     <button class="home-card" id="home-photo" type="button">
@@ -1359,7 +1359,18 @@
         <h3>关于</h3>
         <div class="settings-row"><span>软件版本</span><span id="set-ver">…</span></div>
         <div class="settings-row"><span>运行模式</span><span id="set-mode">…</span></div>
-        <div class="settings-row"><span>更新方式</span><span>覆盖安装升级，设置自动保留</span></div>
+        <div class="settings-row"><span>软件更新</span><span id="upd-status" class="settings-hint">…</span></div>
+        <div class="settings-row">
+          <span></span>
+          <span class="upd-btns">
+            <button id="upd-check" class="ghost">检查更新</button>
+            <button id="upd-download" class="ghost" hidden>下载更新</button>
+            <button id="upd-install" class="ghost" hidden>安装并重启</button>
+            <button id="upd-open" class="ghost" hidden>打开发布页</button>
+          </span>
+        </div>
+        <progress id="upd-progress" max="100" hidden></progress>
+        <div class="settings-hint">安装版支持就地更新（新包来自 GitHub Release，仍为手动确认，不自动联网）；便携版与浏览器版请打开发布页手动下载。安装时如遇 SmartScreen「已保护你的电脑」，点「更多信息 → 仍要运行」。</div>
         <div class="settings-row"><span>作者</span><span>老高 · QQ 846193</span></div>
         <div class="settings-row"><span>许可</span><span>MIT（开源免费）</span></div>
         <div class="settings-hint">纯本地离线工具，照片与文件处理全部在本机完成，不上传、不收集任何数据。</div>
@@ -1369,7 +1380,7 @@
     </div>
   </section>
 
-  <!-- ========== 子功能：系统工具 · 网络检测（桌面版经 zunhongSystem IPC；浏览器版提示降级） ========== -->
+  <!-- ========== 子功能：系统工具 · 网络检测（桌面版经 haoyueSystem IPC；浏览器版提示降级） ========== -->
   <section id="system-net" class="subpage" hidden>
     <div class="settings-wrap">
 

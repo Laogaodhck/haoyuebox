@@ -5,9 +5,9 @@
  *           → 压缩工具真实 IPC 冒烟（打包内 7z 引擎检测）→ 无页面错误
  *
  * 产物定位（依次尝试，全部缺失时优雅跳过，不阻塞 verify 链）：
- *   1. 环境变量 ZUNHONG_PACKAGED_EXE 指向打包 exe
- *   2. release-build/win-unpacked/尊泓工具箱.exe （npm run dist 本地输出）
- *   3. release/win-unpacked/尊泓工具箱.exe
+ *   1. 环境变量 HAOYUE_PACKAGED_EXE 指向打包 exe
+ *   2. release-build/win-unpacked/浩玥工具箱.exe （npm run dist 本地输出）
+ *   3. release/win-unpacked/浩玥工具箱.exe
  *
  * 产出 unpacked：npx electron-builder --win --dir（无需 NSIS 安装包）
  * ============================================================ */
@@ -19,11 +19,11 @@ const { createChecker, sleep } = require('./_lib.cjs');
 const checker = createChecker();
 const assert = checker.assert;
 
-const EXE_NAME = '尊泓工具箱.exe';
+const EXE_NAME = '浩玥工具箱.exe';
 const PKG_VERSION = require('../package.json').version;
 
 const candidates = [
-  process.env.ZUNHONG_PACKAGED_EXE,
+  process.env.HAOYUE_PACKAGED_EXE,
   path.join(__dirname, '..', 'release-build', 'win-unpacked', EXE_NAME),
   path.join(__dirname, '..', 'release', 'win-unpacked', EXE_NAME)
 ].filter(Boolean);
@@ -31,7 +31,7 @@ const candidates = [
 const exe = candidates.find((p) => fs.existsSync(p));
 if (!exe) {
   console.log('verify-packaged: 未找到打包产物，跳过');
-  console.log('  提示：npx electron-builder --win --dir 产出后重跑，或设 ZUNHONG_PACKAGED_EXE=<exe 绝对路径>');
+  console.log('  提示：npx electron-builder --win --dir 产出后重跑，或设 HAOYUE_PACKAGED_EXE=<exe 绝对路径>');
   process.exit(0);
 }
 
@@ -58,7 +58,7 @@ if (!exe) {
     assert(appVersion === PKG_VERSION, '打包产物 app.getVersion()=' + appVersion + ' 与 package.json 一致');
 
     /* ---------- 首页渲染 ---------- */
-    assert(/尊泓工具箱/.test(await win.title()), '窗口标题包含「尊泓工具箱」');
+    assert(/浩玥工具箱/.test(await win.title()), '窗口标题包含「浩玥工具箱」');
     const homeVersion = await win.$eval('.home-version', (el) => el.textContent);
     assert(homeVersion === '桌面离线版 v' + PKG_VERSION,
       '首页版本标签「' + homeVersion + '」与 package.json 一致');
@@ -66,12 +66,12 @@ if (!exe) {
 
     /* ---------- preload 桥接真身（contextIsolation 隔离下的真实注入） ---------- */
     const bridges = await win.evaluate(() => ({
-      archive: !!window.zunhongArchive && window.zunhongArchive.isDesktop === true,
-      print: !!window.zunhongPrint,
-      diag: !!window.zunhongDiag
+      archive: !!window.haoyueArchive && window.haoyueArchive.isDesktop === true,
+      print: !!window.haoyuePrint,
+      diag: !!window.haoyueDiag
     }));
-    assert(bridges.archive, 'zunhongArchive 桥接已注入（打包 preload 生效）');
-    assert(bridges.print && bridges.diag, 'zunhongPrint / zunhongDiag 桥接已注入');
+    assert(bridges.archive, 'haoyueArchive 桥接已注入（打包 preload 生效）');
+    assert(bridges.print && bridges.diag, 'haoyuePrint / haoyueDiag 桥接已注入');
 
     /* ---------- 单功能真实冒烟：压缩工具 → 主进程 IPC check7z ---------- */
     await win.click('#home-archive');
@@ -93,7 +93,7 @@ if (!exe) {
     assert(await win.$eval('#view-system', (el) => el.style.display === 'block'),
       '点击首页卡片进入系统工具模块');
     const netInfo = await win.evaluate(async () => {
-      try { return await window.zunhongSystem.netInfo(); }
+      try { return await window.haoyueSystem.netInfo(); }
       catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
     });
     assert(netInfo && netInfo.ok === true && Array.isArray(netInfo.ifaces),

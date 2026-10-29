@@ -40,7 +40,7 @@ const dBad = u.decideLaunch({ lastVersion: 'not-a-version' }, '1.3.6');
 assert(dBad.kind === 'unknown', 'decideLaunch marker 损坏 → unknown（不崩溃）');
 
 /* ---------- atomicWrite ---------- */
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zunhong-update-test-'));
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'haoyue-update-test-'));
 const target = path.join(tmpDir, 'marker.json');
 u.atomicWrite(target, '{"a":1}');
 assert(fs.readFileSync(target, 'utf8') === '{"a":1}', 'atomicWrite 内容正确');
@@ -57,7 +57,7 @@ fs.writeFileSync(target, '{broken');
 assert(u.readMarker(target) === null, 'marker 损坏时 readMarker 返回 null（自愈路径）');
 
 /* ---------- IPC 全链路（假件注入） ---------- */
-const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'zunhong-update-ipc-'));
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'haoyue-update-ipc-'));
 const handlers = {};
 const fakeIpcMain = { handle: (name, fn) => { handlers[name] = fn; } };
 const fakeApp = { getPath: () => userData, getVersion: () => '2.0.0' };

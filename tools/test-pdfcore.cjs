@@ -74,7 +74,7 @@ function fakeDir(dir, name) {
 
 (async function () {
   const os = require('os');
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zunhong-pdfcore-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'haoyue-pdfcore-'));
   try {
     const dir = fakeDir(tmp);
     await P.writeBytes(dir, 'a.bin', new Uint8Array([1, 2, 3]));

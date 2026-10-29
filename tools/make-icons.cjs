@@ -63,7 +63,7 @@ async function buildSizes(src, dir, writePng256) {
   const dir = outDir();
   fs.mkdirSync(dir, { recursive: true });
 
-  // 应用本体图标（尊泓回纹标）
+  // 应用本体图标（浩玥 logo）
   const src = await Jimp.read(path.join(ROOT, 'assets', 'src-icon.png'));
   console.log('应用图标源图:', src.bitmap.width + 'x' + src.bitmap.height, '→ 输出', dir);
   const pngs = await buildSizes(src, dir, true);

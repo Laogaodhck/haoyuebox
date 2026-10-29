@@ -14,8 +14,9 @@ output/brief-compose/
 
 # 第三方工具的本地会话目录
 .workbuddy/
+.trae-html-share-packages/
 
-# 真人测试照片（隐私，不入库；见 tools/verify-*.cjs 的 ZUNHONG_PHOTO）
+# 真人测试照片（隐私，不入库；见 tools/verify-*.cjs 的 HAOYUE_PHOTO）
 /fixtures/
 微信图片_*.jpg
 

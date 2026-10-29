@@ -94,7 +94,7 @@ server.listen(PORT, '0.0.0.0', () => {
     }
   }
   console.log('==============================================');
-  console.log('  尊泓工具箱已启动（本地离线服务）');
+  console.log('  浩玥工具箱已启动（本地离线服务）');
   console.log('  本机访问:  http://localhost:' + PORT + '/');
   if (lan) console.log('  手机访问:  http://' + lan + ':' + PORT + '/  （需同一局域网）');
   console.log('  按 Ctrl+C 停止服务');

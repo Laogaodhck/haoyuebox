@@ -1,6 +1,6 @@
 /* ============================================================
  * verify-archive.cjs — 压缩工具真机验证（Playwright + Chromium）
- * 桥接层 stub（模拟 Electron preload 的 window.zunhongArchive），
+ * 桥接层 stub（模拟 Electron preload 的 window.haoyueArchive），
  * 走真实渲染层交互链路：
  *   1. 首页入口 / 顶栏切换 / 面板显隐 / 返回菜单
  *   2. 压缩：选文件+选文件夹 → 拖拽文件+文件夹 → 去重 → 参数联动
@@ -79,7 +79,7 @@ withServer(PORT, async (port) => {
           return { path: p, name, isDir, size: isDir ? 0 : 777 };
         })
       };
-      Object.defineProperty(window, 'zunhongArchive', { value: bridge });
+      Object.defineProperty(window, 'haoyueArchive', { value: bridge });
     });
 
     await page.goto('http://localhost:' + port + '/');
@@ -158,7 +158,7 @@ withServer(PORT, async (port) => {
     await page.click('#ac-run');
     await page.waitForFunction(() => /压缩完成/.test(document.getElementById('ac-progress').textContent));
     const payload = await page.evaluate(() => {
-      const c = window.zunhongArchive.calls.filter(c => c[0] === 'compress');
+      const c = window.haoyueArchive.calls.filter(c => c[0] === 'compress');
       return c.length ? c[c.length - 1][1] : null;
     });
     assert(!!payload, '压缩 payload 已上报');
@@ -169,7 +169,7 @@ withServer(PORT, async (port) => {
     assert(payload.encNames === true, 'payload 勾选了加密文件名');
     assert(payload.outPath === 'C:\\f\\压缩包.7z', '多项时默认压缩包名为「压缩包.7z」');
     const dlgCalls = await page.evaluate(() =>
-      window.zunhongArchive.calls.filter(c => c[0] === 'saveDialog').length);
+      window.haoyueArchive.calls.filter(c => c[0] === 'saveDialog').length);
     assert(dlgCalls === 2, '弹窗模式每次执行都调用另存为（此前共执行 2 次）');
 
     // ---------- 「压缩到」= 所选内容所在目录（免弹窗自动命名） ----------
@@ -183,17 +183,17 @@ withServer(PORT, async (port) => {
       '同目录输出已存在时弹出覆盖确认');
     await page.click('#confirm-ok');
     await page.waitForFunction(() => {
-      const c = window.zunhongArchive.calls.filter(c => c[0] === 'compress');
+      const c = window.haoyueArchive.calls.filter(c => c[0] === 'compress');
       return c.length >= 3;   // 此前已有 2 次（弹窗模式两轮），须等到第 3 次真实到达
     });
     const payload2 = await page.evaluate(() => {
-      const c = window.zunhongArchive.calls.filter(c => c[0] === 'compress');
+      const c = window.haoyueArchive.calls.filter(c => c[0] === 'compress');
       return c[c.length - 1][1];
     });
     assert(payload2.outPath === 'C:\\f\\压缩包.7z', '压缩到「所在目录」自动拼输出路径');
     assert(payload2.items.length === 3, '压缩到模式包含全部勾选项');
     const dlgCalls2 = await page.evaluate(() =>
-      window.zunhongArchive.calls.filter(c => c[0] === 'saveDialog').length);
+      window.haoyueArchive.calls.filter(c => c[0] === 'saveDialog').length);
     assert(dlgCalls2 === 2, '压缩到「所在目录」不再弹另存为');
 
     // ---------- 「压缩到」= 桌面（自动命名，免弹窗） ----------
@@ -203,18 +203,18 @@ withServer(PORT, async (port) => {
     await page.waitForFunction(() => !document.getElementById('confirm-dlg').hidden);
     await page.click('#confirm-ok');
     await page.waitForFunction(() => {
-      const c = window.zunhongArchive.calls.filter(c => c[0] === 'compress');
+      const c = window.haoyueArchive.calls.filter(c => c[0] === 'compress');
       return c.length >= 4;   // 此前已有 3 次（弹窗×2 + 所在目录×1）
     });
     const payload3 = await page.evaluate(() => {
-      const c = window.zunhongArchive.calls.filter(c => c[0] === 'compress');
+      const c = window.haoyueArchive.calls.filter(c => c[0] === 'compress');
       return c[c.length - 1][1];
     });
     assert(payload3.outPath === 'C:\\dt\\压缩包.7z', '压缩到「桌面」输出到桌面并自动命名');
     await page.selectOption('#ac-out', 'dialog');
     const pct = await page.$eval('#ac-progress', el => el.textContent);
     assert(/42%|压缩完成/.test(pct), '进度经 onProgress 回传渲染');
-    await page.evaluate(() => window.zunhongArchive._cb({ task: 'compress', pct: 77 }));
+    await page.evaluate(() => window.haoyueArchive._cb({ task: 'compress', pct: 77 }));
     assert(await page.$eval('#ac-progress', el => el.textContent === '压缩中… 77%'), '进度文案实时更新');
 
     // ---------- 清空 ----------
@@ -261,7 +261,7 @@ withServer(PORT, async (port) => {
     await page.click('#ax-run');
     await page.waitForFunction(() => /解压完成/.test(document.getElementById('ax-result').textContent));
     const extPayload = await page.evaluate(() => {
-      const c = window.zunhongArchive.calls.filter(c => c[0] === 'extract');
+      const c = window.haoyueArchive.calls.filter(c => c[0] === 'extract');
       return c.length ? c[c.length - 1][1] : null;
     });
     assert(extPayload.destMode === 'same' && extPayload.items[0] === 'C:\\f\\a.zip', '解压 payload 正确');
@@ -303,7 +303,7 @@ withServer(PORT, async (port) => {
     await sleep(200);
     assert(await page.$$eval('#ax-table tbody tr', trs => trs.length) === 3,
       '仅拖入非压缩包时不入列');
-    await page.evaluate(() => window.zunhongArchive._cb({ task: 'extract', index: 0, total: 1, name: 'b.7z', pct: 66 }));
+    await page.evaluate(() => window.haoyueArchive._cb({ task: 'extract', index: 0, total: 1, name: 'b.7z', pct: 66 }));
     assert(await page.$eval('#ax-progress', el => el.textContent === '解压中（1/1）：b.7z — 66%'),
       '解压进度文案带序号与文件名');
 

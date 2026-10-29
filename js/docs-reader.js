@@ -25,7 +25,7 @@
   var resizeTimer = null;
 
   /* 打印（桌面版）：与 print-batch.js 文档打印同一渲染参数（≈180dpi、宽上限 2400px） */
-  var printApi = window.zunhongPrint || null;
+  var printApi = window.haoyuePrint || null;
   var printerN = 0;          // 可用打印机台数（浏览器模式恒 0）
   var printing = false;
 

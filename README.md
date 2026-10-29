@@ -1,4 +1,4 @@
-# 尊泓工具箱
+# 浩玥工具箱
 
 > 老高 · QQ 846193
 
@@ -18,10 +18,12 @@ npm run dist       # 打包 Windows 安装包 + 便携版
 
 产物输出在 `release-build/`：
 
-- `尊泓工具箱 Setup <版本>.exe`（NSIS 安装版，可选安装目录、创建桌面快捷方式，版本号随 `package.json`）
-- `尊泓工具箱_便携版.exe`（免安装单文件）
+- `haoyue-idphoto-Setup-<版本>.exe`（NSIS 安装版，可选安装目录、创建桌面快捷方式，版本号随 `package.json`；
+  产物名 ASCII 化是为与应用内更新器对齐——`latest.yml` 记录的文件名必须与 Release 资产名一致）
+- `haoyue-idphoto-<版本>-portable.exe`（免安装单文件）
+- `latest.yml` + `*.blockmap`（应用内更新器的检测元数据与差分下载索引，随 Release 一并上传）
 
-图标约定：应用本体（尊泓工具箱.exe）使用尊泓回纹标（`assets/icon.ico`）；Setup 安装器与卸载
+图标约定：应用本体（浩玥工具箱.exe）使用浩玥 logo（`assets/icon.ico`）；Setup 安装器与卸载
 程序使用独立安装器图标（`assets/setup-icon.ico`，「安装包盒 + 光盘」）。两者均经
 `npm run icons` 从 `assets/src-icon.png` 与 `assets/src-setup-icon.png` 生成，安装器图标经
 nsis 的 `installerIcon` / `uninstallerIcon` 挂载——**后续版本的每次打包都会自动使用该图标**，
@@ -29,6 +31,10 @@ nsis 的 `installerIcon` / `uninstallerIcon` 挂载——**后续版本的每次
 
 安装与更新行为：
 
+- **应用内更新（安装版）**：设置 → 关于 → 「检查更新」，手动触发制（联网仅在点击后发生）。
+  新包来自 GitHub Release（electron-updater + NSIS，`latest.yml` 检测 + blockmap 差分下载），
+  检查 → 用户确认下载（进度条反馈）→ 用户确认「安装并重启」。便携版与浏览器版自动降级为
+  「打开发布页」手动下载；下载的安装器未签名，Windows 弹 SmartScreen 时点「更多信息 → 仍要运行」。
 - **覆盖安装 / 升级**：直接运行新版 Setup 即可，用户设置（主题 / 规格 / 打印机会账等，存于
   `%APPDATA%` 的 userData 目录）与程序目录天然隔离，升级与卸载均**不清除用户数据**
   （NSIS 显式声明 `deleteAppDataOnUninstall: false`）。
@@ -154,11 +160,11 @@ nsis 的 `installerIcon` / `uninstallerIcon` 挂载——**后续版本的每次
 ## 目录结构
 
 ```
-zunhongbox/
+haoyuebox/
 ├── index.html              # 入口页面（七模块 DOM + 子功能菜单 + 脚本引入顺序）
 ├── electron/               # Electron 主进程（桌面版）
 │   ├── main.js             # 窗口、内置静态服务、CSP、打印/压缩 IPC、文件字节读取
-│   ├── preload.js          # contextBridge 暴露 zunhongPrint / zunhongArchive / zunhongArchiveIcons / zunhongDiag / zunhongSystem / zunhongApp（白名单 IPC）
+│   ├── preload.js          # contextBridge 暴露 haoyuePrint / haoyueArchive / haoyueArchiveIcons / haoyueDiag / haoyueSystem / haoyueApp（白名单 IPC）
 │   ├── static-server.js    # 随机端口本地静态服务（路径穿越防护 + 正确 MIME）
 │   ├── print-doc.js        # 多页打印文档构建（合并单任务发送）
 │   ├── archive.js          # 压缩/解压 IPC 层（对话框/入参校验/进度回传/通道注册）
@@ -168,7 +174,7 @@ zunhongbox/
 │   ├── system.js           # 系统工具 IPC：网络检测（白名单 DNS 节点）+ 打印机向导/设置页/测试页
 │   ├── 7z-args.js          # 7z 命令行参数构建与输出解析（纯逻辑，可单测）
 │   └── bin/                # 内置 7z.exe + 7z.dll（LGPL，打包注入 resources/bin）
-├── assets/                 # 品牌图标（源自尊泓 logo）+ 安装器图标（src-setup-icon.png / setup-icon.ico）
+├── assets/                 # 品牌图标（源自浩玥 logo）+ 安装器图标（src-setup-icon.png / setup-icon.ico）
 │                           #   + installer.nsh（NSIS 安装器自定义钩子）
 ├── css/style.css           # 暗色主题响应式样式
 ├── js/
@@ -269,11 +275,11 @@ zunhongbox/
 - 打印：`print:listPrinters` 枚举、`print:printImage` 经隐藏沙箱窗口发送任务（可指定纸张尺寸、
   方向、边距、份数、单双面；B5/4×6 走微米自定义尺寸）、`print:showProperties` 调系统打印机属性对话框。
 - 压缩：`electron/bin/7z.exe` 随包分发（extraResources → `resources/bin`，未打包时回退系统 7-Zip），
-  渲染层经 `zunhongArchive` 白名单桥接发起压缩/解压，进度经 `archive:progress` 回传。
+  渲染层经 `haoyueArchive` 白名单桥接发起压缩/解压，进度经 `archive:progress` 回传。
 - 安装与更新：`assets/installer.nsh` 经 electron-builder `nsis.include` 注入安装器，
   定义 `customCheckAppRunning` 在覆盖安装/卸载前静默强杀残留旧进程（按安装目录精确匹配，
   不误杀别处运行的便携版）；`electron/update.js` 维护 `version-marker.json`（原子写、损坏自愈）
-  识别升级/回滚，备份 IPC（`app:backupData` / `app:readBackup` 等）经 `zunhongApp` 桥暴露，
+  识别升级/回滚，备份 IPC（`app:backupData` / `app:readBackup` 等）经 `haoyueApp` 桥暴露，
   备份文件名白名单 + 路径穿越防护。
 
 ### 压缩工具（7z）
@@ -377,12 +383,12 @@ v1.3.3 缺陷检测与三轮修复记录见 [docs/bug-report-v1.3.3.md](docs/bug
 
 `npm run verify` 需要两项本地资源，均不入库：
 
-- 测试照片：`fixtures/photo.jpg`（或环境变量 `ZUNHONG_PHOTO=<路径>`）——仅分割相关验证项
+- 测试照片：`fixtures/photo.jpg`（或环境变量 `HAOYUE_PHOTO=<路径>`）——仅分割相关验证项
   （verify-hair / verify-matteview / verify-brush）需要；仓库不收录真人照片，请自行放置一张正面单人照。
   压缩 / 批量工具 / 批量打印验证（verify-archive / verify-batch / verify-print-batch）
   使用桥接 stub 与 OPFS 沙箱文件系统，无需样片；verify-output 无 E2E 产物时自动跳过。
 - Chromium：项目内 playwright 若未下载浏览器，先执行 `npx playwright install chromium`；
-  也可用 `ZUNHONG_CHROMIUM=<chrome.exe 路径>` 指向本机已有的浏览器。
+  也可用 `HAOYUE_CHROMIUM=<chrome.exe 路径>` 指向本机已有的浏览器。
 
 ### 持续集成与发布（GitHub Actions）
 
@@ -392,8 +398,8 @@ v1.3.3 缺陷检测与三轮修复记录见 [docs/bug-report-v1.3.3.md](docs/bug
   测试不启动 Electron，故以 `ELECTRON_SKIP_BINARY_DOWNLOAD=1` 省掉二进制下载。
 - **发布**（`.github/workflows/release.yml`）：推送 `v*` 标签触发，在 `windows-latest` 上
   先校验标签版本与 `package.json` 一致，再跑 `npm test` 门禁、`npm run dist` 打包，
-  把 Setup 与便携版两个 exe 上传到对应 GitHub Release；`workflow_dispatch` 手动触发时
-  只上传构建产物供试装，不建 Release。electron / electron-builder 下载目录做了缓存。
+  把 Setup / 便携版 / latest.yml / blockmap 上传到对应 GitHub Release；`workflow_dispatch`
+  手动触发时只上传构建产物供试装，不建 Release。electron / electron-builder 下载目录做了缓存。
 - **发布流程**：改动合并到 `main` → 在 PR 里递增 `package.json` 的 `version` →
   合并后 `git tag v<version> && git push origin v<version>` → Actions 自动出安装包。
 - `npm run verify` 依赖真人样片与本机 Chromium，属本地验收，不进 CI。

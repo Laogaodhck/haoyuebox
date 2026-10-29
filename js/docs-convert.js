@@ -71,7 +71,7 @@
         addResult(it.file.name, true, '，' + pdf.numPages + ' 页');
       } catch (e) {
         addResult(it.file.name, false);
-        console.error('[zunhong] PDF 转图片失败:', it.file.name, e);
+        console.error('[haoyue] PDF 转图片失败:', it.file.name, e);
       } finally {
         if (pdf) pdf.cleanup();
       }
@@ -122,7 +122,7 @@
           okN++;
         } catch (e) {
           addResult(items[i].file.name, false);
-          console.error('[zunhong] 图片合并失败:', items[i].file.name, e);
+          console.error('[haoyue] 图片合并失败:', items[i].file.name, e);
         }
       }
       if (!pages.length) {
@@ -147,7 +147,7 @@
           addResult(singleName, true);
         } catch (e) {
           addResult(items[j].file.name, false);
-          console.error('[zunhong] 图片转 PDF 失败:', items[j].file.name, e);
+          console.error('[haoyue] 图片转 PDF 失败:', items[j].file.name, e);
         }
       }
     }
@@ -255,7 +255,7 @@
         addResult(wName, true);
       } catch (e) {
         addResult(it.file.name, false);
-        console.error('[zunhong] Word 转 PDF 失败:', it.file.name, e);
+        console.error('[haoyue] Word 转 PDF 失败:', it.file.name, e);
       }
     }
     return { okN: okN, pageN: 0 };

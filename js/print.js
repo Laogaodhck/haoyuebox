@@ -1,7 +1,7 @@
 /* ============================================================
  * print.js — 直接打印（Electron IPC）：单张成品打印 + 排版整版打印
  * 多页合并为一个打印任务一次发送（避免驱动逐任务弹确认框）。
- * 浏览器模式下 window.zunhongPrint 不存在，相关面板自动隐藏并提示。
+ * 浏览器模式下 window.haoyuePrint 不存在，相关面板自动隐藏并提示。
  * ============================================================ */
 'use strict';
 
@@ -10,7 +10,7 @@
   var $ = App.ui.$;
   var toast = App.ui.toast;
 
-  var printApi = window.zunhongPrint || null;
+  var printApi = window.haoyuePrint || null;
   var refreshExportPrinters = null;  // 照片导出模块打印机列表刷新器
 
   /* 填充打印机下拉，返回可用台数；不可用（浏览器模式）时返回 -1 */

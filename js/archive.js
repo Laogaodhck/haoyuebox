@@ -1,7 +1,7 @@
 /* 压缩工具模块：压缩文件 / 解压文件
  * 压缩与解压均由桌面版内置 7z 引擎（主进程 spawn）完成，
  * 渲染层只负责选择、参数与进度展示，全程本地、无网络。
- * 浏览器打开时功能不可用（无 zunhongArchive 桥接）。
+ * 浏览器打开时功能不可用（无 haoyueArchive 桥接）。
  */
 (function () {
   'use strict';
@@ -17,7 +17,7 @@
   var items = [];      /* 待压缩条目 [{path,name,isDir,size}] */
   var archives = [];   /* 待解压压缩包 [{path,name,isDir,size}] */
   var running = false; /* 是否有压缩/解压任务进行中 */
-  var bridge = null;   /* window.zunhongArchive */
+  var bridge = null;   /* window.haoyueArchive */
   var engineOk = true; /* 7z 引擎可用性（check7z 失败后置 false，锁死执行入口） */
   var desktopDir = ''; /* 桌面目录（主进程 app.getPath('desktop')，init 时取一次） */
 
@@ -603,7 +603,7 @@
   }
 
   function initIconsCard() {
-    var icons = window.zunhongArchiveIcons || null;
+    var icons = window.haoyueArchiveIcons || null;
     if (!icons || !icons.isDesktop) {
       $('ai-badge').textContent = '桌面版可用';
       $('ai-desc').textContent = '压缩包图标关联需要在桌面版（安装版 / 便携版）中使用';
@@ -673,7 +673,7 @@
   }
 
   function init() {
-    bridge = window.zunhongArchive || null;
+    bridge = window.haoyueArchive || null;
     if (!bridgeOk()) markUnsupported();
     initIconsCard();
 

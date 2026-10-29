@@ -409,7 +409,7 @@ let blocksA;
     };
   }
   const prose = [{ paragraphs: [{ lines: [
-    proseRow(10, ['尊泓', '工具', '箱', 'OCR', '样本']),
+    proseRow(10, ['浩玥', '工具', '箱', 'OCR', '样本']),
     proseRow(40, ['今天', '天气', '很', '好', '适合']),
     proseRow(70, ['识别', '结果', '需要', '人工', '复核']),
     proseRow(100, ['排版', '还原', '与', '原件', '一致'])

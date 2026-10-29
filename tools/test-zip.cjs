@@ -82,7 +82,7 @@ function skip(name) {
      UTF-8 文件名标志位的处理不稳（CI 实测中文条目名被改写），故非 Windows 用
      python3 -m zipfile（独立实现，实测兼容本打包器输出），两者都不可用时跳过
      （ZIP 结构 / CRC32 断言已覆盖正确性）。 */
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zunhong-zip-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'haoyue-zip-'));
   try {
     const zipPath = path.join(tmp, 'test.zip');
     fs.writeFileSync(zipPath, buf);

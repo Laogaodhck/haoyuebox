@@ -74,8 +74,8 @@ t.assert(T.paginateRows([], 5).length === 1, 'paginateRows 空输入返回一页
 t.assert(T.docLinesPerPage({ w: 210, h: 297 }) === 89, 'docLinesPerPage A4 行数计算');
 
 /* ---------- 4. 文本解码与 HTML 转文本 ---------- */
-const utf8 = new TextEncoder().encode('尊泓工具箱 测试');
-t.assert(T.decodeText(utf8.buffer) === '尊泓工具箱 测试', 'decodeText UTF-8 正常解码');
+const utf8 = new TextEncoder().encode('浩玥工具箱 测试');
+t.assert(T.decodeText(utf8.buffer) === '浩玥工具箱 测试', 'decodeText UTF-8 正常解码');
 
 t.assert(T.htmlToText('<p>第一段</p><p>第二段</p>') === '第一段\n\n第二段', 'htmlToText 段落换行');
 t.assert(T.htmlToText('A<br>B<div>C</div>') === 'A\nB\nC', 'htmlToText br 与 div');

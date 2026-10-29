@@ -321,7 +321,7 @@
           };
         }
       } catch (e) {
-        console.warn('[zunhong] 版面还原失败，回退纯文本:', e);
+        console.warn('[haoyue] 版面还原失败，回退纯文本:', e);
       }
     }
     return {
@@ -676,13 +676,13 @@
           }
         } catch (e) {
           errN++;
-          console.error('[zunhong] OCR 识别失败:', it.file.name, e);
+          console.error('[haoyue] OCR 识别失败:', it.file.name, e);
           toast('识别 ' + it.file.name + ' 失败：' + ((e && e.message) || e), true);
         }
       }
     } catch (e) {
       errN++;
-      console.error('[zunhong] OCR 引擎初始化失败:', e);
+      console.error('[haoyue] OCR 引擎初始化失败:', e);
       toast('识别引擎初始化失败：' + ((e && e.message) || e), true);
     }
     /* 收尾全部包在 try 内、finally 复位：此前 joinUnits/updateMeta/exportsEnable

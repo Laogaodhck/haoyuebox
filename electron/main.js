@@ -1,5 +1,5 @@
 /* ============================================================
- * main.js — 尊泓工具箱 Electron 主进程
+ * main.js — 浩玥工具箱 Electron 主进程
  * 全部资源本地化：内置静态服务 + 本地窗口，断网完整可用。
  * ============================================================ */
 'use strict';
@@ -13,8 +13,26 @@ const { registerArchiveIpc } = require('./archive');
 const archiveIcons = require('./archive-icons');
 const { registerSystemIpc } = require('./system');
 const update = require('./update');
+const appUpdater = require('./updater');
 
-const APP_TITLE = '尊泓工具箱';
+const APP_TITLE = '浩玥工具箱';
+
+/* 品牌更名一次性数据迁移（尊泓工具箱 → 浩玥工具箱）：userData 目录名随
+   productName 变化，首次以新名启动时若新目录尚未生成而旧目录存在，
+   则把旧数据整体带入（设置备份 / 版本标记 / 诊断日志 / Local Storage），
+   旧目录保留不动以支持回滚到旧版本。 */
+(function migrateLegacyUserData() {
+  try {
+    const appData = app.getPath('appData');
+    const curDir = path.join(appData, app.getName());
+    const legacyDir = path.join(appData, '尊泓工具箱');
+    if (!fs.existsSync(curDir) && fs.existsSync(legacyDir)) {
+      fs.cpSync(legacyDir, curDir, { recursive: true });
+      console.log('[haoyue] 已从旧版目录迁移用户数据:', legacyDir, '→', curDir);
+    }
+  } catch (e) { /* 迁移失败不阻断启动 */ }
+})();
+
 let mainWindow = null;
 let serverPort = 0;
 /* 打印页内存路由：key=/__print__/<token>，value=html。经内置静态服务
@@ -47,7 +65,7 @@ function appendDiag(kind, detail) {
 }
 process.on('uncaughtException', (err) => {
   appendDiag('uncaughtException', (err && err.stack) || String(err));
-  console.error('[zunhong] uncaughtException:', err);
+  console.error('[haoyue] uncaughtException:', err);
 });
 process.on('unhandledRejection', (reason) => {
   appendDiag('unhandledRejection', (reason && (reason.stack || reason.message)) || String(reason));
@@ -202,6 +220,8 @@ registerArchiveIpc(ipcMain, () => mainWindow, allowReadPaths);
 registerSystemIpc(ipcMain, () => mainWindow);
 /* 版本检测/升级标记/数据备份（覆盖安装与版本更新的本机侧支撑） */
 const updateCtl = update.registerUpdateIpc(ipcMain, app, appendDiag);
+/* 应用内更新器（安装版就地升级，GitHub Release 源；手动触发制，见 electron/updater.js） */
+appUpdater.registerAppUpdateIpc(ipcMain, app, appendDiag, () => mainWindow);
 
 /* 压缩包图标关联（HKCU 用户级，只补无关联的电脑，不动已有关联） */
 ipcMain.handle('archive-icons:probe', () => archiveIcons.probe());
@@ -313,16 +333,16 @@ async function createWindow() {
     await mainWindow.loadURL('http://127.0.0.1:' + port + '/');
   } catch (err) {
     // 首次加载偶发失败（GPU/网络服务抖动）时重试一次
-    console.warn('[zunhong] 首次加载失败，重试中:', err && err.message);
+    console.warn('[haoyue] 首次加载失败，重试中:', err && err.message);
     await new Promise((r) => setTimeout(r, 800));
     await mainWindow.loadURL('http://127.0.0.1:' + port + '/').catch(() => {});
   }
 }
 
-/* 设置 AppUserModelID：任务栏/通知归属到 com.zunhong.toolbox，
+/* 设置 AppUserModelID：任务栏/通知归属到 com.haoyue.idphoto，
    也让安全软件把进程与已安装应用对应起来（无此 ID 时进程身份模糊） */
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.zunhong.toolbox');
+  app.setAppUserModelId('com.haoyue.idphoto');
 }
 
 // 启动失败（如静态服务监听失败）不能静默变僵尸：落诊断日志 + 弹窗告知 + 退出
@@ -333,7 +353,7 @@ app.whenReady().then(() => {
   return createWindow();
 }).catch((err) => {
   appendDiag('createWindow-failed', (err && err.stack) || String(err));
-  dialog.showErrorBox('尊泓工具箱启动失败', '窗口初始化失败：' + ((err && err.message) || err));
+  dialog.showErrorBox('浩玥工具箱启动失败', '窗口初始化失败：' + ((err && err.message) || err));
   app.quit();
 });
 

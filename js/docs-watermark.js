@@ -400,7 +400,7 @@
       } catch (e) {
         errN++;
         addResult(it.file.name, false);
-        console.error('[zunhong] 加水印失败:', it.file.name, e);
+        console.error('[haoyue] 加水印失败:', it.file.name, e);
       }
     }
     setStatus('完成：成功 ' + okN + ' 个' + (errN ? '，失败 ' + errN + ' 个' : '') +

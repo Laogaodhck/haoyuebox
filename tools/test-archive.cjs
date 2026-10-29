@@ -308,11 +308,11 @@ function run7z(args) {
     return;
   }
   console.log('\n[4] 真实 7z 冒烟');
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zunhong-7z-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'haoyue-7z-'));
   try {
     const hello = path.join(tmp, '你好.txt');
     const bin = path.join(tmp, 'bin.dat');
-    fs.writeFileSync(hello, '尊泓工具箱 7z 冒烟测试 ✓', 'utf8');
+    fs.writeFileSync(hello, '浩玥工具箱 7z 冒烟测试 ✓', 'utf8');
     fs.writeFileSync(bin, Buffer.from(Array.from({ length: 4096 }, (_, i) => i % 251)));
 
     /* 7z 压缩 → 解压 */
@@ -324,7 +324,7 @@ function run7z(args) {
     const exDir = path.join(tmp, 'out7z');
     r = await run7z(args7z.buildExtractArgs({ archive: arc7z, outDir: exDir, pass: '' }));
     t.assert(args7z.isOkExitCode(r.code), '真实 7z：解压 7z 成功');
-    t.assert(fs.readFileSync(path.join(exDir, '你好.txt'), 'utf8') === '尊泓工具箱 7z 冒烟测试 ✓',
+    t.assert(fs.readFileSync(path.join(exDir, '你好.txt'), 'utf8') === '浩玥工具箱 7z 冒烟测试 ✓',
       '真实 7z：中文文件名与内容解压一致');
 
     /* ZIP 加密压缩 → 无密码解压失败 → 带密码解压成功 */
@@ -338,7 +338,7 @@ function run7z(args) {
     const exZip = path.join(tmp, 'out-zip');
     r = await run7z(args7z.buildExtractArgs({ archive: arcZip, outDir: exZip, pass: 'abc123' }));
     t.assert(args7z.isOkExitCode(r.code)
-      && fs.readFileSync(path.join(exZip, '你好.txt'), 'utf8') === '尊泓工具箱 7z 冒烟测试 ✓',
+      && fs.readFileSync(path.join(exZip, '你好.txt'), 'utf8') === '浩玥工具箱 7z 冒烟测试 ✓',
       '真实 ZIP：带密码解压且内容一致');
 
     /* 错误密码 → 校验失败（退出码 2 或 3） */
@@ -360,14 +360,14 @@ function run7z(args) {
     const gzFiles = args7z.isOkExitCode(r.code)
       ? fs.readdirSync(exGz).filter(f => fs.statSync(path.join(exGz, f)).isFile()) : [];
     t.assert(args7z.isOkExitCode(r.code) && gzFiles.length === 1
-      && fs.readFileSync(path.join(exGz, gzFiles[0]), 'utf8') === '尊泓工具箱 7z 冒烟测试 ✓',
+      && fs.readFileSync(path.join(exGz, gzFiles[0]), 'utf8') === '浩玥工具箱 7z 冒烟测试 ✓',
       '真实 GZ：gzip 解压且内容一致（还原名随代码页，不校验文件名）');
 
     /* 内容浏览：普通包 l -slt 列表解析 */
     r = await run7z(args7z.buildListArgs({ archive: arc7z, pass: '' }));
     t.assert(args7z.isOkExitCode(r.code), '真实 7z：l -slt 内容列表成功');
     const listed = args7z.parseListOutput(r.out);
-    t.assert(listed.some(e => e.path === '你好.txt' && !e.isDir && e.size === Buffer.byteLength('尊泓工具箱 7z 冒烟测试 ✓', 'utf8')),
+    t.assert(listed.some(e => e.path === '你好.txt' && !e.isDir && e.size === Buffer.byteLength('浩玥工具箱 7z 冒烟测试 ✓', 'utf8')),
       '真实 7z：列表解析含中文文件名与正确大小');
 
     /* 内容浏览：含子目录的包——验证 /^D/ 目录属性判定对真实 -slt 输出成立

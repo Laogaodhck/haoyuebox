@@ -2,6 +2,32 @@
 
 本项目所有显著变更记录于此。版本号遵循语义化版本（主版本.次版本.修订号）。
 
+## [1.5.0] - 2026-10-29
+
+### 新增
+- **应用内更新器（安装版就地升级）**：新增 `electron/updater.js`（electron-updater 6.x，GitHub Release 为更新源，feed 指向公开仓库 `Laogaodhck/haoyuebox` releases——私有仓库下 GitHub 对 Release 的匿名访问一律 404 且 electron-updater 无 token 能力，仓库须公开更新器才可用），设置 → 关于新增「软件更新」区——「检查更新」手动触发制（不自动检查、不自动下载，联网仅发生在用户点击后，契合纯本地离线产品哲学）；检查 → 用户确认「下载更新」（进度条实时反馈，blockmap 差分下载只拉增量）→ 用户确认「安装并重启」（NSIS 向导式安装、装完自启应用）：
+  - **运行模式感知**：桌面安装版启用完整更新流程；便携版（`PORTABLE_EXECUTABLE_DIR` 识别）、开发模式与浏览器版自动降级为「打开发布页」按钮（GitHub Release 页手动下载）——便携版单文件无安装器语境，electron-updater 不支持就地更新
+  - **状态机与防抖**：idle → checking → available / noupdate / error → downloading → downloaded；检查/下载并发防重入，失败后可重试，状态经 `app-update:progress` 通道实时推送渲染层
+  - **错误中文化分类**：网络不可达 / GitHub API 限速（403）/ Release 缺少 latest.yml 元数据（404）/ 其他错误，均截断至可读长度并落诊断日志
+  - **未签名包信任提示**：安装器未经代码签名，Windows SmartScreen 弹「已保护你的电脑」属预期——设置页固定提示「更多信息 → 仍要运行」，引导用户完成安装
+  - **产物名 ASCII 化（更新链路前置条件）**：NSIS 安装包 `haoyue-idphoto-Setup-${version}.exe`、便携版 `haoyue-idphoto-${version}-portable.exe`——electron-updater 按 `latest.yml` 记录的文件名到 Release 下载，GitHub 会清洗非 ASCII 资产名，中文产物名会导致元数据与资产名不一致而 404
+  - **发布流水线同步**：`.github/workflows/release.yml` 发布步骤补传 `latest.yml` 与 `*.blockmap`（更新检测元数据 + 差分下载索引），产物已 ASCII 化无需重命名直传
+- 新增 `tools/test-appupdater.cjs`（28 断言，接入 `npm test`）：envKind 运行模式判定、classifyError 错误分类、shouldPushProgress 进度推送节流（状态切换必推、整数百分比变化才推）、normalizeNotes 多形态更新说明归一，以及检查/下载/安装全链路状态机（无更新、有更新→下载→安装、并发防重入、download 仅 available、install 仅安装版放行、错误收敛与重试、诊断日志落盘）
+
+### 变更
+- **品牌更名：尊泓工具箱 → 浩玥工具箱**：产品名、包名（`haoyue-idphoto`）、appId（`com.haoyue.idphoto`）、AUMID、窗口标题、压缩包关联 ProgID 友好名、安装包产物名、快捷方式与卸载显示名全量更名；内部桥名同步回退为 `haoyuePrint` / `haoyueArchive` / `haoyueArchiveIcons` / `haoyueDiag` / `haoyueSystem` / `haoyueApp`，日志前缀 `[haoyue]`，环境变量 `HAOYUE_PHOTO` / `HAOYUE_CHROMIUM` 同步
+- **应用图标更换为浩玥 logo**：源图 `assets/src-icon.png` 更换后经 `npm run icons` 重新生成 `icon.ico`（7 尺寸）与 `icon.png`（favicon / 顶栏品牌标）；安装器图标（`setup-icon.ico`）保持不变
+- **首页软件声明更新**：改为「本软件免费使用，仅供学习用途，请勿用于非法用途。」；底部署名改为「2026@浩玥」
+
+### 兼容性
+- **存量用户数据自动迁移**：
+  - localStorage 存储键反向迁移——主键恢复为 `haoyue-idphoto-settings`，尊泓版旧键 `zunhong-toolbox-settings` 在首次加载时只读迁入（v2 迁移框架自动处理，旧键数据不删除）；更早的浩玥 v0.x 数据直接命中主键，走既有 v1→v2 迁移
+  - 桌面版 userData 目录随 productName 变化（`%APPDATA%/尊泓工具箱` → `%APPDATA%/浩玥工具箱`），首次以新名启动时若新目录尚未生成而旧目录存在，则整体迁入设置备份 / 版本标记 / 诊断日志 / Local Storage；旧目录保留不动，支持回滚到旧版本
+- **appId 变更提示**：新安装包与已安装的尊泓版会被系统视为两个应用并存（覆盖安装不会卸载旧版），升级后需手动卸载「尊泓工具箱」
+
+### 测试
+- test-dom 存储键迁移断言同步反转为「尊泓旧键（`zunhong-toolbox-settings`）→ 浩玥主键迁移恢复」；`npm test` 26 套件全部通过
+
 ## [1.4.2] - 2026-10-21
 
 ### 修复

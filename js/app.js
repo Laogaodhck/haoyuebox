@@ -834,10 +834,117 @@ window.App = (function () {
     $('set-ver').textContent = State.appVersion
       ? 'v' + State.appVersion + (State.upgradedFrom ? '（自 v' + State.upgradedFrom + ' 升级）' : '')
       : (verMatch ? verMatch[0] : '未知');
-    $('set-mode').textContent = (window.zunhongPrint || window.zunhongArchive || window.zunhongDiag)
+    $('set-mode').textContent = (window.haoyuePrint || window.haoyueArchive || window.haoyueDiag)
       ? '桌面版（Electron）'
       : '浏览器版（功能受限）';
+    if (window.App.updaterUI) window.App.updaterUI.refresh();
   }
+
+  /* ================= 应用内更新（设置页 · 关于面板） =================
+   * 桥接 window.haoyueAppUpdate（electron/updater.js），手动触发制：
+   * 检查 → 用户确认下载 → 进度反馈 → 用户确认安装并重启。
+   * 浏览器版 / 便携版 / 开发模式自动降级，只提供「打开发布页」手动下载。 */
+  var RELEASES_URL = 'https://github.com/Laogaodhck/haoyuebox/releases/latest';
+
+  function fmtBps(bps) {
+    if (!bps || bps <= 0) return '';
+    return bps >= 1048576
+      ? (bps / 1048576).toFixed(1) + ' MB/s'
+      : Math.max(1, Math.round(bps / 1024)) + ' KB/s';
+  }
+
+  /* 快照 → 关于面板（状态行 + 按钮组 + 进度条） */
+  function renderUpdate(snap) {
+    var bridge = window.haoyueAppUpdate;
+    if (!snap || !bridge) return;
+    var status = $('upd-status');
+    var bCheck = $('upd-check');
+    var bDownload = $('upd-download');
+    var bInstall = $('upd-install');
+    var bOpen = $('upd-open');
+    var bar = $('upd-progress');
+    var v = snap.version ? 'v' + snap.version : '当前版本';
+    status.title = (snap.info && snap.info.notes) || '';
+
+    /* 运行模式精确化（覆盖 showSystemSettings 的粗粒度文案） */
+    $('set-mode').textContent = snap.kind === 'packaged' ? '桌面安装版（Electron）'
+      : snap.kind === 'portable' ? '桌面便携版（Electron）'
+        : '开发模式（Electron）';
+
+    var busy = snap.phase === 'checking' || snap.phase === 'downloading';
+    bCheck.disabled = busy;
+    bDownload.disabled = busy;
+    bCheck.hidden = false;
+    bDownload.hidden = !(snap.kind === 'packaged' && snap.phase === 'available');
+    bInstall.hidden = !(snap.kind === 'packaged' && snap.phase === 'downloaded');
+    bOpen.hidden = snap.kind !== 'portable' && snap.kind !== 'dev';
+    bar.hidden = snap.phase !== 'downloading';
+    if (!bar.hidden) bar.value = Math.floor((snap.progress && snap.progress.percent) || 0);
+
+    switch (snap.phase) {
+      case 'checking':
+        status.textContent = '正在检查更新…'; break;
+      case 'available':
+        status.textContent = '发现新版本 v' + snap.info.version + '（当前 ' + v + '），可下载'; break;
+      case 'noupdate':
+        status.textContent = '已是最新版本（' + v + '）'; break;
+      case 'downloading': {
+        var bps = fmtBps(snap.progress && snap.progress.bps);
+        status.textContent = '下载中 ' + Math.floor((snap.progress && snap.progress.percent) || 0) + '%' + (bps ? ' · ' + bps : '');
+        break;
+      }
+      case 'downloaded':
+        status.textContent = '新版本 v' + ((snap.info && snap.info.version) || '') + ' 已就绪，点击「安装并重启」完成升级'; break;
+      case 'error':
+        status.textContent = snap.error || '更新失败，可重试'; break;
+      default: /* idle */
+        status.textContent = snap.kind === 'packaged'
+          ? '点击「检查更新」获取新版本（联网仅在点击后发生）'
+          : '点击「检查更新」查看发布（就地更新仅安装版可用）';
+    }
+  }
+
+  /* app.js 的 IIFE 以 return App → window.App 赋值收尾，挂载须走局部 App
+   *（window.App 在 IIFE 执行期间尚未就绪，直接挂会抛 undefined） */
+  var updaterUI = {
+    /* initModules 调用：绑定按钮与进度推送 */
+    init: function () {
+      var bridge = window.haoyueAppUpdate;
+      if (!bridge) { /* 浏览器版：降级文案，仅保留手动下载入口 */
+        var status = $('upd-status');
+        status.textContent = '浏览器版不支持应用内更新，请到发布页手动下载';
+        $('upd-check').hidden = true;
+        $('upd-download').hidden = true;
+        $('upd-install').hidden = true;
+        $('upd-open').hidden = false;
+        $('upd-open').addEventListener('click', function () {
+          window.open(RELEASES_URL, '_blank');
+        });
+        return;
+      }
+      $('upd-check').addEventListener('click', function () {
+        bridge.check().then(renderUpdate).catch(function () { /* 快照必返，失败已含 error 态 */ });
+      });
+      $('upd-download').addEventListener('click', function () {
+        bridge.download().then(renderUpdate).catch(function () { /* 同上 */ });
+      });
+      $('upd-install').addEventListener('click', function () {
+        bridge.install().then(renderUpdate).catch(function () { /* 进程将退出 */ });
+      });
+      $('upd-open').addEventListener('click', function () {
+        bridge.openReleases().catch(function () { window.open(RELEASES_URL, '_blank'); });
+      });
+      bridge.onProgress(renderUpdate);
+    },
+    /* 进入设置页时拉取一次状态快照 */
+    refresh: function () {
+      var bridge = window.haoyueAppUpdate;
+      if (!bridge) return;
+      bridge.status().then(renderUpdate).catch(function () {
+        $('upd-status').textContent = '更新状态获取失败（桥接异常）';
+      });
+    }
+  };
 
   /* ============ 入口注册表（声明式） ============
      新增首页卡片/子功能入口只需在此各加一行，无需再改 initModules 与绑定代码。 */
@@ -906,7 +1013,7 @@ window.App = (function () {
     { card: 'set-back',              run: function () { showSystemMenu(); } }
   ];
   /* boot 时逐个调用的模块 init 列表（与 window.App 键名一致） */
-  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch', 'docsWatermark', 'docsConvert', 'docsPdf', 'docsReader', 'docsOcr', 'system'];
+  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch', 'docsWatermark', 'docsConvert', 'docsPdf', 'docsReader', 'docsOcr', 'system', 'updaterUI'];
 
   function initModules() {
     document.querySelectorAll('.module-tab').forEach(function (t) {
@@ -939,11 +1046,11 @@ window.App = (function () {
   }
 
   /* ================= 启动 ================= */
-  /* 渲染层异常上报（桌面版经 zunhongDiag 桥接落盘，浏览器版静默跳过） */
+  /* 渲染层异常上报（桌面版经 haoyueDiag 桥接落盘，浏览器版静默跳过） */
   function reportError(kind, msg) {
     try {
-      if (window.zunhongDiag && window.zunhongDiag.logError) {
-        window.zunhongDiag.logError('[' + kind + '] ' + msg);
+      if (window.haoyueDiag && window.haoyueDiag.logError) {
+        window.haoyueDiag.logError('[' + kind + '] ' + msg);
       }
     } catch (e) { /* 桥接不可用时静默 */ }
   }
@@ -957,21 +1064,21 @@ window.App = (function () {
    *  4. 设置主键缺失（用户清空/存储损坏）但存在备份时，确认后恢复——
    *     恢复内容经迁移框架落盘，拒绝则删除该备份（放弃恢复）。 */
   function checkUpdateAndBackup() {
-    if (!window.zunhongApp || !window.zunhongApp.updateInfo) return;
-    window.zunhongApp.updateInfo().then(function (info) {
+    if (!window.haoyueApp || !window.haoyueApp.updateInfo) return;
+    window.haoyueApp.updateInfo().then(function (info) {
       if (!info || !info.version) return;
       State.appVersion = info.version;
       State.upgradedFrom = info.kind === 'upgrade' ? (info.from || '') : '';
       if (info.kind === 'upgrade') {
         try {
           var raw = localStorage.getItem(window.App.settings.KEY);
-          if (raw) window.zunhongApp.backupData(raw).catch(function () { /* 静默 */ });
+          if (raw) window.haoyueApp.backupData(raw).catch(function () { /* 静默 */ });
         } catch (e) { /* 存储不可用静默 */ }
       }
       if (info.kind === 'rollback') {
         toast('检测到版本回滚（v' + info.from + ' → v' + info.version + '），本机数据未受影响');
       }
-      return window.zunhongApp.readBackup().then(function (bak) {
+      return window.haoyueApp.readBackup().then(function (bak) {
         var have = false;
         try { have = localStorage.getItem(window.App.settings.KEY) !== null; } catch (e) { /* 存储不可用 */ }
         if (!bak || !bak.data || have) return;
@@ -986,7 +1093,7 @@ window.App = (function () {
               } catch (e) { return; }
               location.reload(); // 重启后经迁移框架加载备份（含 v1 旧格式自动迁移）
             } else {
-              window.zunhongApp.deleteBackup(bak.file).catch(function () { /* 静默 */ });
+              window.haoyueApp.deleteBackup(bak.file).catch(function () { /* 静默 */ });
             }
           });
       });
@@ -1037,7 +1144,7 @@ window.App = (function () {
         mod.init();
       } catch (e) {
         reportError('init', '模块 ' + name + ' 初始化失败：' + (e && e.message || e));
-        console.error('[zunhong] 模块初始化失败:', name, e);
+        console.error('[haoyue] 模块初始化失败:', name, e);
       }
     });
     window.App.settings.applyToUI();
@@ -1070,7 +1177,7 @@ window.App = (function () {
 
   function makeIcon(name) {
     var NS = 'http://www.w3.org/2000/svg';
-    if (!ICON_PATHS[name]) console.warn('[zunhong] App.ui.icon 未知图标名，已回退 x：', name);
+    if (!ICON_PATHS[name]) console.warn('[haoyue] App.ui.icon 未知图标名，已回退 x：', name);
     var svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('class', 'icon');
     svg.setAttribute('viewBox', '0 0 24 24');
@@ -1113,5 +1220,6 @@ window.App = (function () {
     boot();
   }
 
+  App.updaterUI = updaterUI; // 应用内更新 UI（设置页 · 关于面板）
   return App;
 })();

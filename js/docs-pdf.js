@@ -105,7 +105,7 @@
         okN++;
       } catch (e) {
         addResult(it.file.name, false);
-        console.error('[zunhong] PDF 合并失败:', it.file.name, e);
+        console.error('[haoyue] PDF 合并失败:', it.file.name, e);
       }
     }
     if (!pages.length) {
@@ -145,7 +145,7 @@
     } catch (e) {
       // 单文件操作：整体失败时明确报出文件名与原因，而非仅靠全局兜底弹通用错误
       addResult(it.file.name, false);
-      console.error('[zunhong] PDF 拆分失败:', it.file.name, e);
+      console.error('[haoyue] PDF 拆分失败:', it.file.name, e);
       setStatus('失败：' + it.file.name + ' 无法解析或提取（' + ((e && e.message) || e) + '）');
       return { okN: 0, noSummary: true };
     } finally {
@@ -173,7 +173,7 @@
         addResult(name, true, '（' + fmtKB(it.file.size) + ' → ' + fmtKB(bytes.length) + '）');
       } catch (e) {
         addResult(it.file.name, false);
-        console.error('[zunhong] PDF 压缩失败:', it.file.name, e);
+        console.error('[haoyue] PDF 压缩失败:', it.file.name, e);
       }
     }
     if (before && after) setStatus('完成：成功 ' + okN + ' 个，体积 ' + fmtKB(before) + ' → ' + fmtKB(after) +

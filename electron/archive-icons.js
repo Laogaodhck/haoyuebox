@@ -19,7 +19,7 @@ const { execFile } = require('child_process');
 
 /* 图标索引（7z.dll RT_GROUP_ICON 目录序，与 7-Zip 官方安装器一致） */
 const ICON_INDEX = { '7z': 0, zip: 1 };
-const FRIENDLY_NAME = { '7z': '7z 压缩包（尊泓工具箱）', zip: 'ZIP 压缩包（尊泓工具箱）' };
+const FRIENDLY_NAME = { '7z': '7z 压缩包（浩玥工具箱）', zip: 'ZIP 压缩包（浩玥工具箱）' };
 const REG_TIMEOUT_MS = 10000;
 
 /* ---------- 纯逻辑（可单测） ---------- */

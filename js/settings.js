@@ -6,7 +6,7 @@
  * 迁移框架（覆盖安装/版本更新的数据保留核心）：
  *  - 每份设置带结构版本号 v；SCHEMA_VERSION 升级时在 MIGRATIONS 补一步，
  *    逐级迁移（v1 → v2 → …），缺步骤时向前兼容兜底（load 按字段校验）；
- *  - 迁移前先把原始数据快照备份到 userData/backups（经 zunhongApp 桥，
+ *  - 迁移前先把原始数据快照备份到 userData/backups（经 haoyueApp 桥，
  *    主进程原子写、保留最近 3 份），迁移失败回滚：原始 raw 原样保留、
  *    不写入任何新值，按默认值继续并上报诊断日志；
  *  - 比当前更新版本（v > SCHEMA_VERSION，降级安装场景）的数据原样保留，
@@ -18,10 +18,10 @@
 
   var $ = App.ui.$;
   var State = App.State;
-  var SETTINGS_KEY = 'zunhong-toolbox-settings';
-  /* 旧版「浩玥工具箱」的存储键：首次加载时读取并迁移，之后不再使用 */
-  var SETTINGS_KEY_LEGACY = 'haoyue-idphoto-settings';
-  /* 设置结构版本：v1 = 无版本标记的旧数据（含浩玥旧键） */
+  var SETTINGS_KEY = 'haoyue-idphoto-settings';
+  /* 旧版「尊泓工具箱」的存储键：首次加载时读取并迁移，之后不再使用 */
+  var SETTINGS_KEY_LEGACY = 'zunhong-toolbox-settings';
+  /* 设置结构版本：v1 = 无版本标记的旧数据（含旧版存储键） */
   var SCHEMA_VERSION = 2;
   /* 持久化白名单：v2 起存储对象只含这些字段 + v（防止历史脏数据长期滞留） */
   var KNOWN_FIELDS = ['spec', 'bg', 'fmt', 'quality', 'whiten', 'theme', 'startMode', 'lastModule'];
@@ -43,7 +43,7 @@
     }
   };
 
-  /* 结构版本号：无 v / 非法 v 视作 v1（旧数据与浩玥旧键） */
+  /* 结构版本号：无 v / 非法 v 视作 v1（旧数据与旧版存储键） */
   function versionOf(s) {
     return s && typeof s.v === 'number' && s.v >= 1 ? Math.floor(s.v) : 1;
   }
@@ -71,8 +71,8 @@
   /* 上报诊断（桌面版落盘 userData/logs，浏览器版静默） */
   function reportDiag(kind, msg) {
     try {
-      if (window.zunhongDiag && window.zunhongDiag.logError) {
-        window.zunhongDiag.logError('[' + kind + '] ' + msg);
+      if (window.haoyueDiag && window.haoyueDiag.logError) {
+        window.haoyueDiag.logError('[' + kind + '] ' + msg);
       }
     } catch (e) { /* 静默 */ }
   }
@@ -81,8 +81,8 @@
    * 浏览器版无桥接，静默跳过。 */
   function snapshotBackup(raw) {
     try {
-      if (window.zunhongApp && window.zunhongApp.backupData) {
-        window.zunhongApp.backupData(raw).catch(function () { /* 备份失败不阻断 */ });
+      if (window.haoyueApp && window.haoyueApp.backupData) {
+        window.haoyueApp.backupData(raw).catch(function () { /* 备份失败不阻断 */ });
       }
     } catch (e) { /* 静默 */ }
   }
@@ -135,7 +135,7 @@
           s = migrate(s);
           save0(s);
         } else if (fromLegacy) {
-          save0(s); // 浩玥旧键迁移到新存储键
+          save0(s); // 旧版存储键数据迁移到当前存储键
         }
         /* v > SCHEMA_VERSION（降级安装后的高版本数据）原样保留：
          * 不向下迁移、不重写，仅按字段校验取本版本认识的字段 */

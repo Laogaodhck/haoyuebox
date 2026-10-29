@@ -1,6 +1,6 @@
 /* ============================================================
  * system.js — 系统工具渲染层：网络检测 + 添加打印机 面板逻辑
- * 桌面版经 zunhongSystem IPC（主进程固定白名单节点/系统向导）；
+ * 桌面版经 haoyueSystem IPC（主进程固定白名单节点/系统向导）；
  * 浏览器版无桥接时显示不可用提示（同 print-batch 的降级模式）。
  * ============================================================ */
 'use strict';
@@ -8,7 +8,7 @@
 (function (App) {
 
   var $ = App.ui.$;
-  var bridge = (typeof window.zunhongSystem !== 'undefined') ? window.zunhongSystem : null;
+  var bridge = (typeof window.haoyueSystem !== 'undefined') ? window.haoyueSystem : null;
 
   /* 文本转 HTML 安全（接口名/IP/打印机名均来自系统返回，仍做转义） */
   function esc(s) {
@@ -123,9 +123,9 @@
   }
 
   function refreshPrinters() {
-    if (!bridge || !window.zunhongPrint) return;
+    if (!bridge || !window.haoyuePrint) return;
     $('printer-list').innerHTML = '<div class="settings-hint">读取中…</div>';
-    window.zunhongPrint.listPrinters().then(function (list) {
+    window.haoyuePrint.listPrinters().then(function (list) {
       printersCache = list || [];
       renderPrinters();
     }).catch(function () {
