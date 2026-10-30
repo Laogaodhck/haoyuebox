@@ -280,8 +280,12 @@ const updateCtl = update.registerUpdateIpc(ipcMain, app, appendDiag);
 appUpdater.registerAppUpdateIpc(ipcMain, app, appendDiag, () => mainWindow);
 
 /* 压缩包图标关联（HKCU 用户级，只补无关联的电脑，不动已有关联） */
-ipcMain.handle('archive-icons:probe', () => archiveIcons.probe());
-ipcMain.handle('archive-icons:apply', (e, exts) => archiveIcons.apply(exts));
+/* 便携版运行目录是临时解压目录，图标需先复制到用户数据目录再注册 */
+function iconPersistDir() {
+  return path.join(app.getPath('userData'), 'archive-icons');
+}
+ipcMain.handle('archive-icons:probe', () => archiveIcons.probe(iconPersistDir()));
+ipcMain.handle('archive-icons:apply', (e, exts) => archiveIcons.apply(exts, iconPersistDir()));
 ipcMain.handle('archive-icons:restore', (e, exts) => archiveIcons.restore(exts));
 
 /* 打印文档/图片读取：渲染层沙箱无 fs，经此读取所选文件字节。

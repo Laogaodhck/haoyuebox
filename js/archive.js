@@ -578,14 +578,17 @@
     var desc = '';
     var showApply = false;
     var showRestore = false;
-    if (data && !data.dllFound) {
+    if (data && !data.iconFound) {
       badge = '资源缺失';
-      desc = '未找到 7z.dll 图标资源，无法注册图标关联';
+      desc = '未找到图标资源（archive.ico），无法注册图标关联';
     } else if (s7.state === 'ours' || sz.state === 'ours') {
-      badge = '已注册';
+      var stale = !!(s7.stale || sz.stale);
+      badge = stale ? '待更新' : '已注册';
       desc = '.7z：' + (s7.hint || '—') + '；.zip：' + (sz.hint || '—') +
-        '。若图标未立即刷新，按 F5 或重开资源管理器窗口';
+        (stale ? '。图标资源已更新，点击「注册图标关联」切换为新图标'
+          : '。若图标未立即刷新，按 F5 或重开资源管理器窗口');
       showRestore = true;
+      showApply = stale;
     } else if (s7.state === 'available' || sz.state === 'available') {
       badge = '未关联';
       desc = '.7z：' + (s7.hint || '—') + '；.zip：' + (sz.hint || '—') +
@@ -614,7 +617,7 @@
       $('ai-desc').textContent = '图标关联状态读取失败';
     });
     $('ai-apply').addEventListener('click', function () {
-      window.App.ui.confirm('将在当前用户注册 .7z / .zip 图标关联：\n仅当系统当前没有关联时生效，不改动已有打开方式。\n\n现在注册吗？')
+      window.App.ui.confirm('将在当前用户注册或更新 .7z / .zip 图标关联：\n仅在系统当前没有关联时注册，不改动已有打开方式。\n\n现在继续吗？')
         .then(function (yes) {
           if (!yes) return;
           icons.apply().then(function (r) {

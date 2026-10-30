@@ -1,7 +1,7 @@
 {
   "name": "haoyue-idphoto",
   "productName": "浩玥工具箱",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "浩玥工具箱 - 纯本地离线证件照制作工具（AI 人像分割 / 换底 / 排版打印 / 批量打印 / 压缩解压）",
   "main": "electron/main.js",
   "author": "laogao <846193@qq.com>",
@@ -48,6 +48,10 @@
       {
         "from": "electron/bin",
         "to": "bin"
+      },
+      {
+        "from": "assets/archive.ico",
+        "to": "archive.ico"
       }
     ],
     "win": {
