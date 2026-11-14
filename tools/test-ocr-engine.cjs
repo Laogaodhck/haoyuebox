@@ -22,10 +22,7 @@ const checker = createChecker();
 const assert = checker.assert;
 
 const exe7z = resolve7zPath();
-if (!exe7z) {
-  console.error(no7zError());
-  process.exit(1);
-}
+const canRun7z = !!exe7z && process.platform === 'win32';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'haoyue-ocr-engine-test-'));
 const srcFull = path.join(tmp, 'src-full');
@@ -75,6 +72,13 @@ function serve(files) {
 }
 
 (async function main() {
+  if (!canRun7z) {
+    console.log('\n[跳过] ' + (process.platform !== 'win32' ? '非 Windows 平台' : no7zError())
+      + '，仅执行常量与文件校验断言（下载/解压链路需 Windows + 随包 7z）');
+    fs.rmSync(tmp, { recursive: true, force: true });
+    checker.finish();
+    return;
+  }
   writeTree(srcFull);
   writeTree(srcPartial, 'models/dict_en.txt');
   makeZip(srcFull, zipFull);
