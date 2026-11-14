@@ -12,6 +12,9 @@ const { buildPrintDoc } = require('./print-doc');
 const { registerArchiveIpc } = require('./archive');
 const archiveIcons = require('./archive-icons');
 const { registerSystemIpc } = require('./system');
+const umiOcr = require('./umi-ocr');
+const rapidOcr = require('./rapidocr');
+const ocrEngine = require('./ocr-engine');
 const update = require('./update');
 const appUpdater = require('./updater');
 
@@ -274,6 +277,13 @@ function allowReadPaths(metas) {
 registerArchiveIpc(ipcMain, () => mainWindow, allowReadPaths);
 /* 系统工具：网络检测（固定白名单 DNS 节点）+ 打印机向导/设置页/测试页 */
 registerSystemIpc(ipcMain, () => mainWindow);
+/* OCR：Umi-OCR 本地 HTTP 服务转发（渲染层受 CSP 限制，不能直连 127.0.0.1:1224） */
+umiOcr.registerOcrIpc(ipcMain);
+/* OCR：随包 RapidOCR 引擎子进程（未下载时自动回退其它引擎，退出时自动释放） */
+rapidOcr.registerRapidIpc(ipcMain);
+rapidOcr.registerLifecycle();
+/* OCR 引擎下载/安装（约 40 MB，首次使用按需下载，装到用户数据目录） */
+ocrEngine.registerIpc(ipcMain, () => mainWindow);
 /* 版本检测/升级标记/数据备份（覆盖安装与版本更新的本机侧支撑） */
 const updateCtl = update.registerUpdateIpc(ipcMain, app, appendDiag);
 /* 应用内更新器（安装版就地升级，GitHub Release 源；手动触发制，见 electron/updater.js） */

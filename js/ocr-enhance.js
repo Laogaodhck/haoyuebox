@@ -39,6 +39,17 @@
     return g;
   }
 
+  // RGBA → 单通道灰度（r/g/b）。
+  // 红字在白底上红通道几乎无对比，绿通道却接近黑字 → 红字用 g；绿/蓝字与红章
+  // 在红通道上要么变暗成字、要么被压成白底 → 红章抑制与非红字用 r。
+  function toChannelGray(px, channel) {
+    var d = px.data, n = px.width * px.height;
+    var off = channel === 'g' ? 1 : (channel === 'b' ? 2 : 0);
+    var g = new Uint8ClampedArray(n);
+    for (var i = 0, j = 0; i < n; i++, j += 4) g[i] = d[j + off];
+    return g;
+  }
+
   // 盒式降采样（长边压到 maxEdge 内），返回灰度
   function downscaleGray(gray, w, h, maxEdge) {
     var scale = Math.min(1, maxEdge / Math.max(w, h));
@@ -235,6 +246,18 @@
     return v / vals.length;
   }
 
+  // 清晰度指标：长边压到 500 内算拉普拉斯方差（低值=糊片）。
+  // 入参可为 canvas 或 {data,width,height} 像素对象；异常/空输入按「清晰」处理。
+  function pageSharpness(src) {
+    if (!src || !src.width || !src.height) return 1e9;
+    var px = (typeof src.getContext === 'function')
+      ? src.getContext('2d').getImageData(0, 0, src.width, src.height)
+      : src;
+    if (!px || !px.data) return 1e9;
+    var ds = downscaleGray(toGray(px), px.width, px.height, 500);
+    return laplacianVar(ds.g, ds.w, ds.h);
+  }
+
   // Sauvola 自适应二值化：T = mean·(1 + k·(std/R - 1))，R=128。
   // 积分图 O(n)，窗口按图像短边自适应。输出 0=文字（墨），255=背景。
   function sauvolaBinarize(gray, w, h, opts) {
@@ -279,6 +302,21 @@
       }
     }
     return out;
+  }
+
+  // 三通道墨点交集：只有 RGB 三个通道都判为墨的像素才保留。
+  // 红章 / 绿字 / 蓝字只在部分通道是暗的，会被滤掉；黑字在三通道都暗，得以保留。
+  // 用于"黑字表格 + 彩色印章 / 装饰"的去章通道。
+  function neutralBinarize(px, k) {
+    var gs = ['r', 'g', 'b'].map(function (ch) {
+      var g = toChannelGray(px, ch);
+      return sauvolaBinarize(percentileNorm(g, px.width, px.height), px.width, px.height, { k: k });
+    });
+    var bin = new Uint8ClampedArray(gs[0].length);
+    for (var i = 0; i < bin.length; i++) {
+      bin[i] = (gs[0][i] === 0 && gs[1][i] === 0 && gs[2][i] === 0) ? 0 : 255;
+    }
+    return denoiseBinary(bin, px.width, px.height);
   }
 
   // 二值图去噪：3×3 内墨点（含自身）≤2 视为孤立噪点转背景
@@ -331,6 +369,7 @@
     var deskewed = Math.abs(skew) >= minSkew ? deskewShearRGBA(px, skew) : px;
     var work = deskewed === px ? { data: null, width: w, height: h } : deskewed;
     var gray2 = deskewed === px ? gray : toGray(deskewed);
+    if (mode === 'r' || mode === 'g' || mode === 'b') gray2 = toChannelGray(deskewed, mode);
     // 亮度 / 对比度 / 模糊度统计（降采样上算，省时）
     var ds = downscaleGray(gray2, work.width, work.height, 500);
     var mean = 0;
@@ -345,11 +384,17 @@
       sharpened: false,
       inverted: false,
       lowLight: mean < 100,
+      color: (mode === 'r' || mode === 'g' || mode === 'b') ? mode : null,
       mode: mode
     };
     if (mode === 'off') {
       if (deskewed === px) return { px: px, info: info };
       return { px: deskewed, info: info };
+    }
+    if (mode === 'neutral') {
+      var nbin = neutralBinarize(deskewed, k);
+      info.color = 'neutral';
+      return { px: binToRGBA(nbin, deskewed.width, deskewed.height), info: info };
     }
     var norm = percentileNorm(gray2, work.width, work.height);
     // 暗底浅字：Sauvola 假定"暗字亮底"，直接在深底图上会整幅判白。
@@ -362,7 +407,7 @@
       norm = unsharp(norm, work.width, work.height, sharpenAmount);
       info.sharpened = true;
     }
-    if (mode === 'gray') {
+    if (mode === 'gray' || mode === 'r' || mode === 'g' || mode === 'b') {
       var rgba = new Uint8ClampedArray(norm.length * 4);
       for (var gi = 0, gj = 0; gi < norm.length; gi++, gj += 4) {
         var v = norm[gi];
@@ -387,6 +432,9 @@
   /* ================= 文本后处理 ================= */
 
   // 全半角归一 + 冗余空格压缩 + 标点空格整理（逐行）
+  // 场景行首尾的非文字符号（边框 / 箭头 / 引号 / 顿号），清理时连同相邻空格去掉
+  var SCENE_EDGE = /^[^0-9A-Za-z\u4e00-\u9fff]+|[^0-9A-Za-z\u4e00-\u9fff]+$/g;
+
   function normalizeLine(line) {
     var s = String(line || '')
       .replace(/[\uFF10-\uFF19]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
@@ -404,7 +452,34 @@
     });
     // 数字与中文日期单位之间的空格去掉（「2026 年 10 月」→「2026年10月」）
     s = s.replace(/(\d)\s+(?=[年月日])/g, '$1').replace(/([年月日])\s+(?=\d)/g, '$1');
+    // 小数点后被空格分开（「0. 43」→「0.43」，小字号识别常见）
+    s = s.replace(/(\d)[.．]\s+(\d)/g, '$1.$2');
+    // 温度单位：30"C / 110 C / 30°C → 30℃（只认数字后的 C，不动单词尾字母）
+    s = s.replace(/(\d)\s*(?:["”'′´°]\s*)?[Cc](?![A-Za-z0-9])/g, '$1℃');
+    // 乘号：数学式（整行含 =）里数字之间的 X/x 还原为 ×；型号/编号里的 X 不受影响
+    if (/[=＝]/.test(s)) {
+      s = s.replace(/(\d)\s*[Xx×]\s*[Xx×]?\s*(\d)/g, '$1×$2');
+      s = s.replace(/(^|[\s=＋+－])[Xx](?=\d)/g, '$1×');
+    }
     s = s.replace(/[ \t]+/g, ' ').trim();
+    return s;
+  }
+
+  // 表格单元格文本归一：OCR 常把表格线识别成「|」「，」等边界符号，
+  // 范围号又可能输出为 — – ～ 等变体；只做确定无害的清理，不改写数字内容。
+  function normalizeCell(text) {
+    var s = String(text == null ? '' : text)
+      .replace(/[ \t\u3000]+/g, ' ')
+      .trim();
+    // 首尾表格线 / 引号 / 中文标点（保留 - < > ≤ ≥ + 等有意义的起始符号）；
+    // 「《50」这类是把 < 识别成书名号，按比较符还原
+    s = s.replace(/^[《〈]\s*(?=\d)/, '<');
+    s = s.replace(/^[|｜，,;；:：、_~'‘’“”"《》〈〉()（）\s]+/, '')
+      .replace(/[|｜，,;；:：、_~'‘’“”"《》〈〉()（）\s]+$/, '');
+    // 数字区间里的破折号 / 波浪号统一为 --（GT 与常见排版一致）
+    s = s.replace(/(\d)\s*[—–－―~～]+-*\s*(\d)/g, '$1--$2');
+    // 单位内部的斜杠两侧不留空格（umol /L → umol/L）
+    s = s.replace(/([0-9A-Za-z\u4e00-\u9fff])\s*\/\s*([0-9A-Za-z\u4e00-\u9fff])/g, '$1/$2');
     return s;
   }
 
@@ -544,7 +619,7 @@
   // 词级表格检测：按 y 聚行、按 x 聚列，行列规模达标才认定表格。
   // 同时推断每列对齐方式（x0 / x1 / 中心离散度最小者）与相对列宽。
   // 返回 null 或 {rows, colCount, aligns:['left'|'center'|'right'], widths:[相对值], band}
-  function detectTable(lines) {
+  function detectTable(lines, dbg) {
     var words = [];
     lines.forEach(function (l) {
       l.words.forEach(function (wd) {
@@ -556,7 +631,7 @@
         });
       });
     });
-    if (words.length < 6) return null;
+    if (words.length < 6) { if (dbg) dbg.stage = 'words<6'; return null; }
     // 行高中位数
     var hs = words.map(function (w) { return w.y1 - w.y0; }).sort(function (a, b) { return a - b; });
     var mh = hs[(hs.length / 2) | 0] || 10;
@@ -570,7 +645,7 @@
       lastCy = cy;
     });
     rows.forEach(function (r) { r.sort(function (a, b) { return a.x0 - b.x0; }); });
-    if (rows.length < 3) return null;   // 少于 3 行不足以区分"表格"与"普通多行文本"
+    if (rows.length < 3) { if (dbg) { dbg.stage = 'rows<3'; dbg.rows = rows.length; } return null; }   // 少于 3 行不足以区分"表格"与"普通多行文本"
     // 词宽中位数（对齐容差与间隙判据用）
     var ws2 = words.map(function (w) { return w.x1 - w.x0; }).sort(function (a, b) { return a - b; });
     var mw = ws2[(ws2.length / 2) | 0] || 20;
@@ -598,7 +673,7 @@
     });
     var allCells = [];
     cellRows.forEach(function (r) { r.forEach(function (c) { allCells.push(c); }); });
-    if (allCells.length < 4) return null;
+    if (allCells.length < 4) { if (dbg) { dbg.stage = 'cells<4'; dbg.cells = allCells.length; } return null; }
     var cws = allCells.map(function (c) { return c.x1 - c.x0; }).sort(function (a, b) { return a - b; });
     var medCellW = cws[(cws.length / 2) | 0] || 20;
     // 归列：同一列的单元格要么左缘对齐（左对齐列），要么右缘对齐（右对齐列），
@@ -622,7 +697,7 @@
         hit.cells.push({ ri: ri, cell: c });
       });
     });
-    if (colDefs.length < 2) return null;
+    if (colDefs.length < 2) { if (dbg) { dbg.stage = 'colDefs<2'; dbg.colDefs = colDefs.length; dbg.cells = allCells.length; } return null; }
     // 列按左缘排序，保证输出列序与阅读顺序一致
     colDefs.sort(function (a, b) { return a.left - b.left; });
     // 列支持率：≥ 75% 行（且至少 3 行）才保留；行覆盖率不足则放弃
@@ -631,7 +706,7 @@
       d.cells.forEach(function (m) { rowsHit[m.ri] = true; });
       return Object.keys(rowsHit).length >= Math.max(3, cellRows.length * 0.75);
     });
-    if (keepCols.length < 2) return null;
+    if (keepCols.length < 2) { if (dbg) { dbg.stage = 'keepCols<2'; dbg.colDefs = colDefs.length; dbg.rows = cellRows.length; } return null; }
     var grid = cellRows.map(function () { return keepCols.map(function () { return null; }); });
     keepCols.forEach(function (d, ci) {
       d.cells.forEach(function (m) { grid[m.ri][ci] = m.cell; });
@@ -643,7 +718,10 @@
         if (cell != null) filled++;
       });
     });
-    if (total < 6 || filled / total < 0.7) return null;
+    if (total < 6 || filled / total < 0.7) {
+      if (dbg) { dbg.stage = 'fill<0.7'; dbg.filled = filled; dbg.total = total; dbg.keepCols = keepCols.length; }
+      return null;
+    }
     var keptIdx = keepCols.map(function (_, ci) { return ci; });
     // 每列对齐推断：x0 离散小 → 左对齐；x1 离散小（且明显小于 x0）→ 右对齐；
     // 中心离散最小 → 居中。容差取词宽中位数 40%。
@@ -671,12 +749,15 @@
         width: Math.max(1, Math.max.apply(null, x1s) - Math.min.apply(null, x0s))
       });
     });
-    if (cols.length < 2) return null;
+    if (cols.length < 2) { if (dbg) { dbg.stage = 'stableCols<2'; dbg.kept = keepCols.length; dbg.cols = cols.length; dbg.tolA = tolA; } return null; }
     // 强判别：普通多行正文每行词数远多于列数（一句 10 个词），表格每格 1–2 个词。
     // 中位数词数 > 列数×1.8+1 直接判为非表格，避免把正文当成表格后"按列裁掉"其余文字。
     var wpr = rows.map(function (r) { return r.length; }).sort(function (a, b) { return a - b; });
     var medWords = wpr[(wpr.length / 2) | 0] || 0;
-    if (medWords > cols.length * 1.8 + 1) return null;
+    if (medWords > cols.length * 1.8 + 1) {
+      if (dbg) { dbg.stage = 'medWords'; dbg.medWords = medWords; dbg.cols = cols.length; }
+      return null;
+    }
     // 列间稳定间隙：表格列之间有明显空白（≥ 词宽中位数 25%）；正文词间距远小于此，
     // 该判据是"表格 vs 多列排版正文"的主要分水岭
     for (var gi = 0; gi + 1 < cols.length; gi++) {
@@ -688,7 +769,10 @@
       }
       if (!gaps.length) continue;
       gaps.sort(function (a, b) { return a - b; });
-      if (gaps[(gaps.length / 2) | 0] < mw * 0.25) return null;
+      if (gaps[(gaps.length / 2) | 0] < mw * 0.25) {
+        if (dbg) { dbg.stage = 'gap'; dbg.gap = gaps[(gaps.length / 2) | 0]; dbg.mw = mw; dbg.pair = gi; }
+        return null;
+      }
     }
     // 行带（每行 y 范围）与单元格裁剪框，供低置信单元格重识别
     var rowBands = rows.map(function (r) {
@@ -708,7 +792,7 @@
       rows: grid.map(function (row) {
         return cols.map(function (c) {
           var cell = row[c.idx];
-          return cell == null ? '' : cell.text;
+          return cell == null ? '' : normalizeCell(cell.text);
         });
       }),
       // 单元格平均置信度（与 rows 同形，空单元格为 null），供低置信单元格重识别
@@ -727,6 +811,212 @@
         y0: Math.min.apply(null, words.map(function (w) { return w.y0; })),
         y1: Math.max.apply(null, words.map(function (w) { return w.y1; }))
       }
+    };
+  }
+
+  // 有线表格检测：扫描横向 / 纵向长暗线段，返回表格线的像素坐标（源图坐标）。
+  // 印刷表格线经 JPEG / 缩放后多为浅灰（≈180–200），阈值取 205（而非 120），
+  // 并用「行内暗像素占比 + 最长连续游程」双条件：文字行的暗像素是断续的，
+  // 过不了游程条件；暗底照片整体偏暗，直接放弃（避免把纹理当表格线）。
+  function detectGridLines(canvas) {
+    if (!canvas || typeof canvas.getContext !== 'function') return null;
+    var w0 = canvas.width, h0 = canvas.height;
+    if (!w0 || !h0) return null;
+    var px;
+    try { px = canvas.getContext('2d').getImageData(0, 0, w0, h0); } catch (e) { return null; }
+    var ds = downscaleGray(toGray(px), w0, h0, 1000);
+    var w = ds.w, h = ds.h, g = ds.g;
+    var thr = 205;
+    var sum = 0;
+    for (var i = 0; i < g.length; i++) sum += g[i];
+    if (sum / g.length < 140) return null;
+    var hs = [], vs = [];
+    for (var y = 0; y < h; y++) {
+      var dark = 0, run = 0, best = 0;
+      for (var x = 0; x < w; x++) {
+        if (g[y * w + x] < thr) { dark++; run++; if (run > best) best = run; } else run = 0;
+      }
+      if (dark >= w * 0.8 && best >= w * 0.5) hs.push(y);
+    }
+    for (var x2 = 0; x2 < w; x2++) {
+      var dark2 = 0, run2 = 0, best2 = 0;
+      for (var y2 = 0; y2 < h; y2++) {
+        if (g[y2 * w + x2] < thr) { dark2++; run2++; if (run2 > best2) best2 = run2; } else run2 = 0;
+      }
+      if (dark2 >= h * 0.45 && best2 >= h * 0.3) vs.push(x2);
+    }
+    function cluster(vals, gap) {
+      var out = [];
+      vals.sort(function (a, b) { return a - b; });
+      var cur = null;
+      vals.forEach(function (v) {
+        if (!cur || v - cur[cur.length - 1] > gap) { cur = [v]; out.push(cur); }
+        else cur.push(v);
+      });
+      return out.map(function (arr) { return arr[(arr.length / 2) | 0]; });
+    }
+    var xs = cluster(vs, 3), ys = cluster(hs, 3);
+    function prune(arr, minGap) {
+      var out = [];
+      arr.forEach(function (v) {
+        if (!out.length || v - out[out.length - 1] >= minGap) out.push(v);
+      });
+      return out;
+    }
+    xs = prune(xs, w * 0.03);
+    ys = prune(ys, h * 0.012);
+    if (xs.length < 4 || ys.length < 4) return null;
+    if (xs.length > 40 || ys.length > 80) return null;  // 纹理噪声
+    if (hs.length > h * 0.5 || vs.length > w * 0.5) return null;
+    if (xs[xs.length - 1] - xs[0] < w * 0.4 || ys[ys.length - 1] - ys[0] < h * 0.25) return null;
+    var inv = 1 / ds.scale;
+    return {
+      xs: xs.map(function (v) { return v * inv; }),
+      ys: ys.map(function (v) { return v * inv; })
+    };
+  }
+
+  // 用检测到的表格线把已识别词归入单元格：连字符号多为列边界的噪声，
+  // 单元格文本再走 normalizeCell 清理。合并表头行等稀疏行按「填充率」从首尾裁掉，
+  // 让输出从真正的列标题行开始（与人工标注的表格体一致）。
+  function detectTableByGrid(lines, grid) {
+    if (!grid || !grid.xs || !grid.ys) return null;
+    var xs = grid.xs, ys = grid.ys;
+    var nc = xs.length - 1, nr = ys.length - 1;
+    if (nc < 2 || nr < 2) return null;
+    function slot(arr, v) {
+      var i = 0;
+      while (i + 1 < arr.length - 1 && v >= arr[i + 1]) i++;
+      return i;
+    }
+    var cells = [];
+    for (var r = 0; r < nr; r++) {
+      var row = [];
+      for (var c = 0; c < nc; c++) row.push([]);
+      cells.push(row);
+    }
+    var used = 0, cx0 = xs[0], cx1 = xs[xs.length - 1], cy0 = ys[0], cy1 = ys[ys.length - 1];
+    lines.forEach(function (l) {
+      (l.words || []).forEach(function (wd) {
+        var bb = wd.bbox || {};
+        if (bb.x0 == null || bb.x1 == null) return;
+        var cx = (bb.x0 + bb.x1) / 2, cy = (bb.y0 + bb.y1) / 2;
+        if (cx < cx0 || cx > cx1 || cy < cy0 || cy > cy1) return;
+        var ci = slot(xs, cx), ri = slot(ys, cy);
+        if (ci < 0 || ci >= nc || ri < 0 || ri >= nr) return;
+        cells[ri][ci].push({ text: wd.text, x0: bb.x0, y0: bb.y0, x1: bb.x1, y1: bb.y1,
+          conf: (typeof wd.confidence === 'number') ? wd.confidence : null });
+        used++;
+      });
+    });
+    if (used < 8) return null;
+    function cellText(list) {
+      if (!list.length) return '';
+      // 同一视觉行内词的 bbox 基线可能相差数个像素（字形高低不同），
+      // 直接按 y0 排序会把「国有 / 法 / 人」交错成「法人国有」；
+      // 先按纵向重叠聚成行，再行内按 x 排序。
+      var items = list.slice().sort(function (a, b) { return a.y0 - b.y0 || a.x0 - b.x0; });
+      var rows = [], cur = null;
+      items.forEach(function (w) {
+        if (cur) {
+          var ov = Math.min(w.y1, cur.y1) - Math.max(w.y0, cur.y0);
+          var minH = Math.min(w.y1 - w.y0, cur.y1 - cur.y0);
+          if (ov >= minH * 0.5) {
+            cur.items.push(w);
+            if (w.y1 > cur.y1) cur.y1 = w.y1;
+            if (w.y0 < cur.y0) cur.y0 = w.y0;
+            return;
+          }
+        }
+        cur = { y0: w.y0, y1: w.y1, items: [w] };
+        rows.push(cur);
+      });
+      var out = '';
+      rows.forEach(function (row) {
+        row.items.sort(function (a, b) { return a.x0 - b.x0; });
+        var s = '';
+        row.items.forEach(function (w) {
+          if (!s) { s = w.text; return; }
+          var joiner = (CJK_RE.test(w.text[0]) || CJK_RE.test(s[s.length - 1])) ? '' : ' ';
+          s += joiner + w.text;
+        });
+        if (!out) { out = s; return; }
+        var gap = (CJK_RE.test(out[out.length - 1]) || CJK_RE.test(s[0])) ? '' : ' ';
+        out += gap + s;
+      });
+      return normalizeCell(out);
+    }
+    function cellConf(list) {
+      var sum = 0, n = 0;
+      list.forEach(function (w) { if (w.conf != null) { sum += w.conf; n++; } });
+      return n ? Math.round(sum / n) : null;
+    }
+    var filled = cells.map(function (row) {
+      var n = 0;
+      row.forEach(function (list) { if (cellText(list)) n++; });
+      return n;
+    });
+    var minFill = Math.max(2, Math.ceil(nc * 0.5));
+    var r0 = 0;
+    while (r0 < nr && filled[r0] < minFill) r0++;
+    var r1 = nr - 1;
+    while (r1 > r0 && filled[r1] < minFill) r1--;
+    if (r1 - r0 < 2) return null;
+    var outRows = [], outConfs = [], boxes = [];
+    for (var ri = r0; ri <= r1; ri++) {
+      var texts = [], confs = [], bx = [];
+      for (var ci = 0; ci < nc; ci++) {
+        var list = cells[ri][ci];
+        texts.push(cellText(list));
+        confs.push(cellConf(list));
+        // 裁剪框用单元格边界（内缩 2px），比词框更完整，供低置信单元格重识别
+        bx.push({
+          x0: xs[ci] + 2, y0: ys[ri] + 2,
+          x1: xs[ci + 1] - 2, y1: ys[ri + 1] - 2
+        });
+      }
+      outRows.push(texts);
+      outConfs.push(confs);
+      boxes.push(bx);
+    }
+    // 至少两列有内容，且平均每行不少于两格，才认定为表格
+    var nonEmptyCols = 0;
+    for (var cc = 0; cc < nc; cc++) {
+      var any = false;
+      for (var rr = 0; rr < outRows.length && !any; rr++) if (outRows[rr][cc]) any = true;
+      if (any) nonEmptyCols++;
+    }
+    if (nonEmptyCols < 2) return null;
+    var avgCells = 0;
+    outRows.forEach(function (row) {
+      var n = 0;
+      row.forEach(function (t) { if (t) n++; });
+      avgCells += n;
+    });
+    if (avgCells / outRows.length < 2) return null;
+    var aligns = [];
+    for (var ci2 = 0; ci2 < nc; ci2++) {
+      var num = 0, tot = 0;
+      outRows.forEach(function (row) {
+        if (!row[ci2]) return;
+        tot++;
+        if (/^[¥￥]?[\d.,]+\s*[%]?$/.test(row[ci2])) num++;
+      });
+      aligns.push(tot && num / tot >= 0.6 ? 'right' : 'left');
+    }
+    var widths = [];
+    for (var ci3 = 0; ci3 < nc; ci3++) widths.push(Math.max(1, xs[ci3 + 1] - xs[ci3]));
+    return {
+      rows: outRows,
+      confs: outConfs,
+      boxes: boxes,
+      rowBands: ys.slice(r0, r1 + 2).map(function (v, i, arr) {
+        return i < arr.length - 1 ? { y0: v, y1: arr[i + 1] } : null;
+      }).filter(Boolean),
+      colCount: nc,
+      aligns: aligns,
+      widths: widths,
+      band: { y0: ys[r0], y1: ys[r1 + 1] }
     };
   }
 
@@ -756,17 +1046,60 @@
     }).join('\n');
   }
 
-  // 段落结构化重建：行距 > 0.75·行高即分段；同段内按 CJK/西文决定连接符；
-  // 段首行相对页面左缘的缩进超过 1.2·行高判定为首行缩进（indent=1）。
-  // 返回 [{type:'p', text, indent}]
-  function rebuildBlocks(lines) {
+  // 版面类型判定：正文页的行通常铺满栏宽（多数行宽 ≥ 85% 内容宽），
+  // 票据 / 标签 / 表单则多为短行、宽度参差。仅判定为正文页才做跨行并段；
+  // 其余页面保留 Tesseract 的原始分行，避免整页并成一段。
+  function layoutKind(lines) {
+    if (lines.length < 2) return 'prose';
+    var x0 = Infinity, x1 = -Infinity, widths = [];
+    lines.forEach(function (l) {
+      if (l.x0 < x0) x0 = l.x0;
+      if (l.x1 > x1) x1 = l.x1;
+      widths.push(l.x1 - l.x0);
+    });
+    var W = x1 - x0;
+    if (!(W > 0)) return 'prose';
+    var full = 0;
+    widths.forEach(function (w) { if (w >= W * 0.85) full++; });
+    widths.sort(function (a, b) { return a - b; });
+    var medRatio = widths[(widths.length / 2) | 0] / W;
+    return (full / lines.length >= 0.5 && medRatio >= 0.75) ? 'prose' : 'form';
+  }
+
+  // 段落结构化重建：正文页按行距 / 行宽并段；票据 / 标签 / 表单逐行保留。
+  // 正文页的断段判据：
+  //  - 行距 > 0.75·中位行高（空行分段）；
+  //  - 上一行明显短于栏宽（段末行，下一行属于新段）；
+  //  - 上一行以句末标点结尾（紧排的下一段）；
+  //  - 左缘偏移超过 1.5·行高（缩进 / 栏位切换）。
+  // 返回 [{type:'p'|'line', text, indent}]；line 块在文本视图按单换行输出。
+  function rebuildBlocks(lines, forceForm) {
     if (!lines.length) return [];
     var hs = lines.map(function (l) { return l.y1 - l.y0; }).filter(function (v) { return v > 0; })
       .sort(function (a, b) { return a - b; });
     var mh = hs[(hs.length / 2) | 0] || 12;
     var margin = Math.min.apply(null, lines.map(function (l) { return l.x0; }));
     var indentThr = Math.max(1.2 * mh, 12);
-    var blocks = [], paraText = '', paraIndent = 0;
+    var maxRight = Math.max.apply(null, lines.map(function (l) { return l.x1; }));
+    var contentW = maxRight - margin;
+    var kind = forceForm ? 'form' : layoutKind(lines);
+    var blocks = [];
+    if (kind === 'form') {
+      lines.forEach(function (ln) {
+        var txt = normalizeLine(ln.text);
+        // 场景照片（招牌 / 路牌）的行首尾常粘连边框、箭头、引号等符号，
+        // 这些不是正文内容；只在强制逐行（场景）时清掉，普通表单不动。
+        if (forceForm) txt = txt.replace(SCENE_EDGE, '');
+        if (!txt) return;
+        blocks.push({
+          type: 'line',
+          text: txt,
+          indent: (ln.x0 - margin) > indentThr ? 1 : 0
+        });
+      });
+      return blocks;
+    }
+    var paraText = '', paraIndent = 0;
     function flush() {
       if (paraText) blocks.push({ type: 'p', text: paraText, indent: paraIndent });
       paraText = '';
@@ -783,7 +1116,10 @@
       }
       var prev = lines[i - 1];
       var gap = ln.y0 - prev.y1;
-      if (gap > 0.75 * mh) {
+      var prevShort = contentW > 0 && (prev.x1 - prev.x0) < contentW * 0.6;
+      var prevEnded = /[。．.!！?？；;：:]$/.test(paraText);
+      var shifted = Math.abs(ln.x0 - prev.x0) > 1.5 * mh;
+      if (gap > 0.75 * mh || prevShort || prevEnded || shifted) {
         flush();
         paraText = txt;
         paraIndent = (ln.x0 - margin) > indentThr ? 1 : 0;
@@ -802,13 +1138,22 @@
   }
 
   // 结构化文档模型：blocks = 段落 + 表格块，供文本渲染与 DOCX 导出共用
-  function buildDoc(data) {
+  function buildDoc(data, canvas, opts) {
     var lines = collectLines(data && data.blocks);
     if (!lines.length) return null;
     var cleaned = lines.map(function (l) {
       return { text: fixDigitContext(normalizeLine(l.text)), x0: l.x0, y0: l.y0, x1: l.x1, y1: l.y1, words: l.words, conf: l.conf };
     });
-    var table = detectTable(cleaned);
+    // 有线表格优先按图像表格线切格：启发式列聚类在「列多、行碎」的
+    // 复杂表格上易失败（keepCols<2），而表格线是稳定几何证据
+    var table = null;
+    if (canvas) {
+      try {
+        var grid = detectGridLines(canvas);
+        if (grid) table = detectTableByGrid(cleaned, grid);
+      } catch (e) { table = null; }
+    }
+    if (!table) table = detectTable(cleaned);
     var confSum = 0, confN = 0;
     cleaned.forEach(function (l) {
       if (typeof l.conf === 'number') { confSum += l.conf; confN++; }
@@ -821,13 +1166,13 @@
         var cy = (l.y0 + l.y1) / 2;
         return cy < table.band.y0 || cy > table.band.y1;
       });
-      blocks = rebuildBlocks(outLines);
+      blocks = rebuildBlocks(outLines, opts && opts.keepLines);
       blocks.push({
         type: 'table', rows: table.rows, aligns: table.aligns, widths: table.widths,
         confs: table.confs, boxes: table.boxes, rowBands: table.rowBands, band: table.band
       });
     } else {
-      blocks = rebuildBlocks(cleaned);
+      blocks = rebuildBlocks(cleaned, opts && opts.keepLines);
     }
     return {
       blocks: blocks,
@@ -864,17 +1209,25 @@
     return (p.w / p.h) > 1.2 ? 'l' : 'p';
   }
 
-  // 结构化块 → 文本视图（段落空行分隔、表格网格渲染）
+  // 结构化块 → 文本视图：相邻 line 块按单换行输出（保留票据 / 标签分行），
+  // 段落与表格之间仍空行分隔。
   function renderDocText(blocks) {
-    return (blocks || []).map(function (b) {
-      if (b.type === 'table') return renderGrid(b);
-      return b.text;
-    }).join('\n\n');
+    var list = blocks || [];
+    var out = '';
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i];
+      var chunk = b.type === 'table' ? renderGrid(b) : b.text;
+      if (!out) { out = chunk; continue; }
+      var prevLine = list[i - 1].type === 'line' && b.type === 'line';
+      out += (prevLine ? '\n' : '\n\n') + chunk;
+    }
+    return out;
   }
 
   // blocks → 版面还原文本：检测到表格时输出网格 + 表格带外的段落文本
-  function buildFromBlocks(data) {
-    var doc = buildDoc(data);
+  // opts.keepLines：场景（招牌 / 路牌）强制逐行输出，不按正文规则并段
+  function buildFromBlocks(data, canvas, opts) {
+    var doc = buildDoc(data, canvas, opts);
     if (!doc) return null;
     return {
       text: renderDocText(doc.blocks),
@@ -899,6 +1252,9 @@
       if (!px || !px.data) return 0;
       return estimateSkew(toGray(px), px.width, px.height);
     },
+    /* 清晰度（拉普拉斯方差，长边先压到 500 内）：低值=糊片。
+     * 识别编排据此决定是否增加 2x 放大通道（糊片放大后行分割更稳）。 */
+    sharpness: pageSharpness,
     /* 后处理主入口（docs-ocr 调用）：纯文本模式下做归一 + 数字纠错 */
     polishText: function (raw) {
       var lines = String(raw || '').replace(/\r\n?/g, '\n').split('\n');
@@ -907,10 +1263,14 @@
     },
     buildFromBlocks: buildFromBlocks,
     buildDoc: buildDoc,
+    detectGridLines: detectGridLines,
+    detectTableByGrid: detectTableByGrid,
     renderDocText: renderDocText,
+    normalizeCell: normalizeCell,
     pageOrientation: pageOrientation,
     _test: {
       toGray: toGray,
+      toChannelGray: toChannelGray,
       downscaleGray: downscaleGray,
       otsu: otsu,
       estimateSkew: estimateSkew,
@@ -918,10 +1278,13 @@
       percentileNorm: percentileNorm,
       unsharp: unsharp,
       laplacianVar: laplacianVar,
+      sharpness: pageSharpness,
       sauvolaBinarize: sauvolaBinarize,
+      neutralBinarize: neutralBinarize,
       denoiseBinary: denoiseBinary,
       binToRGBA: binToRGBA,
       normalizeLine: normalizeLine,
+      normalizeCell: normalizeCell,
       fixDigitContext: fixDigitContext,
       idChecksumOk: idChecksumOk,
       fixIdCard: fixIdCard,
@@ -931,7 +1294,10 @@
       padStartDW: padStartDW,
       collectLines: collectLines,
       detectTable: detectTable,
+      detectGridLines: detectGridLines,
+      detectTableByGrid: detectTableByGrid,
       renderGrid: renderGrid,
+      layoutKind: layoutKind,
       rebuildBlocks: rebuildBlocks,
       rebuildParagraphs: rebuildParagraphs,
       pageExtent: pageExtent

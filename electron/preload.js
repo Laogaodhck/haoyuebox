@@ -1,8 +1,10 @@
 /* ============================================================
  * preload.js — 渲染进程安全桥接（contextBridge 白名单）
- * 暴露五组能力：打印（haoyuePrint）、压缩工具（haoyueArchive）、
+ * 暴露八组能力：打印（haoyuePrint）、压缩工具（haoyueArchive）、
  * 诊断上报（haoyueDiag）、压缩包图标关联（haoyueArchiveIcons）、
- * 系统工具（haoyueSystem）。不暴露 Node 能力。
+ * 系统工具（haoyueSystem）、OCR（haoyueOcr，随包 RapidOCR 引擎 / 本机 Umi-OCR 服务）、
+ * 版本与数据备份（haoyueApp）、应用内更新（haoyueAppUpdate）。
+ * 不暴露 Node 能力。
  * ============================================================ */
 'use strict';
 
@@ -74,6 +76,31 @@ contextBridge.exposeInMainWorld('haoyueSystem', {
   openAddPrinter: () => ipcRenderer.invoke('system:openAddPrinter'),
   openPrintSettings: () => ipcRenderer.invoke('system:openPrintSettings'),
   printTestPage: (printerName) => ipcRenderer.invoke('system:printTestPage', printerName)
+});
+
+/* OCR 桥接：随包 RapidOCR 引擎（子进程，按需下载）与 Umi-OCR 本地 HTTP 服务
+ * （主进程转发，规避渲染层 CSP / CORS 限制） */
+let engineProgressCb = null;
+let engineProgressBound = false;
+contextBridge.exposeInMainWorld('haoyueOcr', {
+  isDesktop: true,
+  probe: (base) => ipcRenderer.invoke('ocr:umiProbe', base),
+  recognize: (payload) => ipcRenderer.invoke('ocr:umiRecognize', payload),
+  rapidStatus: () => ipcRenderer.invoke('ocr:rapidStatus'),
+  rapidRecognize: (payload) => ipcRenderer.invoke('ocr:rapidRecognize', payload),
+  engineStatus: () => ipcRenderer.invoke('ocr:engineStatus'),
+  engineInstall: () => ipcRenderer.invoke('ocr:engineInstall'),
+  engineRemove: () => ipcRenderer.invoke('ocr:engineRemove'),
+  /* 引擎下载/解压进度：监听器全局只绑一次，后续调用仅替换回调 */
+  onEngineProgress: (cb) => {
+    if (!engineProgressBound) {
+      engineProgressBound = true;
+      ipcRenderer.on('ocr-engine:progress', (e, data) => {
+        if (engineProgressCb) engineProgressCb(data);
+      });
+    }
+    engineProgressCb = cb;
+  }
 });
 
 /* 版本/更新桥接：版本信息（升级/回滚识别）与设置备份（迁移前快照、

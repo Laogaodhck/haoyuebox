@@ -20,6 +20,12 @@ output/brief-compose/
 /fixtures/
 微信图片_*.jpg
 
+# 真实素材 OCR 抽检集（含票据等个人信息，仅本地使用；见 docs/ocr-real-samples.md）
+/testdata/ocr-real/
+
+# OCR 引擎（约 40 MB，按需下载分发，不入库；本地放置供开发/打包精简包）
+/electron/bin/umi-ocr/
+
 # 编辑器与系统
 .DS_Store
 Thumbs.db
@@ -29,3 +35,5 @@ Thumbs.db
 
 # 本地杂项（临时素材，不入库）
 Setup logo/
+7z ico/
+.screenshots/

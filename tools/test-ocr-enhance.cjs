@@ -242,6 +242,37 @@ assert(T.displayWidth('中a') === 3, 'CJK 计 2、西文计 1');
     { text: 'next line', x0: 10, y0: 34, x1: 210, y1: 54, words: [], conf: 90 }
   ];
   assert(T.rebuildParagraphs(linesEn) === 'Hello world next line', '西文同段以空格连接');
+
+  // 票据 / 标签 / 表单：行距很紧但行宽参差 → 保留原始分行，文本视图单换行
+  const ticket = [
+    { text: 'Meters/bonwe', x0: 256, y0: 165, x1: 725, y1: 220, words: [], conf: 90 },
+    { text: '洗涤说明', x0: 350, y0: 243, x1: 628, y1: 304, words: [], conf: 84 },
+    { text: '常规程序', x0: 227, y0: 325, x1: 471, y1: 409, words: [], conf: 67 },
+    { text: '不可漂白', x0: 232, y0: 394, x1: 469, y1: 448, words: [], conf: 73 }
+  ];
+  assert(T.layoutKind(ticket) === 'form', '短行参差版面判为表单 / 票据');
+  assert(T.layoutKind(lines) === 'prose', '满栏正文判为正文页');
+  const ticketBlocks = T.rebuildBlocks(ticket);
+  assert(ticketBlocks.length === 4 && ticketBlocks.every(function (b) { return b.type === 'line'; }),
+    '票据逐行保留（实际 ' + ticketBlocks.length + ' 块）');
+  assert(global.window.App.ocrEnhance.renderDocText(ticketBlocks) ===
+    'Meters/bonwe\n洗涤说明\n常规程序\n不可漂白', '逐行块按单换行渲染');
+  // 场景（强制逐行）：行首尾粘连的边框 / 箭头 / 引号等符号清掉；普通表单不受影响
+  const sceneLines = [
+    { text: '“上海斯格威铂尔曼大酒店、，', x0: 10, y0: 10, x1: 210, y1: 30, words: [], conf: 80 },
+    { text: '- 绿洲仕格维花园公寓 →', x0: 10, y0: 34, x1: 80, y1: 54, words: [], conf: 80 },
+    { text: '打浦路15号', x0: 10, y0: 58, x1: 70, y1: 78, words: [], conf: 80 },
+    { text: '打浦路25号', x0: 10, y0: 82, x1: 90, y1: 102, words: [], conf: 80 }
+  ];
+  const sceneBlocks = T.rebuildBlocks(sceneLines, true);
+  assert(sceneBlocks.length === 4 &&
+    sceneBlocks[0].text === '上海斯格威铂尔曼大酒店' &&
+    sceneBlocks[1].text === '绿洲仕格维花园公寓' &&
+    sceneBlocks[2].text === '打浦路15号',
+    '场景行清掉首尾符号（实际 ' + JSON.stringify(sceneBlocks.map(function (b) { return b.text; })) + '）');
+  assert(T.layoutKind(sceneLines) === 'form', '短行参差版面判为表单（负数校验前提）');
+  const formBlocks = T.rebuildBlocks(sceneLines);
+  assert(formBlocks[0].text === '“上海斯格威铂尔曼大酒店、，', '普通表单保留原始首尾符号');
 }
 
 /* ---------- 13. blocks 收集与版面还原 ---------- */
@@ -406,6 +437,23 @@ let blocksA;
   assert(noInv.info.inverted === false, 'autoInvert=false 时不取反');
 }
 
+/* ---------- 18b. 单通道灰度（红字 / 红章） ---------- */
+{
+  // 红字 + 白底：红通道全亮（红字消失），绿通道红字变暗（可识别）
+  const px = {
+    width: 2, height: 1,
+    data: new Uint8ClampedArray([255, 0, 0, 255, 255, 255, 255, 255])
+  };
+  assert(Array.from(T.toChannelGray(px, 'r')).join(',') === '255,255', '红通道把红字压成白底');
+  assert(Array.from(T.toChannelGray(px, 'g')).join(',') === '0,255', '绿通道保留红字为暗字');
+  const E2 = global.window.App.ocrEnhance;
+  const g = E2.enhance(px, { mode: 'g' });
+  assert(g.info.color === 'g', '增强信息标记彩色通道（g）');
+  assert(g.px.data[0] < 128, '绿通道输出红字为暗像素（' + g.px.data[0] + '）');
+  const r = E2.enhance(px, { mode: 'r' });
+  assert(r.px.data[0] === 255 && r.px.data[4] === 255, '红通道输出全白（红章抑制）');
+}
+
 /* ---------- 19. 表格误判防护（正文不得被当作表格） ---------- */
 {
   // 4 行普通正文：每行 5 个词（词数远多于列数）→ 不得判为表格
@@ -474,6 +522,92 @@ assert(T.normalizeLine('联系人 : 张伟') === '联系人：张伟', '中文�
 assert(T.normalizeLine('Email: a@b.com') === 'Email: a@b.com', '西文上下文的冒号保持半角');
 assert(T.normalizeLine('日期 2026 年 10 月 21 日') === '日期 2026年10月21日',
   '数字与年月日之间的空格去除');
+assert(T.normalizeLine('THS 0. 43 参考') === 'THS 0.43 参考', '小数点后空格合并（0. 43 → 0.43）');
+assert(T.normalizeLine('温度 110 C') === '温度 110℃', '数字后的 C 归一为 ℃（带空格）');
+assert(T.normalizeLine('30"C 高温') === '30℃ 高温', '引号被识别成度符号时归一为 ℃');
+assert(T.normalizeLine('0.8X25= 20') === '0.8×25= 20', '算式中的 X 还原为乘号');
+assert(T.normalizeLine('规格 X500= 3') === '规格 ×500= 3', '算式开头裸 X 还原为乘号');
+assert(T.normalizeLine('型号 BX500 编号') === '型号 BX500 编号', '非算式中的 X 不受影响');
+assert(T.normalizeLine('型号 A12X38') === '型号 A12X38', '无等号的型号 X 保持原样');
+
+/* ---------- 22. 有线表格：表格线检测与按格归位 ---------- */
+{
+  const px = makePx(400, 300, [255, 255, 255]);
+  [20, 120, 220, 320].forEach(function (x) { drawRect(px, x, 10, 2, 280, 190); });
+  [20, 90, 160, 230].forEach(function (y) { drawRect(px, 10, y, 380, 2, 190); });
+  const canvas = {
+    width: 400, height: 300,
+    getContext: function () { return { getImageData: function () { return px; } }; }
+  };
+  const grid = T.detectGridLines(canvas);
+  assert(!!grid && grid.xs.length === 4 && grid.ys.length === 4,
+    '浅灰表格线检出 4 列 × 4 行（实际 ' + (grid ? grid.xs.length + '×' + grid.ys.length : 'null') + '）');
+  assert(!!grid && Math.abs(grid.xs[0] - 20) <= 2 && Math.abs(grid.ys[3] - 230) <= 2,
+    '表格线坐标映射回源图坐标');
+
+  const txt = makePx(400, 300, [255, 255, 255]);
+  for (let y = 20; y < 280; y += 20) drawRect(txt, 20, y, 120, 8, 30);
+  const txtCanvas = {
+    width: 400, height: 300,
+    getContext: function () { return { getImageData: function () { return txt; } }; }
+  };
+  assert(T.detectGridLines(txtCanvas) === null, '纯文字页不误判为有线表格');
+
+  // 按表格线归格：同一格内基线不齐的「国有 / 法 / 人」应还原为「国有法人」
+  const xs = [10, 110, 210], ys = [10, 60, 110, 160];
+  const lines = [
+    { text: '', words: [word('名称', 20, 20, 80, 45, 90), word('性质', 120, 20, 190, 45, 90)] },
+    {
+      text: '',
+      words: [word('国有', 20, 72, 70, 94, 90), word('法', 72, 68, 88, 92, 90),
+        word('人', 90, 68, 106, 92, 90), word('境内', 120, 70, 190, 96, 90)]
+    },
+    { text: '', words: [word('李四', 20, 120, 80, 145, 90), word('境外法人', 120, 120, 200, 145, 90)] }
+  ];
+  const tbl = T.detectTableByGrid(lines, { xs: xs, ys: ys });
+  assert(!!tbl && tbl.colCount === 2 && tbl.rows.length === 3,
+    '按表格线切出 2 列 × 3 行（实际 ' + (tbl ? tbl.colCount + '×' + tbl.rows.length : 'null') + '）');
+  assert(!!tbl && tbl.rows[1][0] === '国有法人',
+    '同格多词按视觉行还原（实际 ' + (tbl && tbl.rows[1][0]) + '）');
+
+  // buildDoc 传入画布时优先用表格线结构（启发式在碎行上会失败）
+  const gridCanvas = canvas;
+  const docLines = [];
+  [35, 105, 175].forEach(function (y) {
+    [30, 130, 230].forEach(function (x) {
+      docLines.push({ text: '', words: [word('W' + x + '_' + y, x, y, x + 60, y + 24, 90)] });
+    });
+  });
+  const doc = global.window.App.ocrEnhance.buildDoc({ blocks: [{ paragraphs: [{ lines: docLines }] }] }, gridCanvas);
+  assert(!!doc && doc.hasTable === true, 'buildDoc 使用画布表格线检出表格');
+  const tb = doc && doc.blocks.filter(function (b) { return b.type === 'table'; })[0];
+  assert(!!tb && tb.rows.length === 3 && tb.rows[0].length === 3,
+    '按格归位得到 3 行 × 3 列（实际 ' + (tb ? tb.rows.length + '×' + tb.rows[0].length : 'null') + '）');
+}
+
+/* ---------- 23. 单元格文本归一 ---------- */
+{
+  assert(T.normalizeCell('| 652,418,000 |') === '652,418,000', '去除单元格两侧竖线');
+  assert(T.normalizeCell('（ 张三 ）') === '张三', '去除单元格两侧括号与空白');
+  assert(T.normalizeCell('18.0613%| 652,418,000|') === '18.0613%| 652,418,000',
+    '单元格内部竖线保留（属真实内容，不做猜测性切分）');
+  assert(T.normalizeCell('2020—2023') === '2020--2023', '区间破折号归一为双连字符');
+}
+
+/* ---------- 24. 清晰度（拉普拉斯方差） ---------- */
+{
+  const flat = makePx(600, 600, [128, 128, 128]);
+  assert(T.sharpness(flat) < 1, '纯色图清晰度接近 0');
+
+  const sharp = makePx(600, 600, [255, 255, 255]);
+  for (let y = 0; y < 600; y += 8) {
+    for (let x = 0; x < 600; x += 8) {
+      if (((x >> 3) + (y >> 3)) % 2 === 0) drawRect(sharp, x, y, 8, 8, 0);
+    }
+  }
+  assert(T.sharpness(sharp) > 1200, '硬边棋盘格清晰度高于糊片阈值（实际 ' +
+    Math.round(T.sharpness(sharp)) + '）');
+}
 
 console.log('\n共 ' + (pass + fail) + ' 项断言：通过 ' + pass + '，失败 ' + fail);
 process.exit(fail ? 1 : 0);

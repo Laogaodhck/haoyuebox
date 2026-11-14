@@ -170,5 +170,46 @@ assert(new TextDecoder().decode(landFiles[2].data).includes('orient="landscape"'
   assert(T.MULTI.skewDeg > 0, '纠偏通道有倾斜阈值');
 }
 
+/* ---------- 12. 彩色像素分类（彩色补识的判据） ---------- */
+{
+  assert(T.colorPixel(210, 160, 170) === 1, '淡红票号判为红（低饱和粉红）');
+  assert(T.colorPixel(220, 40, 50) === 1, '正红判为红');
+  assert(T.colorPixel(150, 190, 165) === 2, '绿字判为绿');
+  assert(T.colorPixel(160, 170, 210) === 3, '蓝字判为蓝');
+  assert(T.colorPixel(208, 216, 217) === 0, '近白底纸不判彩色');
+  assert(T.colorPixel(128, 128, 128) === 0, '中性灰不判彩色');
+  assert(T.colorPixel(255, 255, 255) === 0, '纯白不判彩色');
+  assert(T.colorPixel(60, 150, 100) === 2, '蓝绿底纹归入绿蓝类');
+}
+
+/* ---------- 13. 通道文本重合度（防「高置信乱码」采纳） ---------- */
+{
+  assert(T.textDice('中国农业银行', '中国农业银行') === 1, '相同文本重合度为 1');
+  assert(T.textDice('', '') === 1, '双空文本重合度为 1');
+  assert(T.textDice('中国农业银行', '') === 0, '一侧为空重合度为 0');
+  const same = T.textDice('中国农业银行 AGRICULTURAL', '中国农业银行  AGRICULTURAL');
+  assert(same === 1, '空白不影响重合度（' + same + '）');
+  const noisy = T.textDice('中国农业银行 AGRICULTURAL BANK', 'Gais mesemss 1 _');
+  assert(noisy < 0.3, '与乱码文本重合度低（' + noisy.toFixed(2) + '）');
+  const partial = T.textDice('中国农业银行 AGRICULTURAL', '中国农业银行 AGRICULTURAI');
+  assert(partial > 0.9 && partial < 1, '个别错字仍保持高重合（' + partial.toFixed(2) + '）');
+}
+
+/* ---------- 14. 数据行小数点修复的候选与采纳规则 ---------- */
+{
+  assert(T.decimalLineCandidate('STSH 131 0.35--4.94pIU/ml'), '整数 + 带小数 → 数据行候选');
+  assert(!T.decimalLineCandidate('STSH 1.31 0.35--4.94pIU/ml'), '无丢点整数 → 不是候选');
+  assert(!T.decimalLineCandidate('共 38 分'), '只有整数、无小数参照 → 不是候选');
+  assert(!T.decimalLineCandidate('x'.repeat(49) + ' 0.5'), '超长行不重识别');
+  assert(!T.decimalLineCandidate(''), '空行不是候选');
+
+  assert(T.acceptDecimalLine('TRAb 01 <5.0U/L', 'TRAb 0.1 <5.0U/L'), '补小数点可采纳');
+  assert(T.acceptDecimalLine('STSH 131 0.35--4.94', 'STSH 1.31 0. 35--4.94'),
+    '补点 + 小数点后空格差异不影响采纳');
+  assert(!T.acceptDecimalLine('TRAb 01 <5.0U/L', 'TRAb 0.7 <5.0U/L'), '改数字不采纳');
+  assert(!T.acceptDecimalLine('TRAb 0.1 <5.0U/L', 'TRAb 0.1 <5.0U/L'), '小数点数未增加不采纳');
+  assert(!T.acceptDecimalLine('TRAb 01 <5.0U/L', ''), '空候选不采纳');
+}
+
 console.log('\n共 ' + (pass + fail) + ' 项断言：通过 ' + pass + '，失败 ' + fail);
 process.exit(fail ? 1 : 0);

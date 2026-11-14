@@ -51,7 +51,7 @@
   <aside class="home-declare">
     <img class="home-logo" src="assets/icon.png" alt="浩玥工具箱">
     <h2 class="home-name">浩玥工具箱</h2>
-    <div class="home-version">桌面离线版 v1.7.1</div>
+    <div class="home-version">桌面离线版 v1.7.2</div>
     <div class="home-divider"></div>
     <h3 class="home-h3">软件声明</h3>
     <ul class="home-declare-list">
@@ -1440,7 +1440,7 @@
     </div>
   </div>
 
-  <!-- ========== 子功能：OCR 文字识别（本地 Tesseract LSTM · 中英文 · TXT/DOCX 导出） ========== -->
+  <!-- ========== 子功能：OCR 文字识别（RapidOCR / Umi-OCR / Tesseract · 中英文 · TXT/DOCX 导出） ========== -->
   <section id="docs-ocr" class="subpage" hidden>
     <div class="subpage-inner">
 
@@ -1452,8 +1452,26 @@
         <div id="do-empty" class="dw-hint">支持 JPG / PNG / WebP / BMP 图片与 PDF（扫描件），可多选</div>
         <button id="do-clear" class="ghost dw-block" hidden>清空列表与结果</button>
 
+        <h3>识别引擎</h3>
+        <div class="dw-row"><span>引擎</span>
+          <select id="do-engine">
+            <option value="auto" selected>RapidOCR 优先（Umi 服务 → 内置）</option>
+            <option value="rapid">RapidOCR（按需下载，离线）</option>
+            <option value="umi">Umi-OCR（用户自启服务）</option>
+            <option value="builtin">内置 Tesseract（离线）</option>
+          </select>
+        </div>
+        <div id="do-rapid-state" class="dw-hint"></div>
+        <button id="do-rapid-install" class="ghost dw-block" hidden>下载 OCR 引擎（约 40 MB）</button>
+        <div class="dw-row"><span>Umi-OCR 地址</span>
+          <input id="do-umi-url" type="text" value="http://127.0.0.1:1224" spellcheck="false">
+        </div>
+        <button id="do-umi-test" class="ghost dw-block">检测 Umi-OCR 连接</button>
+        <div id="do-umi-state" class="dw-hint"></div>
+        <div class="dw-hint">RapidOCR 引擎来自 Umi-OCR 的精简组件（仅中英模型，约 40 MB），不随安装包分发：首次点击上方按钮下载到用户数据目录，之后离线可用、升级保留。未下载时自动使用其它引擎。Umi-OCR 服务为可选增强：需先启动 Umi-OCR，并在「全局设置 → 高级」允许 HTTP 服务（默认端口 1224），连接成功时图片只发往该本机 / 局域网地址。浏览器版只能使用内置引擎。</div>
+
         <h3>识别语言</h3>
-        <div class="dw-row"><span>语言包（内置，全程离线）</span>
+        <div class="dw-row"><span>语言（内置语言包 / Umi 模型）</span>
           <select id="do-lang">
             <option value="both" selected>中文 + 英文</option>
             <option value="zh">仅中文（简体）</option>
@@ -1932,6 +1950,7 @@
 <script src="vendor/ocr/tesseract.min.js"></script>
 <script src="js/xlsx-lite.js"></script>
 <script src="js/ocr-enhance.js"></script>
+<script src="js/ocr-umi.js"></script>
 <script src="js/docs-ocr.js"></script>
 </body>
 </html>

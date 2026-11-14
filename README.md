@@ -3,8 +3,11 @@
 > 老高 · QQ 846193 · MIT
 
 **纯本地离线**的桌面工具箱：证件照制作、排版打印、批量图片处理、文档处理（OCR / 格式转换 / PDF / 水印）与压缩解压。
-人像分割、OCR、PDF 渲染与压缩全部在本机完成（Canvas + MediaPipe WASM + Tesseract + pdf.js + 内置 7z），
-不调用任何后端服务或外部 API——照片与文档不出本机，断网可用。
+人像分割、OCR、PDF 渲染与压缩全部在本机完成（Canvas + MediaPipe WASM + RapidOCR / Tesseract + pdf.js + 内置 7z），
+不调用任何后端服务或外部 API——照片与文档不出本机，断网可用。OCR 默认使用
+[RapidOCR](https://github.com/hiroi-sora/RapidOCR-json) 引擎（取自 Umi-OCR，首次使用时按需下载，
+之后离线运行），也支持接入用户自启的
+[Umi-OCR](https://github.com/hiroi-sora/Umi-OCR) HTTP 服务（可选，图片只发往该本机 / 局域网地址）。
 
 ## 功能
 
@@ -57,10 +60,12 @@ start.bat          # 或 npm run serve（需本机 Node.js）
 npm install
 npm start        # 启动 Electron 窗口（内置随机端口静态服务）
 npm run dist     # 打包 Windows 安装版 + 便携版 → release-build/
-npm test         # 28 套件：纯算法 / 静态服务 / jsdom 冒烟（无需浏览器）
+npm test         # 31 套件：纯算法 / 静态服务 / jsdom 冒烟 / OCR 引擎安装与识别（无需浏览器）
 npm run verify   # Playwright 端到端（需 Chromium；部分项需 fixtures/photo.jpg）
 npm run lint     # ESLint
-npm run eval:ocr # OCR 精度评测（8 类场景 CER / 命中率 / 耗时）
+npm run eval:ocr # OCR 精度评测（8 类合成场景 CER / 命中率 / 耗时）
+npm run eval:ocr:real # 真实素材抽检（需本地 testdata/ocr-real/，含个人信息不入库）
+npm run ocr:pack # 生成 OCR 引擎精简包（维护者用，上传到 Release 供按需下载）
 ```
 
 需要 Node.js 22（CI 版本）。`npm run verify` 的本地资源均不入库：
@@ -80,25 +85,45 @@ CI（`.github/workflows/ci.yml`）在 push / PR 时跑语法扫描、ESLint 与 
 
 ```
 ├── index.html            # 单页入口（七模块 + 子功能菜单）
-├── js/                   # 渲染层（IIFE 模块挂 window.App）
+├── js/                   # 渲染层（IIFE 模块挂 window.App，30 个）
 │   ├── app.js            # 核心状态机、模块路由、取消令牌、拖放助手
 │   ├── segmenter.js      # 人像分割与蒙版增强
 │   ├── docs-*.js         # 文档工具：打印 / 转换 / PDF / 阅读器 / 水印 / OCR
 │   ├── ocr-enhance.js    # OCR 图像增强与版面还原
+│   ├── ocr-umi.js        # OCR 外部引擎适配：按需下载的 RapidOCR / 本机 Umi-OCR 服务
 │   └── ...               # 排版、批量、压缩、设置等
-├── electron/             # 主进程：窗口、静态服务、打印 / 7z / 系统工具 / 备份 / 更新 IPC
+├── electron/             # 主进程：窗口、静态服务、打印 / 7z / OCR 引擎 / 系统工具 / 备份 / 更新 IPC
+│   ├── rapidocr.js       # RapidOCR 子进程（启动握手 / 串行队列 / 语言切换 / 退出释放）
+│   ├── ocr-engine.js     # OCR 引擎按需下载与安装（Release 精简包 → 用户数据目录）
+│   ├── umi-ocr.js        # 本机 Umi-OCR HTTP 服务客户端
+│   └── bin/              # 随包 7z（打包时映射到 resources/bin；OCR 引擎不随包）
 ├── vendor/               # 离线运行时：MediaPipe、pdf.js、mammoth、Tesseract 与语言包
 ├── assets/               # 图标、NSIS 安装器钩子
 ├── tools/                # 测试与验收脚本（test-* / verify-* / eval-*）
-└── docs/                 # OCR 增强与精度、安全兼容性等技术文档
+└── docs/                 # OCR 精度 / 增强、架构、安全兼容性等技术文档
 ```
+
+## 文档
+
+- 架构与核心逻辑：[docs/architecture-overview.md](docs/architecture-overview.md)
+- OCR 增强与精度：[docs/ocr-enhancement.md](docs/ocr-enhancement.md)、[docs/ocr-accuracy-optimization.md](docs/ocr-accuracy-optimization.md)
+- OCR 评测：合成评测报告 [docs/ocr-eval-report.md](docs/ocr-eval-report.md)、真实素材抽检约定与报告 [docs/ocr-real-samples.md](docs/ocr-real-samples.md) / [docs/ocr-real-report.md](docs/ocr-real-report.md)
+- 安全软件兼容（随包 7z / OCR 引擎被隔离的排查）：[docs/security-software-compatibility.md](docs/security-software-compatibility.md)
+- 第三方版本登记：[VENDOR.md](VENDOR.md)
 
 ## 技术要点
 
 - **人像分割**：MediaPipe 六分类模型 + 分块精修、导向滤波、滞后阈值、发丝混色净化与间隙透底，
   导出写入真实 300DPI 元数据（PNG pHYs / JPEG JFIF）。详见 `js/segmenter.js`。
-- **OCR**：Tesseract LSTM 离线引擎，先原图直识，再按质量信号启用纠偏 / 放大 / 增强 / 二值化 / 备用分页模式；
-  词级 bbox 重建段落与表格（同格词合并、按边缘聚列），导出 DOCX（真表格 + 缩进）与 Excel（每表一个工作表）。
+- **OCR**：桌面版默认使用 RapidOCR（Umi-OCR 的 RapidOCR-json 组件，简体中文 + 英文模型）。
+  引擎不随安装包分发：首次在面板点击「下载 OCR 引擎」时从 GitHub Release 拉取精简包（约 26 MB，
+  自动按 GitHub → 镜像回退），解压到用户数据目录并校验；主进程拉子进程、管道一问一答并串行排队，
+  语言切换自动重启，退出随应用释放。也可指定用户自启的 Umi-OCR 本机 HTTP API
+  （主进程转发，默认 `127.0.0.1:1224`），两者均不可用时回退内置 Tesseract LSTM 引擎
+  （浏览器版仅此一种）。Tesseract 分支先原图直识，再按质量信号启用
+  纠偏 / 放大 / 增强 / 二值化 / 备用分页模式；词级 bbox 重建段落与表格（同格词合并、按边缘聚列），
+  导出 DOCX（真表格 + 缩进）与 Excel（每表一个工作表）。RapidOCR / Umi 结果同样转换为版面模型，
+  表格与 DOCX / Excel 导出链路不变。
   详见 [docs/ocr-enhancement.md](docs/ocr-enhancement.md) 与 [docs/ocr-accuracy-optimization.md](docs/ocr-accuracy-optimization.md)。
 - **安全边界**：`contextIsolation` + `sandbox` + CSP；`preload.js` 仅暴露白名单 IPC，渲染层无 Node 能力；
   7z 经 `spawn` 数组传参不经 shell，用户输入无注入风险；压缩包图标仅接管无关联的 .7z / .zip。
@@ -110,9 +135,13 @@ CI（`.github/workflows/ci.yml`）在 push / PR 时跑语法扫描、ESLint 与 
 - 人像分割：[Google MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter)（Apache-2.0）
 - 压缩：[7-Zip](https://www.7-zip.org/)（LGPL，含 BSD 组件）
 - 文档渲染：[pdf.js](https://mozilla.github.io/pdf.js/)（Apache-2.0）、[mammoth.js](https://github.com/mwilliamson/mammoth.js)（BSD-2-Clause）
-- OCR：[tesseract.js](https://github.com/naptha/tesseract.js)（Apache-2.0）与 Tesseract 语言包
+- OCR：[tesseract.js](https://github.com/naptha/tesseract.js)（Apache-2.0）与 Tesseract 语言包；
+  按需下载的 [RapidOCR-json](https://github.com/hiroi-sora/RapidOCR-json) 引擎与 PP-OCR 模型
+  （取自 [Umi-OCR](https://github.com/hiroi-sora/Umi-OCR)，MIT）；可选接入用户自启的 Umi-OCR HTTP 服务
 
-以上运行时均本地化至 `vendor/` / `electron/bin/` 以满足离线使用，著作权归各自作者所有。
+随包运行时均本地化至 `vendor/` / `electron/bin/` 以满足离线使用（Umi-OCR 服务为用户自行启动的可选外部程序）。
+RapidOCR 引擎不随包分发，由用户首次使用时下载（Release 标签 `ocr-engine-2.1.5`），下载包内含 `LICENSE`，
+著作权归各自作者所有。
 
 ## 注意
 

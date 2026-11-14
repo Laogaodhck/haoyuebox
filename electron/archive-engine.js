@@ -19,7 +19,8 @@ const args7z = require('./7z-args');
  * 开发：electron/bin/7z.exe；都没有时回退系统安装的 7-Zip */
 function resolve7zPath() {
   const candidates = [
-    app.isPackaged ? path.join(process.resourcesPath, 'bin', '7z.exe') : '',
+    /* 纯 Node（测试脚本）下 require('electron') 不是主进程对象，需判空 */
+    app && app.isPackaged ? path.join(process.resourcesPath, 'bin', '7z.exe') : '',
     path.join(__dirname, 'bin', '7z.exe'),
     'C:\\Program Files\\7-Zip\\7z.exe',
     'C:\\Program Files (x86)\\7-Zip\\7z.exe'

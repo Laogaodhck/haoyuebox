@@ -2,6 +2,47 @@
 
 本项目所有显著变更记录于此。版本号遵循语义化版本（主版本.次版本.修订号）。
 
+## [未发布]
+
+### 新增
+- **OCR 引擎（RapidOCR，按需下载）**：引擎不随仓库 / 安装包分发。OCR 面板新增「下载 OCR 引擎」按钮：主进程从本项目 Release（标签 `ocr-engine-2.1.5`，精简包约 26 MB）下载，GitHub 直连不可达时自动回退镜像，随后用随包 7z 解压到用户数据目录并校验文件清单（写入 `engine.json`）。支持重复安装短路、下载进度推送、缺文件 / 404 / 超时可读报错；可用 `HAOYUE_OCR_ENGINE_URL` / `HAOYUE_OCR_ENGINE_DIR` 指向内网镜像或离线安装目录
+- 引擎运行由主进程管理：启动握手、管道一问一答的串行队列、语言切换重启、识别超时与退出释放；引擎来自 Umi-OCR 的 RapidOCR-json 组件（仅简体中文 + 英文模型），全程本机
+- **OCR 支持 Umi-OCR 引擎**：桌面版可接入本机 Umi-OCR 的 HTTP 服务（默认 `http://127.0.0.1:1224`），面板提供「引擎选择 / 服务地址 / 检测连接」；请求由主进程转发，规避渲染层 CSP 与跨源限制，浏览器版仍使用内置引擎
+- Umi-OCR 的行级结果（text / 四角 box / score / end）转换为既有版面模型，段落重建、表格还原、复制与 TXT / DOCX / Excel 导出链路保持不变；语言按服务端模型列表映射，排版解析与方向纠正参数按服务端能力自动裁剪
+- 默认「RapidOCR 优先」：RapidOCR → 本机 Umi-OCR 服务 → 内置 Tesseract 依次回退；强制 RapidOCR / Umi 模式不可用时给出可操作提示（未下载时引导点击下载，含安全软件误隔离的排查说明）
+
+### 测试
+- 新增 `tools/test-ocr-engine.cjs`（21 条断言）：用 7z 现造完整 / 缺文件假包，本地 HTTP 服务模拟 Release，覆盖 302 跳转、进度计算、解压校验、marker 写入、重复安装短路、移除、缺文件与 404 报错，以及镜像回退顺序
+- 新增 `tools/test-ocr-umi.cjs`（33 条断言）：本机临时 HTTP 服务模拟 Umi-OCR，覆盖参数探测、识别成功 / 无文本 / 错误码 / 连接拒绝，以及模型选择、参数裁剪、四角框转换、按行尾符还原文本
+- 新增 `tools/test-rapidocr.cjs`（19 条断言，引擎未安装时自动跳过真跑）：结果码归一与状态结构，以及本机已装引擎时的清单完整性、白图判空、英文文字识别、中英模型切换、并发串行与退出释放
+
+### 文档
+- 新增 [docs/architecture-overview.md](docs/architecture-overview.md) 架构与核心逻辑分析（1.7.1 基线快照，文末增补 1.7.2 起的 OCR 演进：三引擎选择、按需下载引擎、桥接与模块增量）
+- 新增真实素材评测：[docs/ocr-real-samples.md](docs/ocr-real-samples.md)（样本构成与 GT 约定）与 [docs/ocr-real-report.md](docs/ocr-real-report.md)（自动生成报告）；[docs/ocr-accuracy-optimization.md](docs/ocr-accuracy-optimization.md) 增补抽检基线与六项修复复测
+- README 更新 OCR 引擎说明（按需下载）、开发命令（`eval:ocr:real` / `ocr:pack`）、目录结构与文档索引；`VENDOR.md` 登记 RapidOCR-json（版本、来源、Release 资产与重新打包步骤、镜像与覆盖变量）与升级注意事项
+
+### 杂项
+- `.gitignore` 增补本地素材与二进制目录（`testdata/ocr-real/`、`7z ico/`、`.screenshots/`、`electron/bin/umi-ocr/`），避免个人信息、临时资源与 40 MB 引擎入库
+
+## [1.7.2] - 2026-11-13
+
+### 新增
+- **真实素材评测管线**：新增 `tools/eval-ocr-real.cjs` 与共享指标 `tools/_ocr-metrics.cjs`，对 13 张真实票据 / 表格 / 标签 / 文档 / 场景照跑生产同一条链路；样本与 GT 放本地 `testdata/ocr-real/`（含个人信息，不入库），报告见 `docs/ocr-real-report.md`
+- **场景照片兜底**：整页评分极低时不再跑全尺寸通道，改为缩小二值化定位高置信中文词簇，再对原图裁切 2x 重识别；定位失败只过滤低置信乱码行。场景输出强制逐行，并清理行首尾边框 / 箭头等符号
+
+### 修复
+- **紧密行距整页并段**：按行宽铺满率区分正文页与票据 / 标签 / 表单，后者保留原始分行；主场景行召回 20.0% → 60.5%
+- **彩色文字缺通道**：新增 R / G / 中性通道变体与彩色行 / 区域定向重识别，红色票号与红章遮挡文字恢复可读；变体需文本重合度 ≥0.75 或评分领先 25% 才采纳
+- **表格漏检**：画布框线检测优先于词级列聚类，equity-table 由未检出变为 7 列、单元格 45.5%，lab-table 单元格 78.6% → 87.1%
+- **小字与小数点丢失**：糊片 + 中小字号启用 2x 放大，小数点按「去点文本一致且点数更多」保守修复；`×`、`℃` 仅在上下文明确时归一，型号 / 编号不受影响
+
+### 测试
+- 真实素材复测：主场景 CER 34.0% → 24.2%，总体 CER 159.4% → 30.4%，场景边界 610.1% → 50.9%，单页耗时 11050ms → 8514ms
+- OCR 单测扩展至 126 + 88 条断言；竖排中文（Tesseract chi_sim 不支持）明确为边界：保证不输出满屏乱码、耗时受限，不承诺识别
+
+### 文档
+- 新增 `docs/ocr-real-samples.md` 与自动报告 `docs/ocr-real-report.md`；`docs/ocr-accuracy-optimization.md` 增补六项缺陷的实施与复测结果
+
 ## [1.7.1] - 2026-10-30
 
 ### 变更
