@@ -5,8 +5,9 @@
 **纯本地离线**的桌面工具箱：证件照制作、排版打印、批量图片处理、文档处理（OCR / 格式转换 / PDF / 水印）与压缩解压。
 人像分割、OCR、PDF 渲染与压缩全部在本机完成（Canvas + MediaPipe WASM + RapidOCR / Tesseract + pdf.js + 内置 7z），
 不调用任何后端服务或外部 API——照片与文档不出本机，断网可用。OCR 默认使用
-[RapidOCR](https://github.com/hiroi-sora/RapidOCR-json) 引擎（取自 Umi-OCR，首次使用时按需下载，
-之后离线运行），也支持接入用户自启的
+[RapidOCR](https://github.com/hiroi-sora/RapidOCR-json) 引擎（取自 Umi-OCR，
+[按需下载](https://github.com/Laogaodhck/haoyuebox/releases/download/ocr-engine-2.1.5/haoyue-ocr-engine-2.1.5.zip)
+后离线运行），也支持接入用户自启的
 [Umi-OCR](https://github.com/hiroi-sora/Umi-OCR) HTTP 服务（可选，图片只发往该本机 / 局域网地址）。
 
 ## 功能
@@ -39,6 +40,20 @@
 
 **应用内更新**：设置 → 关于 → 「检查更新」，手动触发（联网仅发生在点击后）。安装版可检查 → 下载（进度条）→ 安装并重启；
 便携版与浏览器版降级为「打开发布页」手动下载。安装包未签名，Windows SmartScreen 提示时选「更多信息 → 仍要运行」。
+
+### OCR 引擎（可选下载）
+
+OCR 引擎不打包进安装包，首次使用时按需获取；不下载也能用（自动回退本机 Umi-OCR 服务或内置 Tesseract）。
+
+- **应用内一键下载（推荐）**：文档工具 → OCR → 点击「下载 OCR 引擎（约 40 MB）」，显示下载 / 解压进度，
+  完成后自动装到 `%APPDATA%/浩玥工具箱/ocr-engine/umi-ocr`，之后离线可用、覆盖升级保留。
+- **手动离线安装**：下载精简包
+  [haoyue-ocr-engine-2.1.5.zip](https://github.com/Laogaodhck/haoyuebox/releases/download/ocr-engine-2.1.5/haoyue-ocr-engine-2.1.5.zip)
+  （下载包 25.7 MB，解压后约 40 MB；GitHub 直连慢时可加镜像前缀：`https://gh-proxy.com/` 或 `https://ghproxy.net/`），
+  解压后把 `umi-ocr` 整个目录放到 `%APPDATA%/浩玥工具箱/ocr-engine/` 下（即存在 `ocr-engine/umi-ocr/RapidOCR-json.exe`）。
+- 校验与回滚：应用安装后会核对 `RapidOCR-json.exe`、`models/` 中英模型与字典等 9 个文件；文件缺失时面板会提示重新下载。
+  升级引擎版本时旧目录会被替换，无需手动清理。
+- 内网 / 自建镜像：设置环境变量 `HAOYUE_OCR_ENGINE_URL`（指向 zip 直链）与 `HAOYUE_OCR_ENGINE_DIR`（安装目录）。
 
 **数据与升级**：用户设置存于 `%APPDATA%/浩玥工具箱`，与程序目录隔离，升级与卸载均不清除（`deleteAppDataOnUninstall: false`）；
 升级 / 回滚启动时自动备份设置，丢失时可弹窗恢复；覆盖安装前安装器会静默结束残留旧进程。
@@ -116,8 +131,10 @@ CI（`.github/workflows/ci.yml`）在 push / PR 时跑语法扫描、ESLint 与 
 - **人像分割**：MediaPipe 六分类模型 + 分块精修、导向滤波、滞后阈值、发丝混色净化与间隙透底，
   导出写入真实 300DPI 元数据（PNG pHYs / JPEG JFIF）。详见 `js/segmenter.js`。
 - **OCR**：桌面版默认使用 RapidOCR（Umi-OCR 的 RapidOCR-json 组件，简体中文 + 英文模型）。
-  引擎不随安装包分发：首次在面板点击「下载 OCR 引擎」时从 GitHub Release 拉取精简包（约 26 MB，
-  自动按 GitHub → 镜像回退），解压到用户数据目录并校验；主进程拉子进程、管道一问一答并串行排队，
+  引擎不随安装包分发：首次在面板点击「下载 OCR 引擎」时拉取 Release 精简包
+  [haoyue-ocr-engine-2.1.5.zip](https://github.com/Laogaodhck/haoyuebox/releases/download/ocr-engine-2.1.5/haoyue-ocr-engine-2.1.5.zip)
+  （25.7 MB，解压后约 40 MB；自动按 GitHub → `gh-proxy.com` → `ghproxy.net` 镜像回退），
+  解压到用户数据目录并校验；主进程拉子进程、管道一问一答并串行排队，
   语言切换自动重启，退出随应用释放。也可指定用户自启的 Umi-OCR 本机 HTTP API
   （主进程转发，默认 `127.0.0.1:1224`），两者均不可用时回退内置 Tesseract LSTM 引擎
   （浏览器版仅此一种）。Tesseract 分支先原图直识，再按质量信号启用
@@ -140,14 +157,16 @@ CI（`.github/workflows/ci.yml`）在 push / PR 时跑语法扫描、ESLint 与 
   （取自 [Umi-OCR](https://github.com/hiroi-sora/Umi-OCR)，MIT）；可选接入用户自启的 Umi-OCR HTTP 服务
 
 随包运行时均本地化至 `vendor/` / `electron/bin/` 以满足离线使用（Umi-OCR 服务为用户自行启动的可选外部程序）。
-RapidOCR 引擎不随包分发，由用户首次使用时下载（Release 标签 `ocr-engine-2.1.5`），下载包内含 `LICENSE`，
-著作权归各自作者所有。
+RapidOCR 引擎不随包分发，由用户首次使用时下载
+（[Release 标签 `ocr-engine-2.1.5`](https://github.com/Laogaodhck/haoyuebox/releases/tag/ocr-engine-2.1.5)），
+下载包内含 `LICENSE`，著作权归各自作者所有。
 
 ## 注意
 
 - 人像分割请使用单人正面照，光线均匀、背景区分度高效果最好；多人物场景按整体人像区域处理。
 - 排版模块不做抠图，导入照片按原样 cover 裁切；需要换底请先在照片工具完成。
 - OCR 对手写体、艺术字与极低分辨率（短边 < 300px）效果有限；表格按对齐网格推定，无框线且列间留白极小的排版可能被判为段落。
+- OCR 引擎（下载包 25.7 MB）仅首次使用时需要联网获取；纯离线环境可手动解压安装（见「OCR 引擎（可选下载）」），或改用本机 Umi-OCR / 内置 Tesseract。
 - 导出的 Excel 为纯数据网格，不还原框线样式、合并单元格与公式。
 
 版本变更见 [CHANGELOG.md](CHANGELOG.md)；软件声明：本软件免费使用，仅供学习用途，请勿用于非法用途。
