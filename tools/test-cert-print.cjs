@@ -64,13 +64,13 @@ assert(C.normHeader('发证时间') === '发证日期', '别名：发证时间 �
 {
   const rows = [
     C.HEADERS.slice(),
-    ['422126198611010028', '段望弟', '女', '39', '湖北', '浠水', '绿杨乡', '2026-02-10', '2026-10-14', '尊泓职校', '保健艾灸师', '2026-10-14', '实操', '合格', '理论', '72'],
+    ['123456789012345678', '张三', '男', '30', '示例省', '示例市', '示例乡镇', '2026-02-10', '2026-10-14', '示例培训学校', '示例项目', '2026-10-14', '科目一', '合格', '科目二', '80'],
     ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-    ['422126198611010011', '', '男', '40', '湖北', '浠水', '绿杨乡', '', '', '', '', '2026-10-14', '', '', '', '']
+    ['123456789012345679', '', '男', '31', '示例省', '示例市', '示例乡镇', '', '', '', '', '2026-10-14', '', '', '', '']
   ];
   const list = C.recordsFromRows(rows);
   assert(list.length === 2, '空行跳过，保留 2 行');
-  assert(list[0].name === '段望弟' && list[0].age === '39', '姓名 / 年龄读取');
+  assert(list[0].name === '张三' && list[0].age === '30', '姓名 / 年龄读取');
   assert(list[0].start && list[0].start.m === 2 && list[0].start.d === 10, '起始日期拆分');
   assert(list[0].issue && list[0].issue.y === 2026, '发证日期读取');
   assert(list[0].errors.length === 0, '完整行无错误');
@@ -168,9 +168,9 @@ async function buildZip(entries, method) {
   const stored = await zipOf(templateFiles);
   const back = await C.parseXlsxBuffer(stored);
   assert(back.length === 1, 'store 模式：读回 1 行示例');
-  assert(back[0].name === '段望弟' && back[0].idNo === '422126198611010028', 'store 模式：姓名 / 身份证号');
-  assert(back[0].issue && back[0].issue.y === 2026 && back[0].issue.m === 10, 'store 模式：发证日期');
-  assert(back[0].subj2 === '理论' && back[0].score2 === '72', 'store 模式：第二组科目 / 成绩');
+  assert(back[0].name === '张三' && back[0].idNo === '123456789012345678', 'store 模式：姓名 / 身份证号');
+  assert(back[0].issue && back[0].issue.y === 2026 && back[0].issue.m === 7, 'store 模式：发证日期');
+  assert(back[0].subj2 === '科目二' && back[0].score2 === '80', 'store 模式：第二组科目 / 成绩');
   assert(back[0].errors.length === 0, 'store 模式：记录校验通过');
 
   /* 6b. deflate 模式 + sharedStrings + 数值长编号 + Excel 日期序列号 */
@@ -182,7 +182,7 @@ async function buildZip(entries, method) {
     '</row>' +
     '<row r="2">' +
     '<c r="A2" t="s"><v>0</v></c>' +
-    '<c r="B2"><v>422126198611010028</v></c>' +
+    '<c r="B2"><v>123456789012345678</v></c>' +
     '<c r="C2"><v>45000</v></c>' +
     '</row></sheetData></worksheet>';
   const sstXml = '<?xml version="1.0" encoding="UTF-8"?><sst><si><t>张三</t></si></sst>';
@@ -193,7 +193,7 @@ async function buildZip(entries, method) {
   const list = await C.parseXlsxBuffer(zipped);
   assert(list.length === 1, 'deflate 模式：读回 1 行');
   assert(list[0].name === '张三', 'deflate + sharedStrings：姓名');
-  assert(list[0].idNo === '422126198611010028', 'deflate：18 位身份证号不丢精度');
+  assert(list[0].idNo === '123456789012345678', 'deflate：18 位身份证号不丢精度');
   assert(list[0].issue && list[0].issue.y === 2023, 'deflate：Excel 日期序列号解析');
 
   /* 6c. 无效文件 */
