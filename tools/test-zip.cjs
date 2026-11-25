@@ -117,12 +117,21 @@ function skip(name) {
         + 'ZIP 结构 / CRC32 断言仍覆盖正确性');
     }
     if (extracted) {
-      for (let i = 0; i < expected.length; i++) {
-        const fp = path.join(outDir, expected[i]);
-        assert(fs.existsSync(fp), '解压后存在文件「' + expected[i] + '」');
-        if (fs.existsSync(fp)) {
-          assert(Buffer.from(fs.readFileSync(fp)).equals(raw[i]), '解压文件「' + expected[i] + '」逐字节一致');
+      /* 外部解压器对 UTF-8 文件名标志的支持取决于工具与系统区域设置
+         （CI 的 Windows PowerShell 按系统代码页还原中文名，条目名会变成乱码），
+         而条目名本身的正确性已由上面的中央目录断言逐字节覆盖。
+         这里只做「内容完整性」交叉验证：遍历解压结果，逐个匹配预期原始数据。 */
+      const got = [];
+      (function walk(dir) {
+        for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+          const fp = path.join(dir, ent.name);
+          if (ent.isDirectory()) walk(fp);
+          else got.push(Buffer.from(fs.readFileSync(fp)));
         }
+      })(outDir);
+      for (let i = 0; i < raw.length; i++) {
+        const hit = got.some(function (b) { return b.equals(raw[i]); });
+        assert(hit, '解压后存在内容一致的条目 #' + (i + 1) + '（' + expected[i] + '）');
       }
     }
   } finally {
