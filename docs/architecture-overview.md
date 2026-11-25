@@ -282,15 +282,19 @@ File/拖拽/示例
 排版页 `#view-sheet`（index.html L522）是一个独立工作流：
 
 ```
-loadFiles(files) L216
-  → coverToSpec(src, sp) L36（cover 裁切到规格比例）
-  → 按规格/纸张收集 cells（collectCells L50）
+loadFiles(files) L347（每个文件生成 240px 缩略图 makeThumb L29）
+  → coverToSpec(src, sp) L58（cover 裁切到规格比例）
+  → 第 2 步照片预览网格 renderPhotoGrid L123（逐张 ± 份数 / 移除单张，renderLaySheet 同步）
+  → 按「每张照片自己的份数」收集 cells（collectCells L72，份数 clampCopies L22）
   → Composer.layoutBatch/layoutGroups 计算每页格位（composer.js L253/L353）
-  → renderLaySheet L130 → drawPage L163（画裁切线、页码、纸张预览）
+  → renderLaySheet L262 → drawPage L294（画裁切线、页码、纸张预览）
   → 导出：drawPage → toBlob → DpiUtil.setPngDpi → download / ZipUtil 打包
   → 打印：App.print.printSheets L198 → printApi.printImage(...) L222
           （批量页签复用 setupPanel L37 装配同一个打印面板）
 ```
+
+份数有两级：第 1 步 `#sheet-count`（1–99 数字输入）作为新导入照片的初值并「统一改写全部已导入照片」；
+第 2 步预览网格（`#sheet-photo-grid`）逐张维护 `sheetFiles[i].copies`，是排版/导出/打印的唯一数据源。
 
 `Composer` 的排版模型：
 
@@ -677,13 +681,13 @@ Windows SmartScreen 会提示未知发布者；`docs/security-software-compatibi
 | `js/batch-watermark.js` | 799 | 28.7 KB |
 | `js/archive.js` | 790 | 31.8 KB |
 | `js/composer.js` | 502 | 22.2 KB |
+| `js/sheet.js` | 493 | 19.0 KB |
 | `js/docs-watermark.js` | 496 | 19.0 KB |
 | `js/batch.js` | 479 | 19.0 KB |
 | `js/batch-format.js` | 454 | 15.3 KB |
 | `electron/main.js` | 422 | 19.6 KB |
 | `js/docs-convert.js` | 407 | 18.3 KB |
 | `js/compose.js` | 362 | 12.6 KB |
-| `js/sheet.js` | 342 | 14.2 KB |
 | `js/docs-pdf.js` | 329 | 13.7 KB |
 | `js/compress.js` | 343 | 12.9 KB |
 | `js/docs-reader.js` | 323 | 12.4 KB |
