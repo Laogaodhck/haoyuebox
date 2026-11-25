@@ -78,9 +78,10 @@ function skip(name) {
   assert(pos === cdOffset + cdSize, '中央目录实际大小与 EOCD 记录一致');
 
   /* ---------- 5. 真实解压回归：独立解压器交叉验证 ----------
-     Windows：优先用系统自带 bsdtar（Win10 1803+ / CI runner 均有，正确识别 UTF-8 条目名），
-     失败再退 Expand-Archive；不直接只用 PowerShell——CI 实测 PowerShell 7 的
-     Microsoft.PowerShell.Archive 会因 ExtractToDirectory 重载缺失直接抛错（与包本身无关）。
+     Windows：优先系统自带 bsdtar（Win10 1803+ / CI runner 均有），失败再走 PowerShell
+     直接调 .NET ZipFile.ExtractToDirectory（2 参数重载，尊重 UTF-8 文件名标志位）。
+     刻意不用 Expand-Archive：CI 实测 PowerShell 7 的 Microsoft.PowerShell.Archive
+     会因 ExtractToDirectory 重载缺失抛非终止错误，进程仍以 0 退出且不产出文件。
      Ubuntu：没有 powershell（spawnSync ENOENT）；Info-ZIP unzip 对 UTF-8 文件名标志位
      处理不稳（CI 实测中文条目名被改写），故用 python3 -m zipfile（独立实现）。
      全部解压器不可用 / 均失败时跳过（ZIP 结构 / CRC32 断言已覆盖正确性）。 */
@@ -90,12 +91,13 @@ function skip(name) {
     fs.writeFileSync(zipPath, buf);
     const outDir = path.join(tmp, 'out');
     fs.mkdirSync(outDir, { recursive: true });
-    const winExpand = "Expand-Archive -LiteralPath '" + zipPath + "' -DestinationPath '" + outDir + "' -Force";
+    const winPs = 'Add-Type -AssemblyName System.IO.Compression.FileSystem; '
+      + "[System.IO.Compression.ZipFile]::ExtractToDirectory('" + zipPath + "','" + outDir + "')";
     const attempts = process.platform === 'win32'
       ? [
           ['tar', ['-xf', zipPath, '-C', outDir]],
-          ['powershell.exe', ['-NoProfile', '-Command', winExpand]],
-          ['pwsh', ['-NoProfile', '-Command', winExpand]]
+          ['powershell.exe', ['-NoProfile', '-Command', winPs]],
+          ['pwsh', ['-NoProfile', '-Command', winPs]]
         ]
       : [
           ['python3', ['-X', 'utf8', '-m', 'zipfile', '-e', zipPath, outDir]],
@@ -103,9 +105,17 @@ function skip(name) {
         ];
     let extracted = false;
     const failedTools = [];
+    const hasAnyFile = function (dir) {
+      return fs.readdirSync(dir, { withFileTypes: true }).some(function (ent) {
+        return ent.isDirectory() ? hasAnyFile(path.join(dir, ent.name)) : true;
+      });
+    };
     for (const pair of attempts) {
       try {
         execFileSync(pair[0], pair[1], { stdio: 'pipe' });
+        /* 外部工具可能「报错但退出码为 0、且什么也没解压」（CI 实测 PowerShell 的非终止
+           错误），因此解压后必须确认目录里真的落了文件，否则换下一个解压器 */
+        if (!hasAnyFile(outDir)) throw new Error('解压器未产出文件');
         extracted = true;
         break;
       } catch (e) {
