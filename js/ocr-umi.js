@@ -1,28 +1,18 @@
 /* ============================================================
- * ocr-umi.js — Umi-OCR 引擎接入（渲染层）
+ * ocr-umi.js — OCR 引擎接入（渲染层）
  *
- * 两条链路，共用同一套结果转换（行级 text + 四角 box + score → 内置
- * 引擎同构的 Tesseract blocks，复用版面还原 / 表格 / DOCX / Excel 导出）：
- *  1) RapidOCR 引擎：window.haoyueOcr.rapid*，主进程拉起 Umi-OCR 内置的
- *     RapidOCR-json 子进程（引擎按需下载，装到用户数据目录）；
- *  2) 本机服务：window.haoyueOcr.probe/recognize，转发用户自行启动的
- *     Umi-OCR HTTP 服务（默认 http://127.0.0.1:1224）。
+ * 只对接按需下载的 RapidOCR 引擎：window.haoyueOcr.rapid*，主进程拉起
+ * Umi-OCR 内置的 RapidOCR-json 子进程（引擎装到用户数据目录）。
+ * 结果转换（行级 text + 四角 box + score → 内置引擎同构的 Tesseract
+ * blocks）供版面还原 / 表格 / DOCX / Excel 导出复用。
  *
  * 依赖：window.haoyueOcr（仅桌面版存在）、App.ocrEnhance（可选）。
  * ============================================================ */
 (function (App) {
   'use strict';
 
-  var DEFAULT_URL = 'http://127.0.0.1:1224';
-
   function bridge() {
     return (typeof window !== 'undefined' && window.haoyueOcr) || null;
-  }
-
-  // 桌面版桥接是否可用（浏览器版无法访问本机服务）
-  function available() {
-    var b = bridge();
-    return !!(b && typeof b.probe === 'function' && typeof b.recognize === 'function');
   }
 
   // RapidOCR 引擎桥接是否可用（主进程拉起 RapidOCR-json 子进程）
@@ -79,6 +69,20 @@
     return r;
   }
 
+  /* 预热加载：启动引擎子进程并完成握手，返回 {ok, running, version, error}
+   * 下载安装完成后立即调用，避免首次识别再等待启动 */
+  function rapidWarmup(langKey) {
+    var b = rapidBridge();
+    if (!b || typeof b.rapidWarmup !== 'function') {
+      return Promise.resolve({ ok: false, error: 'RapidOCR 引擎仅桌面版可用' });
+    }
+    return Promise.resolve(b.rapidWarmup(rapidLang(langKey))).then(function (r) {
+      return r && typeof r === 'object' ? r : { ok: false, error: '引擎加载返回格式异常' };
+    }).catch(function (err) {
+      return { ok: false, error: (err && err.message) || String(err) };
+    });
+  }
+
   function engineRemove() {
     var b = rapidBridge();
     if (!b || typeof b.engineRemove !== 'function') {
@@ -87,61 +91,6 @@
     return Promise.resolve(b.engineRemove()).catch(function (err) {
       return { ok: false, error: (err && err.message) || String(err) };
     });
-  }
-
-  // 仅做展示用规范化：去空白、缺协议补 http://
-  function normalizeUrl(raw) {
-    var s = String(raw == null ? '' : raw).trim();
-    if (!s) return DEFAULT_URL;
-    if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = 'http://' + s;
-    return s.replace(/\/+$/, '');
-  }
-
-  /* ---------- 参数选择（按服务端 get_options 的能力裁剪） ---------- */
-
-  // 从 optionsList（[[值, 名称], …]）中按语言偏好挑一个模型
-  function pickLanguage(list, langKey) {
-    var vals = (list || []).map(function (it) {
-      return { value: String(it && it[0] || ''), label: String(it && it[1] || '') };
-    }).filter(function (v) { return v.value; });
-    function hay(v) { return v.label || v.value; }
-    if (langKey === 'en') {
-      var en = vals.filter(function (v) {
-        return /english|英文/i.test(hay(v)) && !/中文|chinese/i.test(hay(v));
-      });
-      return en.length ? en[0].value : '';
-    }
-    var zh = vals.filter(function (v) {
-      return /中文|chinese/i.test(hay(v)) && !/繁体|繁|traditional|cht/i.test(hay(v) + ' ' + v.value);
-    });
-    if (zh.length) return zh[0].value;
-    var any = vals.filter(function (v) { return /中文|chinese/i.test(hay(v)); });
-    return any.length ? any[0].value : '';
-  }
-
-  // 语言 / 排版 / 方向纠正等参数只在服务端声明支持时才发送
-  function pickOptions(defs, langKey, mode, enhance) {
-    var d = defs || {};
-    var opts = {};
-    if (d['ocr.language'] && Array.isArray(d['ocr.language'].optionsList)) {
-      var lang = pickLanguage(d['ocr.language'].optionsList, langKey);
-      if (lang) opts['ocr.language'] = lang;
-    }
-    if (d['ocr.cls'] && enhance !== false) opts['ocr.cls'] = true;
-    if (d['ocr.limit_side_len']) {
-      var lens = (d['ocr.limit_side_len'].optionsList || []).map(function (it) {
-        return Number(it && it[0]);
-      }).filter(function (n) { return n > 0; });
-      if (lens.indexOf(4320) >= 0) opts['ocr.limit_side_len'] = 4320;
-    }
-    if (d['tbpu.parser'] && Array.isArray(d['tbpu.parser'].optionsList)) {
-      var want = mode === 'plain' ? 'multi_line' : 'multi_para';
-      var has = d['tbpu.parser'].optionsList.some(function (it) { return it && it[0] === want; });
-      if (has) opts['tbpu.parser'] = want;
-    }
-    // 固定取结构化字典：行级 box 是版面还原的基础
-    if (d['data.format'] || !defs) opts['data.format'] = 'dict';
-    return opts;
   }
 
   /* ---------- 结果转换 ---------- */
@@ -226,44 +175,11 @@
 
   /* ---------- 对外能力 ---------- */
 
-  function probe(url) {
-    var b = bridge();
-    if (!b) {
-      return Promise.resolve({ ok: false, error: 'Umi-OCR 仅桌面版可用（浏览器版无法访问本机服务）' });
-    }
-    return Promise.resolve(b.probe(normalizeUrl(url))).then(function (r) {
-      return r && typeof r === 'object' ? r : { ok: false, error: 'Umi-OCR 探测返回格式异常' };
-    }).catch(function (err) {
-      return { ok: false, error: (err && err.message) || String(err) };
-    });
-  }
-
-  // canvas → base64（PNG 保真优先；调用发生在本机回环，体积不是瓶颈）
+  // canvas → base64（PNG 保真优先；本机进程间传递，体积不是瓶颈）
   function canvasBase64(canvas) {
     var url = canvas.toDataURL('image/png');
     var i = url.indexOf(',');
     return i >= 0 ? url.slice(i + 1) : '';
-  }
-
-  /* 识别一张图：opts = { url, defs, lang, mode, enhance }
-   * 返回 { data: {text, blocks, confidence}, time, empty }，可直接交给 buildResult */
-  async function recognize(canvas, opts) {
-    var b = bridge();
-    if (!b) throw new Error('Umi-OCR 仅桌面版可用（浏览器版无法访问本机服务）');
-    var o = opts || {};
-    var res = await b.recognize({
-      base: normalizeUrl(o.url),
-      base64: canvasBase64(canvas),
-      options: pickOptions(o.defs, o.lang, o.mode, o.enhance)
-    });
-    if (!res || res.ok === false) {
-      throw new Error((res && res.error) || 'Umi-OCR 识别失败');
-    }
-    return {
-      data: convert(res.data),
-      time: Number(res.time) || 0,
-      empty: !!res.empty
-    };
   }
 
   /* RapidOCR 引擎识别一张图：opts = { lang, mode, enhance }
@@ -287,20 +203,14 @@
   }
 
   App.ocrUmi = {
-    DEFAULT_URL: DEFAULT_URL,
-    available: available,
     rapidAvailable: rapidAvailable,
     rapidStatus: rapidStatus,
+    rapidWarmup: rapidWarmup,
     engineStatus: engineStatus,
     engineInstall: engineInstall,
     engineRemove: engineRemove,
-    normalizeUrl: normalizeUrl,
-    probe: probe,
-    recognize: recognize,
     recognizeRapid: recognizeRapid,
     _test: {
-      pickLanguage: pickLanguage,
-      pickOptions: pickOptions,
       boxBounds: boxBounds,
       splitWords: splitWords,
       buildText: buildText,

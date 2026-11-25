@@ -84,9 +84,8 @@ let engineProgressCb = null;
 let engineProgressBound = false;
 contextBridge.exposeInMainWorld('haoyueOcr', {
   isDesktop: true,
-  probe: (base) => ipcRenderer.invoke('ocr:umiProbe', base),
-  recognize: (payload) => ipcRenderer.invoke('ocr:umiRecognize', payload),
   rapidStatus: () => ipcRenderer.invoke('ocr:rapidStatus'),
+  rapidWarmup: (lang) => ipcRenderer.invoke('ocr:rapidWarmup', lang),
   rapidRecognize: (payload) => ipcRenderer.invoke('ocr:rapidRecognize', payload),
   engineStatus: () => ipcRenderer.invoke('ocr:engineStatus'),
   engineInstall: () => ipcRenderer.invoke('ocr:engineInstall'),

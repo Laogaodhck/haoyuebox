@@ -30,7 +30,7 @@
 │  ├─ 打印：buildPrintDoc + 隐藏窗口 + webContents.print(silent)       │
 │  ├─ IPC 注册：print:* / archive:* / archive-icons:* / system:*       │
 │  │            ocr:* / app:* / app-update:*                           │
-│  ├─ OCR：ocr-engine.js（按需下载） / rapidocr.js（子进程） / umi-ocr.js（HTTP） │
+│  ├─ OCR：ocr-engine.js（按需下载） / rapidocr.js（子进程）            │
 │  ├─ 诊断日志：userData/logs/app-YYYY-MM-DD.log（保留 10 份）          │
 │  └─ 更新：update.js（版本标记/数据备份） + updater.js（electron-updater）│
 └───────────────┬──────────────────────────────────────────────────────┘
@@ -62,7 +62,7 @@
 
 | 目录 | 定位 | 事实 |
 |---|---|---|
-| `electron/` | 主进程与 preload | 1.7.1 为 11 个模块、1.7.2 为 14 个（新增 `rapidocr.js` / `umi-ocr.js` / `ocr-engine.js`）；`main.js` 1.7.1 为 422 行 / 1.7.2 为 398 行，其余按领域拆分（archive / system / print-doc / update / updater / static-server / 7z 引擎 / OCR 引擎与进程） |
+| `electron/` | 主进程与 preload | 1.7.1 为 11 个模块、1.7.2 为 14 个（新增 `rapidocr.js` / `umi-ocr.js` / `ocr-engine.js`）；1.8.0 移除 `umi-ocr.js` 后为 13 个。`main.js` 1.7.1 为 422 行 / 1.7.2 为 398 行，其余按领域拆分（archive / system / print-doc / update / updater / static-server / 7z 引擎 / OCR 引擎与进程） |
 | `js/` | 渲染层业务 | 1.7.1 为 29 个 IIFE、1.7.2 为 30 个（新增 `ocr-umi.js`）；最大 `docs-ocr.js`（1.7.2 约 1800 行），其后 `ocr-enhance.js`、`app.js` |
 | `index.html` | 单页 UI 与脚本清单 | 1.7.1 为 1937 行 / 106.4 KB、1.7.2 为 1801 行 / 108 KB；7 个模块页（home/photo/sheet/batch/print/archive/system），照片工具内部 4 步（upload/matte/spec/export） |
 | `css/style.css` | 全部样式 | 1.7.1 为 1429 行 / 47.3 KB、1.7.2 为 1376 行 / 47 KB，无预处理器 |
@@ -106,7 +106,7 @@
 | `system:` | `electron/system.js` | 5 | 网络探测、打印机向导/设置/测试页 |
 | `app:` | `main.js` + `update.js` | 6 | 日志上报/导出、版本信息、备份读写删 |
 | `app-update:` | `electron/updater.js` | 5 | 状态/检查/下载/安装/打开发布页 |
-| `ocr:` | `umi-ocr.js` / `rapidocr.js` / `ocr-engine.js` | 7 | Umi 服务探测识别、RapidOCR 状态识别、引擎状态/下载/移除 |
+| `ocr:` | `rapidocr.js` / `ocr-engine.js` | 6 | RapidOCR 状态 / 预热加载 / 识别、引擎状态/下载/移除 |
 
 另有 3 个**单向事件**：`archive:progress`（[electron/archive.js](electron/archive.js) L80-L145 内发送）、`app-update:progress`（[electron/updater.js](electron/updater.js) L157-L194）、`ocr-engine:progress`（[electron/ocr-engine.js](electron/ocr-engine.js) 的 `registerIpc`）。它们不经过 `invoke`，也不在契约测试的主断言范围内。
 
@@ -142,8 +142,7 @@
 | 版本/备份 | `update.registerUpdateIpc(...)` | [update.js](electron/update.js) L141-L221，调用 L278 |
 | 应用内更新 | `registerAppUpdateIpc(...)` | [updater.js](electron/updater.js) L157-L194，调用 L280 |
 | 图标关联 | 内联 `ipcMain.handle` | [main.js](electron/main.js) L287-L289 |
-| OCR（本机服务） | `umiOcr.registerOcrIpc(ipcMain)` | [umi-ocr.js](electron/umi-ocr.js) 的 `registerOcrIpc`，调用 [main.js](electron/main.js) L280 |
-| OCR（按需下载引擎） | `ocrEngine.registerIpc(ipcMain, () => mainWindow)` + `rapidOcr.registerRapidIpc(ipcMain)` | [ocr-engine.js](electron/ocr-engine.js)（下载/解压/校验/移除，进度经 `ocr-engine:progress` 推送）与 [rapidocr.js](electron/rapidocr.js)（引擎进程管理），调用 [main.js](electron/main.js) L280-L286 |
+| OCR（按需下载引擎） | `ocrEngine.registerIpc(ipcMain, () => mainWindow)` + `rapidOcr.registerRapidIpc(ipcMain)` | [ocr-engine.js](electron/ocr-engine.js)（下载/解压/校验/移除，进度经 `ocr-engine:progress` 推送）与 [rapidocr.js](electron/rapidocr.js)（引擎进程管理 / 预热加载），调用 [main.js](electron/main.js) L280-L283 |
 | 诊断/导出 | 内联 | [main.js](electron/main.js) L75、L79 |
 | 读文件 | 内联 | [main.js](electron/main.js) L297-L314 |
 
@@ -723,7 +722,8 @@ app-update:openReleases
 这部分描述 1.7.1 快照之后的变化，正文未覆盖：
 
 1. **识别编排拆分**：`js/docs-ocr.js` 的 Tesseract 分支改为「质量门控多通道」（基座原图 → 纠偏 / 放大 / 增强 / 二值化 / 备用 PSM → 表格单元格重识别），预算由 `MULTI` 常量统一约束；`js/ocr-enhance.js` 增加彩色通道、场景照兜底、小数点保守修复等能力。真实素材抽检与复测见 [ocr-accuracy-optimization.md](ocr-accuracy-optimization.md) 第八节、[ocr-real-report.md](ocr-real-report.md)。
-2. **三引擎选择**（`js/docs-ocr.js` 的 `resolveEngine`）：RapidOCR（按需下载）→ 本机 Umi-OCR HTTP 服务 → 内置 Tesseract。RapidOCR 与 Umi 的结果统一经 `js/ocr-umi.js` 转成「Tesseract 同构 blocks」，下游版面还原 / 表格 / DOCX / Excel 导出完全复用。
+2. **双引擎选择**（`js/docs-ocr.js` 的 `resolveEngine`）：RapidOCR（按需下载）→ 内置 Tesseract；1.8.0 起移除了「用户自启 Umi-OCR HTTP 服务」入口（`electron/umi-ocr.js`、地址输入框与连接检测按钮一并删除）。RapidOCR 结果统一经 `js/ocr-umi.js` 转成「Tesseract 同构 blocks」，下游版面还原 / 表格 / DOCX / Excel 导出完全复用。
 3. **RapidOCR 按需下载并运行**（`electron/ocr-engine.js` + `electron/rapidocr.js`）：引擎二进制不入库、不随安装包，面板点击下载时由主进程从 Release `ocr-engine-2.1.5` 拉取精简包（约 26 MB，GitHub → `gh-proxy.com` → `ghproxy.net` 镜像回退），用随包 7z 解压到 `%APPDATA%/浩玥工具箱/ocr-engine/umi-ocr`，校验 9 个文件后写 `engine.json`；可用 `HAOYUE_OCR_ENGINE_URL` / `HAOYUE_OCR_ENGINE_DIR` 覆盖。运行侧负责 spawn、`OCR init completed.` 启动握手、管道一问一答的串行队列、语言切换重启、识别超时与 `will-quit` 释放；IPC 为 `ocr:engineStatus` / `ocr:engineInstall` / `ocr:engineRemove`（进度 `ocr-engine:progress`）与 `ocr:rapidStatus` / `ocr:rapidRecognize`。
 4. **IPC 与桥接增量**：新增 `ocr:umiProbe` / `ocr:umiRecognize` / `ocr:rapidStatus` / `ocr:rapidRecognize` / `ocr:engineStatus` / `ocr:engineInstall` / `ocr:engineRemove` 七个 invoke 通道与一个进度事件（preload 增加 `haoyueOcr` 一组），主进程模块增至 14 个，渲染层 IIFE 增至 30 个；`tools/test-ipc-contract.cjs` 会按 preload 实际调用自动纳入契约检查。
 5. **只保留中英模型**：下载包内 `models/configs.txt` 裁剪为简体中文 / English 两块；升级引擎时须同步裁剪（否则 Umi 面板会列出未随包的模型），并用 `npm run ocr:pack` 重新打包上传。升级注意见 [VENDOR.md](../VENDOR.md)。
+6. **1.8.0 调整**：新增 `ocr:rapidWarmup`（安装完成后立即启动引擎并完成握手，面板显示「已加载」）；删除 `ocr:umiProbe` / `ocr:umiRecognize` 与 `electron/umi-ocr.js`，`ocr:` 通道由 7 个降为 6 个，主进程模块 14 → 13 个。

@@ -7,8 +7,7 @@
 不调用任何后端服务或外部 API——照片与文档不出本机，断网可用。OCR 默认使用
 [RapidOCR](https://github.com/hiroi-sora/RapidOCR-json) 引擎（取自 Umi-OCR，
 [按需下载](https://github.com/Laogaodhck/haoyuebox/releases/download/ocr-engine-2.1.5/haoyue-ocr-engine-2.1.5.zip)
-后离线运行），也支持接入用户自启的
-[Umi-OCR](https://github.com/hiroi-sora/Umi-OCR) HTTP 服务（可选，图片只发往该本机 / 局域网地址）。
+后离线运行），未下载时自动回退内置 Tesseract。
 
 ## 功能
 
@@ -43,10 +42,10 @@
 
 ### OCR 引擎（可选下载）
 
-OCR 引擎不打包进安装包，首次使用时按需获取；不下载也能用（自动回退本机 Umi-OCR 服务或内置 Tesseract）。
+OCR 引擎不打包进安装包，首次使用时按需获取；不下载也能用（自动回退内置 Tesseract）。
 
 - **应用内一键下载（推荐）**：文档工具 → OCR → 点击「下载 OCR 引擎（约 40 MB）」，显示下载 / 解压进度，
-  完成后自动装到 `%APPDATA%/浩玥工具箱/ocr-engine/umi-ocr`，之后离线可用、覆盖升级保留。
+  完成后自动装到 `%APPDATA%/浩玥工具箱/ocr-engine/umi-ocr` 并立即加载，之后离线可用、覆盖升级保留。
 - **手动离线安装**：下载精简包
   [haoyue-ocr-engine-2.1.5.zip](https://github.com/Laogaodhck/haoyuebox/releases/download/ocr-engine-2.1.5/haoyue-ocr-engine-2.1.5.zip)
   （下载包 25.7 MB，解压后约 40 MB；GitHub 直连慢时可加镜像前缀：`https://gh-proxy.com/` 或 `https://ghproxy.net/`），
@@ -105,12 +104,11 @@ CI（`.github/workflows/ci.yml`）在 push / PR 时跑语法扫描、ESLint 与 
 │   ├── segmenter.js      # 人像分割与蒙版增强
 │   ├── docs-*.js         # 文档工具：打印 / 转换 / PDF / 阅读器 / 水印 / OCR
 │   ├── ocr-enhance.js    # OCR 图像增强与版面还原
-│   ├── ocr-umi.js        # OCR 外部引擎适配：按需下载的 RapidOCR / 本机 Umi-OCR 服务
+│   ├── ocr-umi.js        # OCR 引擎适配：按需下载的 RapidOCR
 │   └── ...               # 排版、批量、压缩、设置等
 ├── electron/             # 主进程：窗口、静态服务、打印 / 7z / OCR 引擎 / 系统工具 / 备份 / 更新 IPC
 │   ├── rapidocr.js       # RapidOCR 子进程（启动握手 / 串行队列 / 语言切换 / 退出释放）
 │   ├── ocr-engine.js     # OCR 引擎按需下载与安装（Release 精简包 → 用户数据目录）
-│   ├── umi-ocr.js        # 本机 Umi-OCR HTTP 服务客户端
 │   └── bin/              # 随包 7z（打包时映射到 resources/bin；OCR 引擎不随包）
 ├── vendor/               # 离线运行时：MediaPipe、pdf.js、mammoth、Tesseract 与语言包
 ├── assets/               # 图标、NSIS 安装器钩子
@@ -134,12 +132,11 @@ CI（`.github/workflows/ci.yml`）在 push / PR 时跑语法扫描、ESLint 与 
   引擎不随安装包分发：首次在面板点击「下载 OCR 引擎」时拉取 Release 精简包
   [haoyue-ocr-engine-2.1.5.zip](https://github.com/Laogaodhck/haoyuebox/releases/download/ocr-engine-2.1.5/haoyue-ocr-engine-2.1.5.zip)
   （25.7 MB，解压后约 40 MB；自动按 GitHub → `gh-proxy.com` → `ghproxy.net` 镜像回退），
-  解压到用户数据目录并校验；主进程拉子进程、管道一问一答并串行排队，
-  语言切换自动重启，退出随应用释放。也可指定用户自启的 Umi-OCR 本机 HTTP API
-  （主进程转发，默认 `127.0.0.1:1224`），两者均不可用时回退内置 Tesseract LSTM 引擎
+  解压到用户数据目录并校验，装好后立即预热加载；主进程拉子进程、管道一问一答并串行排队，
+  语言切换自动重启，退出随应用释放。引擎不可用时回退内置 Tesseract LSTM 引擎
   （浏览器版仅此一种）。Tesseract 分支先原图直识，再按质量信号启用
   纠偏 / 放大 / 增强 / 二值化 / 备用分页模式；词级 bbox 重建段落与表格（同格词合并、按边缘聚列），
-  导出 DOCX（真表格 + 缩进）与 Excel（每表一个工作表）。RapidOCR / Umi 结果同样转换为版面模型，
+  导出 DOCX（真表格 + 缩进）与 Excel（每表一个工作表）。RapidOCR 结果同样转换为版面模型，
   表格与 DOCX / Excel 导出链路不变。
   详见 [docs/ocr-enhancement.md](docs/ocr-enhancement.md) 与 [docs/ocr-accuracy-optimization.md](docs/ocr-accuracy-optimization.md)。
 - **安全边界**：`contextIsolation` + `sandbox` + CSP；`preload.js` 仅暴露白名单 IPC，渲染层无 Node 能力；
@@ -154,9 +151,9 @@ CI（`.github/workflows/ci.yml`）在 push / PR 时跑语法扫描、ESLint 与 
 - 文档渲染：[pdf.js](https://mozilla.github.io/pdf.js/)（Apache-2.0）、[mammoth.js](https://github.com/mwilliamson/mammoth.js)（BSD-2-Clause）
 - OCR：[tesseract.js](https://github.com/naptha/tesseract.js)（Apache-2.0）与 Tesseract 语言包；
   按需下载的 [RapidOCR-json](https://github.com/hiroi-sora/RapidOCR-json) 引擎与 PP-OCR 模型
-  （取自 [Umi-OCR](https://github.com/hiroi-sora/Umi-OCR)，MIT）；可选接入用户自启的 Umi-OCR HTTP 服务
+  （取自 [Umi-OCR](https://github.com/hiroi-sora/Umi-OCR)，MIT）
 
-随包运行时均本地化至 `vendor/` / `electron/bin/` 以满足离线使用（Umi-OCR 服务为用户自行启动的可选外部程序）。
+随包运行时均本地化至 `vendor/` / `electron/bin/` 以满足离线使用。
 RapidOCR 引擎不随包分发，由用户首次使用时下载
 （[Release 标签 `ocr-engine-2.1.5`](https://github.com/Laogaodhck/haoyuebox/releases/tag/ocr-engine-2.1.5)），
 下载包内含 `LICENSE`，著作权归各自作者所有。
@@ -167,7 +164,7 @@ RapidOCR 引擎不随包分发，由用户首次使用时下载
 - 排版模块不做抠图，导入照片按原样 cover 裁切；需要换底请先在照片工具完成。
 - 排版份数分两级：第 1 步「每张份数」是统一初值（改动会重置全部已导入照片），第 2 步可在照片预览网格里逐张增减或直接输入（1–99），排版结果、导出与打印都按逐张份数生成。
 - OCR 对手写体、艺术字与极低分辨率（短边 < 300px）效果有限；表格按对齐网格推定，无框线且列间留白极小的排版可能被判为段落。
-- OCR 引擎（下载包 25.7 MB）仅首次使用时需要联网获取；纯离线环境可手动解压安装（见「OCR 引擎（可选下载）」），或改用本机 Umi-OCR / 内置 Tesseract。
+- OCR 引擎（下载包 25.7 MB）仅首次使用时需要联网获取；纯离线环境可手动解压安装（见「OCR 引擎（可选下载）」），或改用内置 Tesseract。
 - 导出的 Excel 为纯数据网格，不还原框线样式、合并单元格与公式。
 
 版本变更见 [CHANGELOG.md](CHANGELOG.md)；软件声明：本软件免费使用，仅供学习用途，请勿用于非法用途。

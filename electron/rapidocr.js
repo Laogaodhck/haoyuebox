@@ -307,7 +307,7 @@ class RapidEngine {
   }
 }
 
-/* 引擎返回 → 统一结构（与 electron/umi-ocr.js 的识别结果同构） */
+/* 引擎返回 → 统一结构（行级 text / box / score，供渲染层转版面模型） */
 function normalizeResult(res, elapsedMs) {
   const code = Number(res && res.code);
   const time = elapsedMs / 1000;
@@ -328,6 +328,14 @@ const engine = new RapidEngine();
 function registerRapidIpc(ipcMain) {
   ipcMain.handle('ocr:rapidStatus', () => {
     try {
+      return engine.status();
+    } catch (err) {
+      return { ok: false, error: (err && err.message) || String(err) };
+    }
+  });
+  ipcMain.handle('ocr:rapidWarmup', async (e, lang) => {
+    try {
+      await engine.start(lang);
       return engine.status();
     } catch (err) {
       return { ok: false, error: (err && err.message) || String(err) };

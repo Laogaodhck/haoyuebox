@@ -1,7 +1,6 @@
 /* ============================================================
  * docs-ocr.js — 文档工具子功能：OCR 文字识别
- * 三引擎：随包 RapidOCR（Umi-OCR 组件，electron/bin/umi-ocr，开箱即用）、
- *        用户自启的 Umi-OCR HTTP 服务（js/ocr-umi.js，需桌面版）、
+ * 两引擎：RapidOCR（按需下载的 Umi-OCR 精简组件，js/ocr-umi.js，需桌面版）、
  *        内置 Tesseract LSTM 引擎（vendor/ocr，Apache-2.0，兜底与浏览器版），
  *  - 图片（JPG / PNG / WebP / BMP）与扫描 PDF 逐页识别，简体中文 + 英文；
  *  - 图像增强（App.ocrEnhance，js/ocr-enhance.js）：自动纠偏、低光照
@@ -14,10 +13,9 @@
  *  - 识别结果集中在文本框中可编辑，支持复制 / 导出 TXT / 导出 DOCX；
  *  - DOCX 为最小 OOXML 包（[Content_Types].xml + _rels/.rels + word/document.xml），
  *    经 window.ZipUtil.store 打包，零额外依赖；
- *  - 全程不访问外部网络：内置引擎纯本机；Umi-OCR 只连用户指定的本机 /
- *    局域网地址，图片不出本地网络。
+ *  - 全程不访问外部网络：引擎与语言包均为本机文件，图片不出本机。
  * 依赖：window.Tesseract（vendor/ocr/tesseract.min.js）、App.ocrEnhance、
- *       App.ocrUmi + window.haoyueOcr（Umi-OCR 本地服务，可选）、
+ *       App.ocrUmi + window.haoyueOcr（RapidOCR 引擎桥接，仅桌面版）、
  *       App.pdfcore（PDF 渲染）、window.ZipUtil（ZIP 打包）、App.ui.download。
  * ============================================================ */
 (function (App) {
@@ -28,6 +26,11 @@
   var PDF_RE = /\.pdf$/i;
   var IMG_RE = /\.(jpe?g|png|webp|bmp)$/i;
   var LANGS = { both: ['chi_sim', 'eng'], zh: ['chi_sim'], en: ['eng'] };
+  // 当前语言偏好（both / zh / en）
+  function currentLangKey() {
+    var el = $('do-lang');
+    return el && el.value ? el.value : 'both';
+  }
   // recognize 输出声明：text + blocks（blocks 携带词级 bbox / 置信度，供版面还原）
   var OUT_OPTS = { text: true, blocks: true };
   var SCALE_MAX = 2600;    // 长边上限：更大的图对准确率无益且耗时耗内存
@@ -45,59 +48,24 @@
 
   function toast(msg, isErr) { App.ui.toast(msg, isErr); }
 
-  /* ================= 引擎选择（Umi-OCR / 内置） ================= */
+  /* ================= 引擎选择（RapidOCR / 内置） ================= */
 
-  var OCR_PREF_KEY = 'haoyue-ocr-pref'; // 引擎偏好 + 本机服务地址（独立于主设置白名单）
-
-  var DEFAULT_UMI_URL = (App.ocrUmi && App.ocrUmi.DEFAULT_URL) || 'http://127.0.0.1:1224';
-
-  function umiUrl() {
-    var el = $('do-umi-url');
-    var v = el && el.value ? el.value.trim() : '';
-    return v || DEFAULT_UMI_URL;
-  }
+  var OCR_PREF_KEY = 'haoyue-ocr-pref'; // 引擎偏好（独立于主设置白名单）
 
   function loadPref() {
     try {
       var s = JSON.parse(localStorage.getItem(OCR_PREF_KEY) || 'null');
       if (!s || typeof s !== 'object') return;
       var sel = $('do-engine');
-      if (sel && ['auto', 'rapid', 'umi', 'builtin'].indexOf(s.engine) >= 0) sel.value = s.engine;
-      var url = $('do-umi-url');
-      if (url && typeof s.url === 'string' && s.url) url.value = s.url;
+      if (sel && ['auto', 'rapid', 'builtin'].indexOf(s.engine) >= 0) sel.value = s.engine;
     } catch (e) { /* 存储不可用或数据损坏：保持默认值 */ }
   }
 
   function savePref() {
     try {
       var sel = $('do-engine');
-      localStorage.setItem(OCR_PREF_KEY, JSON.stringify({
-        engine: sel ? sel.value : 'auto',
-        url: umiUrl()
-      }));
+      localStorage.setItem(OCR_PREF_KEY, JSON.stringify({ engine: sel ? sel.value : 'auto' }));
     } catch (e) { /* 存储不可用：忽略 */ }
-  }
-
-  function setUmiState(msg) {
-    var el = $('do-umi-state');
-    if (el) el.textContent = msg || '';
-  }
-
-  async function testUmi() {
-    if (running) return;
-    if (!App.ocrUmi) { setUmiState('Umi-OCR 接入模块未加载，请刷新页面'); return; }
-    var btn = $('do-umi-test');
-    if (btn) btn.disabled = true;
-    setUmiState('正在连接 Umi-OCR…');
-    var r = await App.ocrUmi.probe(umiUrl());
-    if (btn && !running) btn.disabled = false;
-    if (r && r.ok) {
-      var langs = r.options && r.options['ocr.language'] && r.options['ocr.language'].optionsList;
-      setUmiState('已连接 Umi-OCR' + (langs && langs.length ? '（可用模型 ' + langs.length + ' 个）' : ''));
-      savePref();
-    } else {
-      setUmiState((r && r.error) || '连接失败：请确认 Umi-OCR 已启动并允许 HTTP 服务');
-    }
   }
 
   /* RapidOCR 引擎状态提示：仅在桌面版（有桥接）时探测，浏览器版不提示 */
@@ -108,7 +76,8 @@
     if (st && st.installed) {
       if (installBtn) installBtn.hidden = true;
       var rs = await App.ocrUmi.rapidStatus();
-      setRapidState('OCR 引擎已就绪' + (rs && rs.version ? '（RapidOCR ' + rs.version + '）' : ''));
+      setRapidState('OCR 引擎已就绪' + (rs && rs.version ? '（RapidOCR ' + rs.version + '）' : '')
+        + (rs && rs.running ? '，已加载' : ''));
       return;
     }
     if (st && st.ok === false) {
@@ -120,7 +89,7 @@
       installBtn.hidden = false;
       installBtn.disabled = false;
     }
-    setRapidState('尚未下载 OCR 引擎（约 40 MB，仅首次需要）：下载后识别质量更高；不下载时自动使用其它引擎');
+    setRapidState('尚未下载 OCR 引擎（约 40 MB，仅首次需要）：下载后自动加载，识别质量更高；不下载时使用内置引擎');
   }
 
   function setRapidState(msg) {
@@ -128,7 +97,7 @@
     if (el) el.textContent = msg || '';
   }
 
-  /* 下载并安装引擎：主进程负责下载与解压，进度经 IPC 推送 */
+  /* 下载并安装引擎：主进程负责下载与解压，进度经 IPC 推送；装好后立即预热加载 */
   async function installRapid() {
     if (running) return;
     if (!App.ocrUmi || !App.ocrUmi.engineInstall) { toast('引擎下载仅桌面版可用', true); return; }
@@ -144,8 +113,15 @@
           setRapidState('正在解压引擎…' + (p.pct == null ? '' : ' ' + p.pct + '%'));
         }
       });
+      setRapidState('正在加载 OCR 引擎…');
+      var warm = await App.ocrUmi.rapidWarmup(currentLangKey());
       await refreshRapidState();
-      toast('OCR 引擎下载完成');
+      if (warm && warm.ok === false) {
+        setRapidState('OCR 引擎已下载，但加载失败：' + (warm.error || '未知原因'));
+        toast('OCR 引擎加载失败：' + (warm.error || '未知原因'), true);
+      } else {
+        toast('OCR 引擎已下载并加载完成');
+      }
     } catch (e) {
       setRapidState((e && e.message) || '引擎下载失败');
       toast('下载 OCR 引擎失败：' + ((e && e.message) || e), true);
@@ -155,32 +131,20 @@
 
   /* 解析本次使用的引擎：
    *  rapid   → 按需下载的 RapidOCR（装到用户数据目录，离线可用）；
-   *  auto    → RapidOCR → 用户自启的 Umi-OCR 服务 → 内置 Tesseract；
-   *  umi     → 仅本机 Umi-OCR HTTP 服务，连接失败直接报错（不静默降级）；
+   *  auto    → RapidOCR 已就绪则用，否则内置 Tesseract；
    *  builtin → 内置 Tesseract。 */
   async function resolveEngine() {
     var sel = $('do-engine');
     var key = sel ? sel.value : 'auto';
     if (key === 'builtin') return { kind: 'builtin' };
     var rapidOk = !!(App.ocrUmi && App.ocrUmi.rapidAvailable && App.ocrUmi.rapidAvailable());
-    if (key === 'rapid') {
-      if (!rapidOk) throw new Error('RapidOCR 仅桌面版可用：请使用安装版 / 便携版，或把引擎切换为内置');
-      var rs = await App.ocrUmi.rapidStatus();
-      if (rs && rs.available) return { kind: 'rapid' };
-      throw new Error((rs && rs.error) || 'OCR 引擎尚未下载：请点击「下载 OCR 引擎」后重试');
-    }
-    if (key === 'auto' && rapidOk) {
-      var st = await App.ocrUmi.rapidStatus();
-      if (st && st.available) return { kind: 'rapid' };
-    }
-    if (!App.ocrUmi || !App.ocrUmi.available()) {
-      if (key === 'umi') throw new Error('Umi-OCR 仅桌面版可用：请使用安装版 / 便携版，或把引擎切换为内置');
+    if (!rapidOk) {
+      if (key === 'rapid') throw new Error('RapidOCR 仅桌面版可用：请使用安装版 / 便携版，或把引擎切换为内置');
       return { kind: 'builtin' };
     }
-    setStatus(key === 'auto' ? '正在检测 Umi-OCR…' : '正在连接 Umi-OCR…');
-    var p = await App.ocrUmi.probe(umiUrl());
-    if (p && p.ok) return { kind: 'umi', defs: p.options || {} };
-    if (key === 'umi') throw new Error((p && p.error) || '无法连接 Umi-OCR');
+    var rs = await App.ocrUmi.rapidStatus();
+    if (rs && rs.available) return { kind: 'rapid' };
+    if (key === 'rapid') throw new Error((rs && rs.error) || 'OCR 引擎尚未下载：请点击「下载 OCR 引擎」后重试');
     return { kind: 'builtin' };
   }
 
@@ -1310,7 +1274,7 @@
   /* 运行期控件锁：选择/语言/选项/清空一律停用，只留取消按钮可点，
    * 避免识别过程中文件列表或参数被改动导致结果与设置不一致 */
   var CTRL_IDS = ['do-pick', 'do-file', 'do-clear', 'do-lang', 'do-enhance', 'do-mode', 'do-run',
-    'do-engine', 'do-umi-url', 'do-umi-test', 'do-rapid-install'];
+    'do-engine', 'do-rapid-install'];
   function setRunning(on) {
     running = on;
     CTRL_IDS.forEach(function (id) {
@@ -1415,21 +1379,8 @@
     return built;
   }
 
-  // Umi-OCR 单页识别：服务端已完成检测 / 方向纠正 / 排版解析，
-  // 这里不再跑多通道与单元格重识别，只做结果结构转换与版面还原复用
-  async function recognizePageUmi(canvas, engine, mode, langKey, canEnhance) {
-    var res = await App.ocrUmi.recognize(canvas, {
-      url: umiUrl(),
-      defs: engine.defs,
-      lang: langKey,
-      mode: mode,
-      enhance: canEnhance
-    });
-    return buildResult(res, mode, canvas);
-  }
-
   // RapidOCR 引擎单页识别：RapidOCR 已完成检测 / 方向纠正 / 行合并，
-  // 与 Umi 服务分支一样只做结构转换与版面还原复用
+  // 这里只做结果结构转换与版面还原复用
   async function recognizePageRapid(canvas, mode, langKey) {
     var res = await App.ocrUmi.recognizeRapid(canvas, { lang: langKey, mode: mode });
     return buildResult(res, mode, canvas);
@@ -1456,9 +1407,8 @@
     var mode = $('do-mode') ? $('do-mode').value : 'auto';
     var enhanceOn = !$('do-enhance') || $('do-enhance').checked;
     var canEnhance = enhanceOn && App.ocrEnhance && typeof App.ocrEnhance.enhance === 'function';
-    var usingUmi = engine.kind === 'umi';
     var usingRapid = engine.kind === 'rapid';
-    var usingService = usingUmi || usingRapid; // 非内置引擎：无 Worker、无多通道
+    var usingService = usingRapid; // RapidOCR：无 Worker、无多通道
     var units = [];
     var okN = 0, errN = 0;
     var cancelled = false;
@@ -1469,9 +1419,6 @@
     if (usingRapid) {
       savePref();
       setStatus('RapidOCR 引擎就绪，开始识别…');
-    } else if (usingUmi) {
-      savePref();
-      setStatus('已连接 Umi-OCR，开始识别…');
     }
     try {
       var wk = null;
@@ -1494,9 +1441,7 @@
                 var canvas = await core.renderPage(pdf, p, 2, 2000);
                 var builtP = usingRapid
                   ? await recognizePageRapid(canvas, mode, langKey)
-                  : usingUmi
-                    ? await recognizePageUmi(canvas, engine, mode, langKey, canEnhance)
-                    : await recognizePage(wk, canvas, mode, smartAcc, canEnhance);
+                  : await recognizePage(wk, canvas, mode, smartAcc, canEnhance);
                 pushUnit(units, builtP, it.file.name + ' 第' + p + '页');
                 okN++;
               }
@@ -1510,9 +1455,7 @@
             var imgCanvas = await fileToCanvas(it.file);
             var builtI = usingRapid
               ? await recognizePageRapid(imgCanvas, mode, langKey)
-              : usingUmi
-                ? await recognizePageUmi(imgCanvas, engine, mode, langKey, canEnhance)
-                : await recognizePage(wk, imgCanvas, mode, smartAcc, canEnhance);
+              : await recognizePage(wk, imgCanvas, mode, smartAcc, canEnhance);
             pushUnit(units, builtI, it.file.name);
             okN++;
           }
@@ -1543,7 +1486,7 @@
         setOrient(detectOrient(units));
         updateMeta();
         exportsEnable(true, anyTableFlag(units));
-        var engineNote = usingRapid ? '（RapidOCR 引擎）' : usingUmi ? '（Umi-OCR 引擎）' : '';
+        var engineNote = usingRapid ? '（RapidOCR 引擎）' : '';
         setStatus(cancelled
           ? '已取消：已完成 ' + okN + ' 项' + (errN ? '，失败 ' + errN + ' 项' : '') +
             '，已识别结果保留在右侧，可编辑后复制或导出。'
@@ -1835,8 +1778,6 @@
     if ($('do-page-l')) $('do-page-l').addEventListener('click', function () { setOrient('l'); });
     $('do-text').addEventListener('input', updateMeta);
     if ($('do-engine')) $('do-engine').addEventListener('change', savePref);
-    if ($('do-umi-url')) $('do-umi-url').addEventListener('change', savePref);
-    if ($('do-umi-test')) $('do-umi-test').addEventListener('click', testUmi);
     if ($('do-rapid-install')) $('do-rapid-install').addEventListener('click', installRapid);
     loadPref();
     refreshRapidState();
