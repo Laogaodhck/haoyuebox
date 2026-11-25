@@ -77,41 +77,44 @@ function skip(name) {
   }
   assert(pos === cdOffset + cdSize, '中央目录实际大小与 EOCD 记录一致');
 
-  /* ---------- 5. 真实解压回归：Windows Expand-Archive / 其他平台 python zipfile ----------
-     CI 的 ubuntu runner 没有 powershell（spawnSync ENOENT）；而 Info-ZIP unzip 对
-     UTF-8 文件名标志位的处理不稳（CI 实测中文条目名被改写），故非 Windows 用
-     python3 -m zipfile（独立实现，实测兼容本打包器输出），两者都不可用时跳过
-     （ZIP 结构 / CRC32 断言已覆盖正确性）。 */
+  /* ---------- 5. 真实解压回归：独立解压器交叉验证 ----------
+     Windows：优先用系统自带 bsdtar（Win10 1803+ / CI runner 均有，正确识别 UTF-8 条目名），
+     失败再退 Expand-Archive；不直接只用 PowerShell——CI 实测 PowerShell 7 的
+     Microsoft.PowerShell.Archive 会因 ExtractToDirectory 重载缺失直接抛错（与包本身无关）。
+     Ubuntu：没有 powershell（spawnSync ENOENT）；Info-ZIP unzip 对 UTF-8 文件名标志位
+     处理不稳（CI 实测中文条目名被改写），故用 python3 -m zipfile（独立实现）。
+     全部解压器不可用 / 均失败时跳过（ZIP 结构 / CRC32 断言已覆盖正确性）。 */
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'haoyue-zip-'));
   try {
     const zipPath = path.join(tmp, 'test.zip');
     fs.writeFileSync(zipPath, buf);
     const outDir = path.join(tmp, 'out');
+    fs.mkdirSync(outDir, { recursive: true });
+    const winExpand = "Expand-Archive -LiteralPath '" + zipPath + "' -DestinationPath '" + outDir + "' -Force";
+    const attempts = process.platform === 'win32'
+      ? [
+          ['tar', ['-xf', zipPath, '-C', outDir]],
+          ['powershell.exe', ['-NoProfile', '-Command', winExpand]],
+          ['pwsh', ['-NoProfile', '-Command', winExpand]]
+        ]
+      : [
+          ['python3', ['-X', 'utf8', '-m', 'zipfile', '-e', zipPath, outDir]],
+          ['unzip', ['-o', zipPath, '-d', outDir]]
+        ];
     let extracted = false;
-    if (process.platform === 'win32') {
-      execFileSync('powershell', ['-NoProfile', '-Command',
-        "Expand-Archive -LiteralPath '" + zipPath + "' -DestinationPath '" + outDir + "' -Force"]);
-      extracted = true;
-    } else {
-      const attempts = [
-        ['python3', ['-X', 'utf8', '-m', 'zipfile', '-e', zipPath, outDir]],
-        ['unzip', ['-o', zipPath, '-d', outDir]]
-      ];
-      const missing = [];
-      for (const pair of attempts) {
-        try {
-          execFileSync(pair[0], pair[1]);
-          extracted = true;
-          break;
-        } catch (e) {
-          if (e && e.code === 'ENOENT') { missing.push(pair[0]); continue; } // 未安装 → 换下一个
-          throw e;                                                          // 解压真失败 → 上抛
-        }
+    const failedTools = [];
+    for (const pair of attempts) {
+      try {
+        execFileSync(pair[0], pair[1], { stdio: 'pipe' });
+        extracted = true;
+        break;
+      } catch (e) {
+        failedTools.push(pair[0] + (e && e.code === 'ENOENT' ? '(未安装)' : ''));
       }
-      if (!extracted) {
-        skip('未找到解压器（' + missing.join(' / ') + '），跳过真实解压回归（非 Windows 平台；'
-          + 'ZIP 结构 / CRC32 断言仍覆盖正确性）');
-      }
+    }
+    if (!extracted) {
+      skip('解压器不可用（' + failedTools.join(' / ') + '），跳过真实解压回归；'
+        + 'ZIP 结构 / CRC32 断言仍覆盖正确性');
     }
     if (extracted) {
       for (let i = 0; i < expected.length; i++) {
