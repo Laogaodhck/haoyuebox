@@ -60,7 +60,7 @@ withServer(PORT, async (port) => {
   assert(typeof win.MatteView.attach === 'function', 'MatteView 就绪');
   assert(typeof win.Cropper.attach === 'function', 'Cropper 就绪');
   assert(win.App && typeof win.App.showModule === 'function', 'App 核心状态就绪');
-  ['ui', 'photo', 'sheet', 'print', 'settings', 'convert', 'compose', 'batchFormat', 'batchWatermark', 'archive', 'printBatch', 'docsOcr', 'docsPdf', 'docsConvert', 'docsWatermark', 'docsReader'].forEach(function (m) {
+  ['ui', 'photo', 'sheet', 'print', 'settings', 'convert', 'compose', 'batchFormat', 'batchWatermark', 'certPrint', 'archive', 'printBatch', 'docsOcr', 'docsPdf', 'docsConvert', 'docsWatermark', 'docsReader'].forEach(function (m) {
     assert(!!win.App && typeof win.App[m] === 'object', 'App.' + m + ' 命名空间已注册');
   });
   /* 长任务取消令牌 + 文档拖放助手（v1.6.0） */
@@ -118,10 +118,11 @@ withServer(PORT, async (port) => {
   assert(doc.getElementById('photo-open-idphoto') && doc.getElementById('photo-open-convert') && doc.getElementById('photo-open-compose'),
     '证照生成 / 图片转换 / 图片合成入口存在');
   assert(!!doc.getElementById('photo-convert') && !!doc.getElementById('photo-compose'), '图片转换 / 图片合成面板存在');
-  assert(doc.querySelectorAll('#batch-menu .home-card').length === 5, '批量工具菜单 5 张卡片（全部可用）');
+  assert(doc.querySelectorAll('#batch-menu .home-card').length === 6, '批量工具菜单 6 张卡片（全部可用）');
   assert(doc.getElementById('batch-open-rename') && doc.getElementById('batch-open-watermark') && doc.getElementById('batch-open-format'),
     '批量重命名 / 去除水印 / 格式转换入口存在');
   assert(!!doc.getElementById('batch-format') && !!doc.getElementById('batch-watermark'), '格式转换 / 去除水印面板存在');
+  assert(!!doc.getElementById('batch-open-cert') && !!doc.getElementById('cert-print'), '结业证打印入口与面板存在');
   assert(doc.querySelectorAll('#batch-format select, #batch-watermark select').length === 5, '两个新面板下拉共 5 个');
   /* 首页模块卡片文案：须覆盖已实装能力，不用「更多功能陆续上线」掩盖已交付功能 */
   var homeDescs = ['home-photo', 'home-batch', 'home-print', 'home-system'].map(function (id) {
@@ -139,6 +140,8 @@ withServer(PORT, async (port) => {
    'bw-files', 'bw-tools', 'bw-tool-rect', 'bw-tool-brush', 'bw-tool-erase', 'bw-brush-row', 'bw-brush-size',
    'photo-open-restore', 'soon-photo-back',
    'batch-open-printbatch',
+   'cert-export', 'cert-import', 'cert-file', 'cert-count', 'cert-unsupported', 'cert-printer',
+   'cert-clear', 'cert-print-btn', 'cert-status', 'cert-back', 'cert-grid', 'cert-empty',
    'print-open-docs', 'print-open-convert', 'print-open-pdf', 'print-open-ocr', 'print-open-watermark',
    'do-pick', 'do-file', 'do-count', 'do-empty', 'do-clear', 'do-lang', 'do-run', 'do-cancel', 'do-status',
    'do-back', 'do-text', 'do-meta', 'do-copy', 'do-txt', 'do-docx', 'do-empty-hint',

@@ -1017,6 +1017,56 @@ body[data-module="system"] #sheet-steps-nav { display: none; }
 .pb-card-off { opacity: .45; }
 .pb-card-off .pb-thumb img { filter: grayscale(.4); }
 #pd-table tr.row-unchecked td { opacity: .45; }
+/* 结业证打印：学员预览卡片网格 */
+.cert-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+.cert-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cert-card-head { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+.cert-idx {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cert-name { font-weight: 600; }
+.cert-meta {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cert-pages { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cert-pages figure { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cert-pages img {
+  width: 100%;
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+}
+.cert-pages figcaption { font-size: 11px; color: var(--text-dim); text-align: center; }
 .batch-menu, .photo-menu, .archive-menu {
   display: grid;
   grid-template-columns: 1fr 1fr;

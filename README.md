@@ -15,7 +15,7 @@
 | --- | --- |
 | **照片工具** | 证照生成：AI 抠图换底、笔刷修补、8 种证件规格、300DPI 导出与六寸排版 · 图片转换（JPG/PNG/WebP）· 图片压缩 · 图片合成（拼接 / 网格） |
 | **排版工具** | 4 步批量排版打印：模板 → 导入与预览 → 导出 → 打印；6 寸 / A4 / B5 / A5 / A3 相纸，间距固定 2.4mm、裁切线可开关；导入后逐张预览照片并单独设置份数（1–99），一版放不下自动分页 |
-| **批量工具** | 批量重命名（规则编号 + 自定义名、冲突检测）· 去除水印 · 格式转换 · 体积优化 · 批量打印（图片） |
+| **批量工具** | 批量重命名（规则编号 + 自定义名、冲突检测）· 去除水印 · 格式转换 · 体积优化 · 批量打印（图片）· 结业证打印（Excel 模板导入 + A5 横向批量打印） |
 | **文档工具** | 文档打印（PDF/TXT/DOCX，单双面）· 文档转换（PDF↔图片、Word→PDF）· PDF 工具（合并 / 拆分 / 压缩）· PDF 阅读器 · OCR 文字识别 · 文档加水印 |
 | **压缩工具** | 7z / ZIP 压缩（密码、加密文件名、四档等级、分卷）· 16 种格式解压 · 压缩包内容浏览 · 压缩包图标关联 |
 | **系统工具** | 网络检测 · 添加打印机（向导 / 测试页）· 设置（主题、启动页、备份恢复、诊断日志导出） |
@@ -74,7 +74,7 @@ start.bat          # 或 npm run serve（需本机 Node.js）
 npm install
 npm start        # 启动 Electron 窗口（内置随机端口静态服务）
 npm run dist     # 打包 Windows 安装版 + 便携版 → release-build/
-npm test         # 31 套件：纯算法 / 静态服务 / jsdom 冒烟 / OCR 引擎安装与识别（无需浏览器）
+npm test         # 32 套件：纯算法 / 静态服务 / jsdom 冒烟 / OCR 引擎安装与识别（无需浏览器）
 npm run verify   # Playwright 端到端（需 Chromium；部分项需 fixtures/photo.jpg）
 npm run lint     # ESLint
 npm run eval:ocr # OCR 精度评测（8 类合成场景 CER / 命中率 / 耗时）
@@ -99,11 +99,12 @@ CI（`.github/workflows/ci.yml`）在 push / PR 时跑语法扫描、ESLint 与 
 
 ```
 ├── index.html            # 单页入口（七模块 + 子功能菜单）
-├── js/                   # 渲染层（IIFE 模块挂 window.App，30 个）
+├── js/                   # 渲染层（IIFE 模块挂 window.App，31 个）
 │   ├── app.js            # 核心状态机、模块路由、取消令牌、拖放助手
 │   ├── segmenter.js      # 人像分割与蒙版增强
 │   ├── docs-*.js         # 文档工具：打印 / 转换 / PDF / 阅读器 / 水印 / OCR
 │   ├── ocr-enhance.js    # OCR 图像增强与版面还原
+│   ├── cert-print.js     # 结业证打印（Excel 模板导出/导入 + A5 横向可视化批量打印）
 │   ├── ocr-umi.js        # OCR 引擎适配：按需下载的 RapidOCR
 │   └── ...               # 排版、批量、压缩、设置等
 ├── electron/             # 主进程：窗口、静态服务、打印 / 7z / OCR 引擎 / 系统工具 / 备份 / 更新 IPC

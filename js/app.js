@@ -974,6 +974,8 @@ window.App = (function () {
     { card: 'soon-photo-back',       run: function () { showPhotoSub('menu'); } },
     /* 批量打印（图片面板）已自打印工具迁入批量工具 */
     { card: 'batch-open-printbatch', run: function () { window.App.batch.showOnly('print-batch'); window.App.printBatch.refreshPrinters(); } },
+    /* 结业证打印：导出 / 导入 Excel 信息模板，按 A5 横向批量打印 */
+    { card: 'batch-open-cert',      run: function () { window.App.batch.showOnly('cert-print'); window.App.certPrint.enter(); } },
     /* 文档工具：六项子功能均已实装 */
     { card: 'print-open-docs',      run: function () { window.App.printBatch.showOnly('print-docs'); } },
     { card: 'print-open-convert',   run: function () {
@@ -1013,7 +1015,7 @@ window.App = (function () {
     { card: 'set-back',              run: function () { showSystemMenu(); } }
   ];
   /* boot 时逐个调用的模块 init 列表（与 window.App 键名一致） */
-  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch', 'docsWatermark', 'docsConvert', 'docsPdf', 'docsReader', 'docsOcr', 'system', 'updaterUI'];
+  var MODULE_INITS = ['sheet', 'batch', 'batchFormat', 'batchWatermark', 'certPrint', 'archive', 'convert', 'compose', 'compress', 'print', 'printBatch', 'docsWatermark', 'docsConvert', 'docsPdf', 'docsReader', 'docsOcr', 'system', 'updaterUI'];
 
   function initModules() {
     document.querySelectorAll('.module-tab').forEach(function (t) {

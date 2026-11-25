@@ -45,7 +45,7 @@
 │ 渲染进程（http://127.0.0.1:<port>/）                                  │
 │  index.html（7 个模块页 + 照片工具 4 步）                              │
 │  css/style.css (1.7.1 为 1429 行 / 1.7.2 为 1376 行)                  │
-│  js/ 30 个 IIFE 模块，共享 window.App{State,ui,...}                    │
+│  js/ 31 个 IIFE 模块（1.8.2），共享 window.App{State,ui,...}           │
 │  vendor/ mediapipe(模型+wasm) / ocr(tesseract) / print(pdf.js,mammoth)│
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -63,7 +63,7 @@
 | 目录 | 定位 | 事实 |
 |---|---|---|
 | `electron/` | 主进程与 preload | 1.7.1 为 11 个模块、1.7.2 为 14 个（新增 `rapidocr.js` / `umi-ocr.js` / `ocr-engine.js`）；1.8.0 移除 `umi-ocr.js` 后为 13 个。`main.js` 1.7.1 为 422 行 / 1.7.2 为 398 行，其余按领域拆分（archive / system / print-doc / update / updater / static-server / 7z 引擎 / OCR 引擎与进程） |
-| `js/` | 渲染层业务 | 1.7.1 为 29 个 IIFE、1.7.2 为 30 个（新增 `ocr-umi.js`）；最大 `docs-ocr.js`（1.7.2 约 1800 行），其后 `ocr-enhance.js`、`app.js` |
+| `js/` | 渲染层业务 | 1.7.1 为 29 个 IIFE、1.7.2 为 30 个（新增 `ocr-umi.js`）、1.8.2 为 31 个（新增 `cert-print.js`）；最大 `docs-ocr.js`（1.7.2 约 1800 行），其后 `ocr-enhance.js`、`app.js` |
 | `index.html` | 单页 UI 与脚本清单 | 1.7.1 为 1937 行 / 106.4 KB、1.7.2 为 1801 行 / 108 KB；7 个模块页（home/photo/sheet/batch/print/archive/system），照片工具内部 4 步（upload/matte/spec/export） |
 | `css/style.css` | 全部样式 | 1.7.1 为 1429 行 / 47.3 KB、1.7.2 为 1376 行 / 47 KB，无预处理器 |
 | `vendor/` | 第三方离线资产 | `mediapipe/models` 15.9 MB（两个 tflite 分割模型）、`mediapipe/wasm` 38.8 MB、`ocr` 13.2 MB + `ocr/lang` 4.5 MB（Tesseract）、`print` 2 MB（pdf.js / mammoth）；入口 `vendor/mediapipe/vision_bundle.js` |
@@ -694,7 +694,9 @@ Windows SmartScreen 会提示未知发布者；`docs/security-software-compatibi
 
 > 行数为 `(Get-Content <file>).Count` 的物理行数（含空行）；不同统计方式可能有 ±几十行差异。
 
-## 附录 B：IPC 通道清单（32 个通道：31 invoke + 1 send；另有 2 个单向事件）
+## 附录 B：IPC 通道清单（1.7.2 快照 32 个：31 invoke + 1 send；1.8.2 实为 38 个：37 invoke + 1 send；另有 2 个单向事件）
+
+> 下表为 1.7.2 基线清单；OCR 相关增量见第九节第 3–6 条。1.8.2 未新增 IPC 通道，`tools/test-ipc-contract.cjs` 按 preload 实际调用校验 38 个通道。
 
 ```
 print:listPrinters        print:showProperties     print:printImage       print:readFile
@@ -727,3 +729,4 @@ app-update:openReleases
 4. **IPC 与桥接增量**：新增 `ocr:umiProbe` / `ocr:umiRecognize` / `ocr:rapidStatus` / `ocr:rapidRecognize` / `ocr:engineStatus` / `ocr:engineInstall` / `ocr:engineRemove` 七个 invoke 通道与一个进度事件（preload 增加 `haoyueOcr` 一组），主进程模块增至 14 个，渲染层 IIFE 增至 30 个；`tools/test-ipc-contract.cjs` 会按 preload 实际调用自动纳入契约检查。
 5. **只保留中英模型**：下载包内 `models/configs.txt` 裁剪为简体中文 / English 两块；升级引擎时须同步裁剪（否则 Umi 面板会列出未随包的模型），并用 `npm run ocr:pack` 重新打包上传。升级注意见 [VENDOR.md](../VENDOR.md)。
 6. **1.8.0 调整**：新增 `ocr:rapidWarmup`（安装完成后立即启动引擎并完成握手，面板显示「已加载」）；删除 `ocr:umiProbe` / `ocr:umiRecognize` 与 `electron/umi-ocr.js`，`ocr:` 通道由 7 个降为 6 个，主进程模块 14 → 13 个。
+7. **1.8.2 结业证打印**（2026-11-26）：批量工具新增第 6 张子功能卡「结业证打印」（`js/cert-print.js`，渲染层 IIFE 30 → 31 个），流程为「导出 Excel 信息模板 → 填写 → 导入 → 可视化预览 → 批量打印」。版式取自 `E:\electron-dist\moban` 的 A5 横向（210×148mm）模板：每人 2 张，第 1 张 = 封面 + 第1页（身份证号 / 发证日期），第 2 张 = 第2、3页（学员信息 + 两组科目成绩）。字段坐标以 moban 照片透视校正后实测的实物留白为准（docx 文本框位置与实物偏差 15–20mm，仅用于核对字段）。XLSX 读取自带 ZIP（store / deflate-raw）与 SpreadsheetML 解析（inlineStr / sharedStrings，18 位身份证号保持文本），打印复用 `print:printImage`（A5 + landscape + 无边距），未新增 IPC 通道；新增 `tools/test-cert-print.cjs`（45 条断言），`npm test` 套件 31 → 32。
