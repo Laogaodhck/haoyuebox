@@ -1,5 +1,5 @@
 /* ============================================================
- * sheet.js — 排版流程：选择模板 → 批量导入 → 预览导出 → 打印
+ * sheet.js — 排版流程：选择模板 → 导入照片（预览 + 逐张份数）→ 预览导出 → 打印
  * 相纸与排版算法在 composer.js，打印参数与执行在 print.js。
  * ============================================================ */
 'use strict';
@@ -11,12 +11,33 @@
   var download = App.ui.download;
   var State = App.State;
 
-  var sheetFiles = [];       // 批量导入的照片 [{canvas, name}]
+  var sheetFiles = [];       // 批量导入的照片 [{canvas, name, copies, thumb}]
   var sheetPages = null;     // 最近一次排版结果 { pages, ... }
   var sheetPageIdx = 0;
 
   /* 排版模块分步：tpl → import → preview → print */
   var SHEET_STEPS = ['tpl', 'import', 'preview', 'print'];
+
+  /* 份数钳制：非法输入（NaN/0/负数/超大）按 1 份处理，避免空 cells 误报「无法排入」 */
+  function clampCopies(v) {
+    var n = Math.round(+v);
+    if (!(n >= 1 && n <= 99)) n = 1;
+    return n;
+  }
+
+  /* 缩略图：等比缩到 240px 以内，仅用于第 2 步的照片预览网格 */
+  function makeThumb(src) {
+    var max = 240;
+    var k = Math.min(1, max / Math.max(src.width, src.height));
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(src.width * k));
+    c.height = Math.max(1, Math.round(src.height * k));
+    var x = c.getContext('2d');
+    x.imageSmoothingEnabled = true;
+    x.imageSmoothingQuality = 'high';
+    x.drawImage(src, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.72);
+  }
 
   function showStep(name) {
     SHEET_STEPS.forEach(function (s, idx) {
@@ -28,6 +49,7 @@
         chip.classList.toggle('done', idx < SHEET_STEPS.indexOf(name));
       }
     });
+    if (name === 'import') renderPhotoGrid();
     if (name === 'preview') renderLaySheet();
     if (name === 'print') { App.print.drawPreview(); App.print.refreshSheetList(); refreshPagers(); }
   }
@@ -46,7 +68,7 @@
     return cell;
   }
 
-  /* 组装逐格照片列表：每张导入照片 × 所选份数，统一尺寸 */
+  /* 组装逐格照片列表：每张导入照片 × 它自己的份数，统一尺寸 */
   function collectCells() {
     var tip = $('sheet-empty-tip');
     var sp = window.SpecUtil.byId($('sheet-spec').value);
@@ -56,15 +78,125 @@
       return null;
     }
     tip.hidden = true;
-    // 份数钳制：非法输入（NaN/0/负数/超大）按 1 份处理，避免空 cells 误报「无法排入」
-    var copies = Math.round(+$('sheet-count').value);
-    if (!(copies >= 1 && copies <= 99)) copies = 1;
     var cells = [];
     sheetFiles.forEach(function (f) {
       var cell = coverToSpec(f.canvas, sp);
+      var copies = clampCopies(f.copies);
       for (var i = 0; i < copies; i++) cells.push(cell);
     });
     return { cells: cells, sp: sp };
+  }
+
+  /* ---------- 第 2 步：照片预览网格（逐张份数） ---------- */
+
+  function totalCopies() {
+    var n = 0;
+    sheetFiles.forEach(function (f) { n += clampCopies(f.copies); });
+    return n;
+  }
+
+  function updatePhotoSummary() {
+    var el = $('sheet-photo-summary');
+    if (!el) return;
+    el.textContent = sheetFiles.length
+      ? '共 ' + sheetFiles.length + ' 张照片 · 合计 ' + totalCopies() + ' 份'
+      : '';
+  }
+
+  /* 份数改动：只同步当前卡片输入框与汇总，不整块重绘（保持输入焦点） */
+  function setPhotoCopies(file, input, value) {
+    var n = clampCopies(value);
+    file.copies = n;
+    if (input) input.value = n;
+    updatePhotoSummary();
+    renderLaySheet();
+  }
+
+  function removePhoto(idx) {
+    if (!sheetFiles[idx]) return;
+    sheetFiles.splice(idx, 1);
+    $('sheet-file-name').textContent = sheetFiles.length ? '已导入 ' + sheetFiles.length + ' 张' : '已清空';
+    renderPhotoGrid();
+    renderLaySheet();
+  }
+
+  function renderPhotoGrid() {
+    var grid = $('sheet-photo-grid');
+    if (!grid) return;
+    var empty = $('sheet-photo-empty');
+    grid.innerHTML = '';
+    if (!sheetFiles.length) {
+      grid.hidden = true;
+      empty.hidden = false;
+      updatePhotoSummary();
+      return;
+    }
+    grid.hidden = false;
+    empty.hidden = true;
+
+    sheetFiles.forEach(function (f, idx) {
+      var card = document.createElement('div');
+      card.className = 'sheet-photo';
+
+      var thumb = document.createElement('div');
+      thumb.className = 'sp-thumb';
+      var img = document.createElement('img');
+      img.src = f.thumb || '';
+      img.alt = f.name || ('照片 ' + (idx + 1));
+      var badge = document.createElement('span');
+      badge.className = 'sp-index';
+      badge.textContent = idx + 1;
+      thumb.appendChild(img);
+      thumb.appendChild(badge);
+
+      var name = document.createElement('div');
+      name.className = 'sp-name';
+      name.textContent = f.name || ('照片 ' + (idx + 1));
+      name.title = f.name || '';
+
+      var ops = document.createElement('div');
+      ops.className = 'sp-ops';
+
+      var dec = document.createElement('button');
+      dec.type = 'button';
+      dec.className = 'sp-btn';
+      dec.textContent = '-';
+      dec.setAttribute('aria-label', '减少这张照片的份数');
+      dec.addEventListener('click', function () { setPhotoCopies(f, count, clampCopies(f.copies) - 1); });
+
+      var count = document.createElement('input');
+      count.type = 'number';
+      count.className = 'sp-count num-input';
+      count.min = '1'; count.max = '99'; count.step = '1';
+      count.value = clampCopies(f.copies);
+      count.setAttribute('aria-label', '这张照片的份数');
+      count.addEventListener('change', function () { setPhotoCopies(f, count, count.value); });
+
+      var inc = document.createElement('button');
+      inc.type = 'button';
+      inc.className = 'sp-btn';
+      inc.textContent = '+';
+      inc.setAttribute('aria-label', '增加这张照片的份数');
+      inc.addEventListener('click', function () { setPhotoCopies(f, count, clampCopies(f.copies) + 1); });
+
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'sp-del';
+      del.setAttribute('aria-label', '移除这张照片');
+      del.appendChild(App.ui.icon('x'));
+      del.addEventListener('click', function () { removePhoto(idx); });
+      thumb.appendChild(del);
+
+      ops.appendChild(dec);
+      ops.appendChild(count);
+      ops.appendChild(inc);
+      card.appendChild(thumb);
+      card.appendChild(name);
+      card.appendChild(ops);
+      grid.appendChild(card);
+    });
+
+    updatePhotoSummary();
   }
 
   /* ---------- 页码按钮列表（排版预览 / 打印预览共用） ---------- */
@@ -153,10 +285,9 @@
 
     drawPage();
     refreshPagers();
-    var copies = +$('sheet-count').value;
-    info.textContent = result.paper.name + ' · ' + result.width + '×' + result.height + 'px · 300DPI · 共 '
-      + sheetFiles.length + ' 张照片 × ' + copies + ' 份 = ' + result.total + ' 格 · 版面 ' + result.cols + ' 列×'
-      + Math.min(result.pages[0].rowsUsed, Math.round(result.capacity / result.cols)) + ' 行'
+    info.textContent = result.paper.name + ' · ' + result.width + '×' + result.height + 'px · 300DPI · '
+      + sheetFiles.length + ' 张照片 · 合计 ' + result.total + ' 份 · 版面 '
+      + result.cols + ' 列×' + Math.min(result.pages[0].rowsUsed, Math.round(result.capacity / result.cols)) + ' 行'
       + (result.pages.length > 1 ? ' · 分 ' + result.pages.length + ' 页' : '');
   }
 
@@ -240,6 +371,7 @@
       App.ui.statusText(text, '已导入 ' + loaded.length + ' 张' + (failed ? ' · 失败 ' + failed + ' 张' : ''), failed ? 'alert' : 'check');
       if (failed) toast('导入完成：成功 ' + loaded.length + ' 张，失败 ' + failed + ' 张（' + failedName + '）', true);
       $('sheet-file-name').textContent = '已导入 ' + sheetFiles.length + ' 张';
+      renderPhotoGrid();
       renderLaySheet();
       hideTimer = setTimeout(function () { box.hidden = true; hideTimer = null; }, 1200); // 满格停留后收起
     };
@@ -261,7 +393,12 @@
           var c = document.createElement('canvas');
           c.width = img.naturalWidth; c.height = img.naturalHeight;
           c.getContext('2d').drawImage(img, 0, 0);
-          loaded.push({ canvas: c, name: (file.name || '').replace(/\.[^.]+$/, '') || '照片' });
+          loaded.push({
+            canvas: c,
+            name: (file.name || '').replace(/\.[^.]+$/, '') || '照片',
+            copies: clampCopies($('sheet-count').value),
+            thumb: makeThumb(c)
+          });
           settle(true);
         };
         img.onerror = function () { settle(false, file.name); };
@@ -295,13 +432,26 @@
     $('btn-use-photo-result').addEventListener('click', function () {
       if (!State.workCanvas || !State.transform) { toast('请先在「照片」模块完成一张成品', true); return; }
       var c = App.photo.makeSingleCanvas();
-      sheetFiles.push({ canvas: c, name: State.sourceName || '照片成品' });
+      sheetFiles.push({
+        canvas: c,
+        name: State.sourceName || '照片成品',
+        copies: clampCopies($('sheet-count').value),
+        thumb: makeThumb(c)
+      });
       $('sheet-file-name').textContent = '已导入 ' + sheetFiles.length + ' 张（含照片模块成品 1 张）';
+      renderPhotoGrid();
       renderLaySheet();
     });
 
     $('sheet-spec').addEventListener('change', renderLaySheet);
-    $('sheet-count').addEventListener('change', renderLaySheet);
+    // 统一份数：改写全部已导入照片的份数（第 2 步仍可逐张单独调整）
+    $('sheet-count').addEventListener('change', function () {
+      var n = clampCopies(this.value);
+      this.value = n;
+      sheetFiles.forEach(function (f) { f.copies = n; });
+      renderPhotoGrid();
+      renderLaySheet();
+    });
     $('sheet-paper').addEventListener('change', renderLaySheet);
     $('sheet-cutlines').addEventListener('change', renderLaySheet);
     $('btn-download-laysheet').addEventListener('click', downloadSheet);
@@ -319,6 +469,7 @@
       sheetFiles = [];
       $('sheet-file-name').textContent = '已清空';
       $('sheet-import-progress').hidden = true;
+      renderPhotoGrid();
       renderLaySheet();   // 同步重置预览画布与页码，避免停留在旧排版
       toast('已清空导入的照片');
     });

@@ -36,7 +36,7 @@
   </nav>
   <nav class="steps" id="sheet-steps-nav">
     <div class="step active" data-sstep="tpl"><i>1</i>选择模板</div>
-    <div class="step" data-sstep="import"><i>2</i>导入照片</div>
+    <div class="step" data-sstep="import"><i>2</i>导入与预览</div>
     <div class="step" data-sstep="preview"><i>3</i>预览导出</div>
     <div class="step" data-sstep="print"><i>4</i>打印</div>
   </nav>
@@ -528,12 +528,8 @@
       <select id="sheet-spec" class="select"></select>
 
       <h3>每张份数</h3>
-      <select id="sheet-count" class="select">
-        <option value="1">每张 1 份</option>
-        <option value="2">每张 2 份</option>
-        <option value="3">每张 3 份</option>
-        <option value="4">每张 4 份</option>
-      </select>
+      <input type="number" id="sheet-count" class="num-input" min="1" max="99" step="1" value="1">
+      <div class="hint-text">统一份数（1–99），新导入照片按此初始化；导入后可在第 2 步逐张单独调整</div>
 
       <h3>相纸</h3>
       <select id="sheet-paper" class="select">
@@ -554,12 +550,12 @@
     <div class="stage">
       <div class="canvas-wrap" style="justify-content:center;align-items:center;text-align:center;">
         <div class="dz-title" style="font-size:16px">第 1 步：选择排版模板</div>
-        <div class="dz-hint">确定单张尺寸、每张份数与相纸后，进入下一步导入照片</div>
+        <div class="dz-hint">确定单张尺寸、每张份数与相纸后，进入下一步导入照片；导入后可逐张预览并调整份数</div>
       </div>
     </div>
   </div>
 
-  <!-- 排版步骤 2：导入照片 -->
+  <!-- 排版步骤 2：导入照片 + 照片预览与逐张份数 -->
   <div id="sheetstep-import" class="step-panel">
     <aside class="panel">
       <h3>批量导入照片</h3>
@@ -579,6 +575,7 @@
       <div class="btn-row">
         <button id="btn-sheet-clear" class="ghost">清空已导入</button>
       </div>
+      <div class="hint-text">照片按导入顺序逐格排入版面，可多次导入累加；导入后可在右侧预览每张照片并单独设置份数</div>
 
       <div class="btn-row bottom">
         <button id="btn-sheet-back-tpl" class="ghost"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>上一步</button>
@@ -586,9 +583,11 @@
       </div>
     </aside>
     <div class="stage">
-      <div class="canvas-wrap" style="justify-content:center;align-items:center;text-align:center;">
-        <div class="dz-title" style="font-size:16px">第 2 步：批量导入照片</div>
-        <div class="dz-hint">照片将按导入顺序逐格排入版面，可多次导入累加</div>
+      <div class="canvas-wrap sheet-photo-wrap">
+        <div class="preview-title">照片预览与份数</div>
+        <div id="sheet-photo-grid" class="sheet-photos" hidden></div>
+        <div id="sheet-photo-empty" class="stage-tip">导入照片后，这里会显示每张照片的预览，可分别设置每张份数</div>
+        <div id="sheet-photo-summary" class="stage-tip"></div>
       </div>
     </div>
   </div>
