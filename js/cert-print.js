@@ -3,13 +3,13 @@
  * 流程：导出 Excel 信息模板 → 用户填写 → 导入 → 可视化预览 → 批量打印。
  *
  * 版式依据 E:\electron-dist\moban 下的 docx 与带尺照片：
- *   实物为 16K 纸对折（展开约 185×130mm），docx 页面 210×148mm 仅作字段参考，
+ *   实物为 16K 纸对折（展开约 175×125mm），docx 页面 210×148mm 仅作字段参考，
  *   尺寸与留白位置以带尺照片实测为准。
  *   第1页（右半版）：身份证号、发证日期（年/月/日）
  *   第2页（左半版）：姓名、性别、年龄、省份、市/县、街道/乡镇、
  *                    起止日期（年/月/日 ×2）、培训学校、项目、发证日期
  *   第3页（右半版）：科目1/成绩1、科目2/成绩2
- * 每名学员打印 2 张 185×130mm 横向：第 1 张 = 封面 + 第1页，第 2 张 = 第2、3页。
+ * 每名学员打印 2 张 175×125mm 横向：第 1 张 = 封面 + 第1页，第 2 张 = 第2、3页。
  * 结业证为预印本，只把变量值按模板坐标打印到留白处。
  *
  * 坐标单位 mm，取自 Word 版面中文本框的实际渲染位置（Left/Top + 文本框内边距）。
@@ -25,10 +25,10 @@ window.App.certPrint = (function () {
   var printApi = window.haoyuePrint || null;
 
   /* 16K 对折横向版面与渲染密度（8px/mm ≈ 203dpi）
-   * 实物展开约 185×130mm（带尺照片实测），不是 A5 210×148mm。
+   * 实物展开约 175×125mm（带尺照片实测），不是 A5 210×148mm。
    * 不用 12px/mm：部分针式 / 标签打印机驱动的光栅行宽上限约 2048px，
    * 305dpi 的 2520px 整页会被驱动换行，导致右侧字段被拆到纸张左缘。 */
-  var PAGE_MM = { w: 185, h: 130 };
+  var PAGE_MM = { w: 175, h: 125 };
   var PX_PER_MM = 8;
   var THUMB_PX_PER_MM = 4;
   var FONT_FAMILY = '"SimSun","宋体","Microsoft YaHei",serif';
@@ -42,7 +42,7 @@ window.App.certPrint = (function () {
   ];
   var HEADER_WIDTHS = [150, 80, 50, 50, 80, 90, 90, 110, 110, 120, 130, 110, 90, 70, 90, 70];
   var EXAMPLE_ROW = [
-    '11010519491231002X', '张三', '男', '30', '示例省', '示例市', '示例乡镇',
+    '11010519491231002X', '张三', '男', '30', '湖北', '武汉', '江汉',
     '2026-01-01', '2026-06-30', '示例培训学校', '示例项目', '2026-07-01',
     '科目一', '合格', '科目二', '80'
   ];
@@ -63,43 +63,43 @@ window.App.certPrint = (function () {
   };
 
   /* ================= 版式坐标（mm，文字左上角；pt 为字号） =================
-   * 以 moban 带尺照片实测 185×130mm 后量取实物证书留白位置；
+   * 以 moban 带尺照片实测 175×125mm 后量取实物证书留白位置；
    * docx 仅用于确认字段与示例值（其文本框位置与实物有偏差，不直接采用）。 */
   /* 第1页：封面右侧（x > 105mm） */
   var FIELDS_A = [
-    { key: 'idNo', x: 130.4, y: 102.3, pt: 12, maxW: 45.8, latin: true },
-    { key: 'issueY', x: 131.3, y: 115.3, pt: 12, maxW: 19.4 },
-    { key: 'issueM', x: 156.4, y: 115.3, pt: 12, maxW: 5.3 },
-    { key: 'issueD', x: 166.5, y: 115.3, pt: 12, maxW: 5.3 }
+    { key: 'idNo', x: 123.4, y: 98.4, pt: 11.5, maxW: 43.3, latin: true },
+    { key: 'issueY', x: 124.2, y: 107.7, pt: 11.5, maxW: 18.4 },
+    { key: 'issueM', x: 147.9, y: 107.7, pt: 11.5, maxW: 5.0 },
+    { key: 'issueD', x: 157.5, y: 107.7, pt: 11.5, maxW: 5.0 }
   ];
-  /* 第2页（左半版）与第3页（右半版），同在一张 185×130mm 横向纸上
+  /* 第2页（左半版）与第3页（右半版），同在一张 175×125mm 横向纸上
    * 地址按实物第2页第一处「____ 市 ____ 街道」填写（市/县、街道/乡镇） */
   var FIELDS_B = [
-    { key: 'name', x: 35.0, y: 19.1, pt: 12, maxW: 18.0 },
-    { key: 'gender', x: 67.5, y: 19.3, pt: 12, maxW: 8.0 },
-    { key: 'age', x: 16.0, y: 28.5, pt: 12, maxW: 8.0 },
-    { key: 'province', x: 32.0, y: 28.5, pt: 12, maxW: 12.0 },
-    { key: 'cityCounty', x: 5.0, y: 34.8, pt: 12, maxW: 14.0 },
-    { key: 'streetTown', x: 34.0, y: 34.8, pt: 12, maxW: 12.0 },
-    { key: 'startY', x: 80.0, y: 38.5, pt: 12, maxW: 10.0 },
-    { key: 'startM', x: 6.0, y: 48.1, pt: 12, maxW: 8.0 },
-    { key: 'startD', x: 20.0, y: 48.1, pt: 12, maxW: 8.0 },
-    { key: 'endY', x: 40.0, y: 48.1, pt: 12, maxW: 10.0 },
-    { key: 'endM', x: 56.0, y: 48.1, pt: 12, maxW: 6.0 },
-    { key: 'endD', x: 63.0, y: 48.1, pt: 12, maxW: 7.0 },
-    { key: 'school', x: 5.0, y: 57.7, pt: 12, maxW: 33.0 },
-    { key: 'project', x: 52.0, y: 57.7, pt: 12, maxW: 40.0 },
-    { key: 'issueY', x: 33.0, y: 116.3, pt: 12, maxW: 12.0 },
-    { key: 'issueM', x: 48.0, y: 116.3, pt: 12, maxW: 9.0 },
-    { key: 'issueD', x: 60.0, y: 116.3, pt: 12, maxW: 8.0 },
-    { key: 'subj1', x: 110.0, y: 27.1, pt: 12, maxW: 32 },
-    { key: 'score1', x: 153.0, y: 27.1, pt: 12, maxW: 30 },
-    { key: 'subj2', x: 110.0, y: 35.0, pt: 12, maxW: 32 },
-    { key: 'score2', x: 153.0, y: 35.0, pt: 12, maxW: 30 }
+    { key: 'name', x: 33.1, y: 18.4, pt: 11.5, maxW: 17.0 },
+    { key: 'gender', x: 68.5, y: 18.6, pt: 11.5, maxW: 7.6 },
+    { key: 'age', x: 15.1, y: 27.4, pt: 11.5, maxW: 7.6 },
+    { key: 'province', x: 36.2, y: 27.4, pt: 11.5, maxW: 9.5 },
+    { key: 'cityCounty', x: 4.7, y: 33.5, pt: 11.5, maxW: 13.2 },
+    { key: 'streetTown', x: 36.2, y: 33.5, pt: 11.5, maxW: 10.0 },
+    { key: 'startY', x: 69.6, y: 37.0, pt: 11.5, maxW: 7.4 },
+    { key: 'startM', x: 5.7, y: 46.3, pt: 11.5, maxW: 7.6 },
+    { key: 'startD', x: 20.4, y: 46.3, pt: 11.5, maxW: 7.6 },
+    { key: 'endY', x: 37.8, y: 46.3, pt: 11.5, maxW: 9.5 },
+    { key: 'endM', x: 51.5, y: 46.3, pt: 11.5, maxW: 5.0 },
+    { key: 'endD', x: 59.6, y: 46.3, pt: 11.5, maxW: 6.6 },
+    { key: 'school', x: 4.7, y: 55.5, pt: 11.5, maxW: 31.2 },
+    { key: 'project', x: 49.2, y: 55.5, pt: 11.5, maxW: 37.8 },
+    { key: 'issueY', x: 45.4, y: 111.8, pt: 11.5, maxW: 7.4 },
+    { key: 'issueM', x: 59.0, y: 111.8, pt: 11.5, maxW: 5.0 },
+    { key: 'issueD', x: 71.0, y: 111.8, pt: 11.5, maxW: 5.0 },
+    { key: 'subj1', x: 104.1, y: 26.1, pt: 11.5, maxW: 30.3 },
+    { key: 'score1', x: 144.7, y: 26.1, pt: 11.5, maxW: 28.4 },
+    { key: 'subj2', x: 104.1, y: 33.7, pt: 11.5, maxW: 30.3 },
+    { key: 'score2', x: 144.7, y: 33.7, pt: 11.5, maxW: 28.4 }
   ];
   var FACES = { a: FIELDS_A, b: FIELDS_B };
 
-  /* 预览底图（仅预览用，不参与打印）：1260×888 的实物证书扫描件，绘制到 185×130mm */
+  /* 预览底图（仅预览用，不参与打印）：1260×888 的实物证书扫描件，绘制到 175×125mm */
   var PREVIEW_PX_PER_MM = 6;
   var BG_SRC = { a: 'assets/cert/page-a.jpg', b: 'assets/cert/page-b.jpg' };
   var bgImages = { a: null, b: null };
@@ -300,7 +300,7 @@ window.App.certPrint = (function () {
       ['培训学校', '证书中「在 ____ 参加」处的学校 / 培训机构名称'],
       ['项目', '证书中「参加 ____ 工种（专业）培训」处的项目名称'],
       ['科目/成绩', '固定两组：科目1 / 成绩1、科目2 / 成绩2'],
-      ['打印', '每名学员 2 张 185×130mm 横向（16K 对折）：第 1 张为封面 + 第1页，第 2 张为第2、3页；请使用预印证书纸']
+      ['打印', '每名学员 2 张 175×125mm 横向（16K 对折）：第 1 张为封面 + 第1页，第 2 张为第2、3页；请使用预印证书纸']
     ];
     var table2 = { rows: noteRows, aligns: [], widths: [100, 420] };
     return [
@@ -510,7 +510,7 @@ window.App.certPrint = (function () {
     return canvas;
   }
 
-  /* 校准页：185×130mm 10mm 网格（50mm 加粗）+ 中心十字 + 当前偏移，用于目测套位 */
+  /* 校准页：175×125mm 10mm 网格（50mm 加粗）+ 中心十字 + 当前偏移，用于目测套位 */
   function buildCalibrationCanvas(pxPerMm, off) {
     off = off || { x: 0, y: 0 };
     var canvas = document.createElement('canvas');
@@ -557,7 +557,7 @@ window.App.certPrint = (function () {
     ctx.fillStyle = '#111111';
     ctx.textBaseline = 'top';
     ctx.font = pxPerMm * 2.6 + 'px ' + FONT_FAMILY;
-    ctx.fillText('套位校准页 · 185×130mm 横向（16K 对折）', 8 * pxPerMm, 6 * pxPerMm);
+    ctx.fillText('套位校准页 · 175×125mm 横向（16K 对折）', 8 * pxPerMm, 6 * pxPerMm);
     ctx.font = pxPerMm * 2.2 + 'px ' + FONT_FAMILY;
     ctx.fillText('当前偏移：X ' + mm(off.x) + 'mm / Y ' + mm(off.y) + 'mm', 8 * pxPerMm, 11 * pxPerMm);
     ctx.fillText('网格每格 10mm（50mm 加粗）；与预印纸留白比对后调整偏移再正式打印', 8 * pxPerMm, 16 * pxPerMm);
@@ -907,7 +907,7 @@ window.App.certPrint = (function () {
       var res = await printApi.printImage({
         dataUrls: [url],
         printerName: printer,
-        pageSize: { width: 185000, height: 130000 },
+        pageSize: { width: 175000, height: 125000 },
         marginType: 'none',
         copies: 1
       });
@@ -955,7 +955,7 @@ window.App.certPrint = (function () {
       var pages = ok.length * 2;
       var bad = records.length - ok.length;
       var yes = await window.App.ui.confirm('将按顺序逐张打印 ' + ok.length + ' 名学员，共 ' + pages +
-        ' 张 185×130mm 横向纸（16K 对折，每人 2 张）。每发送一张后需再点击「打印第 N 张」继续，便于更换纸张。' +
+        ' 张 175×125mm 横向纸（16K 对折，每人 2 张）。每发送一张后需再点击「打印第 N 张」继续，便于更换纸张。' +
         (bad ? '另有 ' + bad + ' 行信息有误不参与打印。' : '') + '确定开始吗？');
       if (!yes) return;
       printJob = { key: key, index: 0, total: pages, records: ok };
@@ -977,7 +977,7 @@ window.App.certPrint = (function () {
       var res = await printApi.printImage({
         dataUrls: [url],
         printerName: printer,
-        pageSize: { width: 185000, height: 130000 },
+        pageSize: { width: 175000, height: 125000 },
         marginType: 'none',
         copies: 1
       });

@@ -148,7 +148,7 @@ assert(C.recordsFromRows([]).length === 0, '空表返回空数组');
 
 /* ---------- 5. 版式坐标 ---------- */
 {
-  assert(C.PAGE_MM.w === 185 && C.PAGE_MM.h === 130, '16K 对折横向 185×130mm');
+  assert(C.PAGE_MM.w === 175 && C.PAGE_MM.h === 125, '16K 对折横向 175×125mm');
   // 打印光栅宽度必须低于常见针式/标签驱动 2048px 行宽，否则整页会被换行拆开
   assert(C.PAGE_MM.w * C.PX_PER_MM <= 2048, '打印光栅宽度不超过 2048px');
   const a = C.FACES.a, b = C.FACES.b;
@@ -157,7 +157,7 @@ assert(C.recordsFromRows([]).length === 0, '空表返回空数组');
   a.concat(b).forEach(function (f) {
     if (!(f.x >= 0 && f.x < C.PAGE_MM.w && f.y >= 0 && f.y < C.PAGE_MM.h)) inBounds = false;
   });
-  assert(inBounds, '全部字段落在 185×130 版面内');
+  assert(inBounds, '全部字段落在 175×125 版面内');
   assert(a.every(function (f) { return f.x > 105; }), '第1页字段位于右半版（封面左侧留空）');
   const keys = b.map(function (f) { return f.key; });
   assert(keys.indexOf('name') >= 0 && keys.indexOf('cityCounty') >= 0 && keys.indexOf('streetTown') >= 0,
