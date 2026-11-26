@@ -141,6 +141,7 @@ withServer(PORT, async (port) => {
    'photo-open-restore', 'soon-photo-back',
    'batch-open-printbatch',
    'cert-export', 'cert-import', 'cert-file', 'cert-count', 'cert-unsupported', 'cert-printer',
+   'cert-offset-x', 'cert-offset-y', 'cert-offset-reset', 'cert-calibrate', 'cert-errors',
    'cert-clear', 'cert-print-btn', 'cert-status', 'cert-back', 'cert-grid', 'cert-empty',
    'print-open-docs', 'print-open-convert', 'print-open-pdf', 'print-open-ocr', 'print-open-watermark',
    'do-pick', 'do-file', 'do-count', 'do-empty', 'do-clear', 'do-lang', 'do-run', 'do-cancel', 'do-status',
@@ -169,7 +170,9 @@ withServer(PORT, async (port) => {
     '拖拽框位于内容区列表上方');
   assert(doc.querySelector('#bw-tool-rect.active') && !doc.querySelector('#bw-tool-brush.active'),
     '水印工具默认选中「框选」');
-  assert(doc.querySelectorAll('#archive-menu .home-card').length === 4, '压缩工具菜单 4 张卡片（3 可用 + 1 敬请期待）');
+  assert(doc.querySelectorAll('#archive-menu .home-card').length === 3, '压缩工具菜单 3 张卡片（全部可用）');
+  assert(!/分卷压缩\s*\/\s*压缩包内容浏览/.test(doc.getElementById('archive-menu').textContent),
+    '压缩工具菜单不再残留过期「敬请期待」卡');
   assert(!!doc.getElementById('ai-card') && !!doc.getElementById('ai-badge') && !!doc.getElementById('ai-apply') && !!doc.getElementById('ai-restore'),
     '压缩包图标卡片与按钮存在');
   assert(doc.getElementById('archive-open-compress') && doc.getElementById('archive-open-extract'),

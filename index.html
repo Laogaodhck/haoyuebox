@@ -51,7 +51,7 @@
   <aside class="home-declare">
     <img class="home-logo" src="assets/icon.png" alt="浩玥工具箱">
     <h2 class="home-name">浩玥工具箱</h2>
-    <div class="home-version">桌面离线版 v1.8.3</div>
+    <div class="home-version">桌面离线版 v1.9.0</div>
     <div class="home-divider"></div>
     <h3 class="home-h3">软件声明</h3>
     <ul class="home-declare-list">
@@ -977,6 +977,21 @@
         <label>纸张</label>
         <input type="text" class="num-input" value="A5 横向（210×148mm）" disabled>
       </div>
+      <div class="cert-offset">
+        <div class="field">
+          <label>横向偏移 X（mm）</label>
+          <input type="number" id="cert-offset-x" class="num-input" step="0.1" min="-10" max="10" value="0.0">
+        </div>
+        <div class="field">
+          <label>纵向偏移 Y（mm）</label>
+          <input type="number" id="cert-offset-y" class="num-input" step="0.1" min="-10" max="10" value="0.0">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button id="cert-offset-reset" class="ghost" type="button">重置偏移</button>
+        <button id="cert-calibrate" class="ghost" type="button">试打校准页</button>
+      </div>
+      <div class="hint-text">偏移按打印机分别记忆（步进 0.1mm，范围 ±10mm），正值向右 / 向下。换打印机或换预印纸批次后，先试打校准页确认网格与留白对齐。</div>
       <div class="hint-text">每人 2 张：第 1 张为「封面 + 第1页」，第 2 张为「第2、3页」。请使用预印证书纸，按单面进纸。</div>
 
       <div class="btn-row bottom">
@@ -990,7 +1005,8 @@
     <div class="stage">
       <div class="canvas-wrap batch-table-wrap">
         <div class="preview-title"><span>打印预览（每人 2 张 A5 横向）</span></div>
-        <div class="hint-text">模板字段：身份证号、姓名、性别、年龄、省份、市/县、街道/乡镇、起始日期、结束日期、培训学校、项目、发证日期、科目1/成绩1、科目2/成绩2。日期支持 2026-10-14、2026/10/14、2026年10月14日、20261014。</div>
+        <div class="hint-text">模板字段：身份证号、姓名、性别、年龄、省份、市/县、街道/乡镇、起始日期、结束日期、培训学校、项目、发证日期、科目1/成绩1、科目2/成绩2。日期支持 2026-10-14、2026/10/14、2026年10月14日、20261014。身份证号须为 18 位且校验位正确，起始日期不能晚于结束日期，年龄为 1-120 的整数。</div>
+        <div id="cert-errors" class="cert-errors" hidden></div>
         <div id="cert-grid" class="cert-grid" hidden></div>
         <div id="cert-empty" class="stage-tip">先导出模板并填写学员信息，再导入打印</div>
       </div>
@@ -1108,13 +1124,6 @@
         </span>
       </span>
     </div>
-    <button class="home-card disabled" type="button" disabled>
-      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg></span>
-      <span class="hc-body">
-        <span class="hc-title">更多功能</span>
-        <span class="hc-desc">分卷压缩 / 压缩包内容浏览 · 敬请期待</span>
-      </span>
-    </button>
   </div>
 
   <!-- 压缩面板 -->

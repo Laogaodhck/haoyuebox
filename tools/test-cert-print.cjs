@@ -64,7 +64,7 @@ assert(C.normHeader('发证时间') === '发证日期', '别名：发证时间 �
 {
   const rows = [
     C.HEADERS.slice(),
-    ['123456789012345678', '张三', '男', '30', '示例省', '示例市', '示例乡镇', '2026-02-10', '2026-10-14', '示例培训学校', '示例项目', '2026-10-14', '科目一', '合格', '科目二', '80'],
+    ['11010519491231002X', '张三', '男', '30', '示例省', '示例市', '示例乡镇', '2026-02-10', '2026-10-14', '示例培训学校', '示例项目', '2026-10-14', '科目一', '合格', '科目二', '80'],
     ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
     ['123456789012345679', '', '男', '31', '示例省', '示例市', '示例乡镇', '', '', '', '', '2026-10-14', '', '', '', '']
   ];
@@ -77,6 +77,62 @@ assert(C.normHeader('发证时间') === '发证日期', '别名：发证时间 �
   assert(list[1].errors.indexOf('姓名为空') >= 0, '缺姓名被标记');
 }
 assert(C.recordsFromRows([]).length === 0, '空表返回空数组');
+
+/* ---------- 3b. 身份证 / 日期区间 / 年龄校验 ---------- */
+{
+  assert(C.isValidIdNo('11010519491231002X'), '身份证校验位正确（X 结尾）');
+  assert(!C.isValidIdNo('11010519491231002'), '17 位身份证不通过');
+  assert(!C.isValidIdNo('110105194912310020'), '校验位错误不通过');
+  assert(!C.isValidIdNo('11010519491231002Y'), '非法校验字符不通过');
+  assert(!C.isValidIdNo(''), '空身份证不参与校验');
+
+  const badId = C.normalizeRecord({ '姓名': '李四', '身份证号': '110105194912310020', '发证日期': '2026-07-01' });
+  assert(badId.errors.indexOf('身份证号校验位不正确') >= 0, '身份证校验位错误被标记');
+  const shortId = C.normalizeRecord({ '姓名': '李四', '身份证号': '11010519491231002', '发证日期': '2026-07-01' });
+  assert(shortId.errors.indexOf('身份证号需为 18 位') >= 0, '身份证非 18 位被标记');
+
+  const reversed = C.normalizeRecord({
+    '姓名': '王五', '发证日期': '2026-07-01', '起始日期': '2026-10-14', '结束日期': '2026-02-10'
+  });
+  assert(reversed.errors.indexOf('起始日期晚于结束日期') >= 0, '起始日期晚于结束日期被标记');
+
+  const badDate = C.normalizeRecord({ '姓名': '王五', '发证日期': '2026-07-01', '起始日期': '2026-13-40' });
+  assert(badDate.errors.indexOf('起始日期格式不正确') >= 0, '无效起始日期被标记');
+
+  const badAge = C.normalizeRecord({ '姓名': '赵六', '发证日期': '2026-07-01', '年龄': '0' });
+  assert(badAge.errors.indexOf('年龄需为 1-120 的整数') >= 0, '年龄越界被标记');
+  const bigAge = C.normalizeRecord({ '姓名': '赵六', '发证日期': '2026-07-01', '年龄': '121' });
+  assert(bigAge.errors.indexOf('年龄需为 1-120 的整数') >= 0, '年龄超过 120 被标记');
+  const okAge = C.normalizeRecord({ '姓名': '赵六', '发证日期': '2026-07-01', '年龄': '30' });
+  assert(okAge.errors.length === 0, '合法年龄无错误');
+  assert(C.normalizeRecord({ '姓名': '赵六', '发证日期': '2026-07-01', '年龄': '' }).errors.length === 0,
+    '年龄留空不报错');
+}
+
+/* ---------- 3c. 错误清单（不含有效行，带行号） ---------- */
+{
+  const list = [
+    C.normalizeRecord({ __row: 2, '姓名': '张三', '身份证号': '11010519491231002X', '发证日期': '2026-07-01' }),
+    C.normalizeRecord({ __row: 5, '姓名': '', '发证日期': '2026-07-01' })
+  ];
+  const bad = C.errorLines(list);
+  assert(bad.length === 1 && bad[0].row === 5, '错误清单只含问题行并保留行号');
+  assert(bad[0].reasons.indexOf('姓名为空') >= 0, '错误清单包含具体原因');
+}
+
+/* ---------- 3d. 套位偏移（±10mm / 0.1mm 步进 / 字段叠加） ---------- */
+{
+  assert(C.clampOffset(1.24) === 1.2 && C.clampOffset(-1.26) === -1.3, '偏移按 0.1mm 取整');
+  assert(C.clampOffset(99) === 10 && C.clampOffset(-99) === -10, '偏移收敛到 ±10mm');
+  assert(C.clampOffset('abc') === 0 && C.clampOffset('') === 0, '非法偏移归零');
+  const f = C.FACES.b[0];
+  const pos = C.fieldDrawPos(f, { x: 0.5, y: -1.2 });
+  assert(Math.abs(pos.x - (f.x + 0.5)) < 1e-9 && Math.abs(pos.y - (f.y - 1.2)) < 1e-9, '字段坐标叠加偏移');
+  const base = C.fieldDrawPos(f, { x: 0, y: 0 });
+  assert(base.x === f.x && base.y === f.y, '零偏移保持原坐标');
+  assert(C.offsetKey('HP-1020') === 'haoyue.cert.offset.HP-1020', '偏移按打印机名分键存储');
+  assert(C.offsetKey('') === 'haoyue.cert.offset.__default', '无打印机名时使用默认键');
+}
 
 /* ---------- 4. 模板表结构 ---------- */
 {
@@ -168,7 +224,7 @@ async function buildZip(entries, method) {
   const stored = await zipOf(templateFiles);
   const back = await C.parseXlsxBuffer(stored);
   assert(back.length === 1, 'store 模式：读回 1 行示例');
-  assert(back[0].name === '张三' && back[0].idNo === '123456789012345678', 'store 模式：姓名 / 身份证号');
+  assert(back[0].name === '张三' && back[0].idNo === '11010519491231002X', 'store 模式：姓名 / 身份证号');
   assert(back[0].issue && back[0].issue.y === 2026 && back[0].issue.m === 7, 'store 模式：发证日期');
   assert(back[0].subj2 === '科目二' && back[0].score2 === '80', 'store 模式：第二组科目 / 成绩');
   assert(back[0].errors.length === 0, 'store 模式：记录校验通过');
@@ -182,7 +238,7 @@ async function buildZip(entries, method) {
     '</row>' +
     '<row r="2">' +
     '<c r="A2" t="s"><v>0</v></c>' +
-    '<c r="B2"><v>123456789012345678</v></c>' +
+    '<c r="B2"><v>11010519491231002X</v></c>' +
     '<c r="C2"><v>45000</v></c>' +
     '</row></sheetData></worksheet>';
   const sstXml = '<?xml version="1.0" encoding="UTF-8"?><sst><si><t>张三</t></si></sst>';
@@ -193,8 +249,9 @@ async function buildZip(entries, method) {
   const list = await C.parseXlsxBuffer(zipped);
   assert(list.length === 1, 'deflate 模式：读回 1 行');
   assert(list[0].name === '张三', 'deflate + sharedStrings：姓名');
-  assert(list[0].idNo === '123456789012345678', 'deflate：18 位身份证号不丢精度');
+  assert(list[0].idNo === '11010519491231002X', 'deflate：18 位身份证号不丢精度');
   assert(list[0].issue && list[0].issue.y === 2023, 'deflate：Excel 日期序列号解析');
+  assert(list[0].errors.length === 0, 'deflate：记录校验通过');
 
   /* 6c. 无效文件 */
   let rejected = false;

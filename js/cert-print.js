@@ -37,7 +37,7 @@ window.App.certPrint = (function () {
   ];
   var HEADER_WIDTHS = [150, 80, 50, 50, 80, 90, 90, 110, 110, 120, 130, 110, 90, 70, 90, 70];
   var EXAMPLE_ROW = [
-    '123456789012345678', '张三', '男', '30', '示例省', '示例市', '示例乡镇',
+    '11010519491231002X', '张三', '男', '30', '示例省', '示例市', '示例乡镇',
     '2026-01-01', '2026-06-30', '示例培训学校', '示例项目', '2026-07-01',
     '科目一', '合格', '科目二', '80'
   ];
@@ -94,8 +94,13 @@ window.App.certPrint = (function () {
   ];
   var FACES = { a: FIELDS_A, b: FIELDS_B };
 
+  /* 套位偏移：mm，叠加到全部字段坐标；按打印机分别记忆 */
+  var OFFSET_LIMIT = 10;
+  var OFFSET_KEY_PREFIX = 'haoyue.cert.offset.';
+
   var records = [];      // 已导入学员 [{name,idNo,...,start:{y,m,d},end,issue, errors, row}]
   var thumbUrls = [];    // 预览图 objectURL（重渲染前释放）
+  var offset = { x: 0, y: 0 };
   var printing = false;
 
   /* ================= 纯逻辑（可单测） ================= */
@@ -141,20 +146,86 @@ window.App.certPrint = (function () {
   function monthOf(dt) { return dt ? pad2(dt.m) : ''; }
   function dayOf(dt) { return dt ? pad2(dt.d) : ''; }
 
+  /* 身份证 18 位校验位（ISO 7064 MOD 11-2） */
+  function idCheckChar(id) {
+    var w = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2];
+    var codes = '10X98765432';
+    var sum = 0;
+    for (var i = 0; i < 17; i++) sum += (id.charCodeAt(i) - 48) * w[i];
+    return codes.charAt(sum % 11);
+  }
+
+  function isValidIdNo(id) {
+    var s = clean(id).toUpperCase();
+    if (!/^\d{17}[\dX]$/.test(s)) return false;
+    return idCheckChar(s) === s.charAt(17);
+  }
+
+  /* 日期先后比较：统一转为 YYYYMMDD 整数 */
+  function dateKey(dt) { return dt ? dt.y * 10000 + dt.m * 100 + dt.d : 0; }
+
+  /* 偏移量收敛到 ±10mm、0.1mm 步进 */
+  function clampOffset(v) {
+    var n = Number(v);
+    if (!isFinite(n)) return 0;
+    n = Math.round(n * 10) / 10;
+    return Math.max(-OFFSET_LIMIT, Math.min(OFFSET_LIMIT, n));
+  }
+
+  function offsetKey(printer) {
+    return OFFSET_KEY_PREFIX + (printer || '__default');
+  }
+
+  function readOffset(printer) {
+    try {
+      var raw = window.localStorage && window.localStorage.getItem(offsetKey(printer));
+      if (!raw) return { x: 0, y: 0 };
+      var o = JSON.parse(raw) || {};
+      return { x: clampOffset(o.x), y: clampOffset(o.y) };
+    } catch (e) {
+      return { x: 0, y: 0 };
+    }
+  }
+
+  function saveOffset(printer, off) {
+    try {
+      if (window.localStorage) {
+        window.localStorage.setItem(offsetKey(printer),
+          JSON.stringify({ x: clampOffset(off && off.x), y: clampOffset(off && off.y) }));
+      }
+    } catch (e) {
+      /* 隐私模式 / 存储不可写：偏移仍在本会话生效 */
+    }
+  }
+
+  /* 字段最终绘制坐标（版面坐标 + 套位偏移，单位 mm） */
+  function fieldDrawPos(f, off) {
+    off = off || {};
+    return { x: f.x + clampOffset(off.x || 0), y: f.y + clampOffset(off.y || 0) };
+  }
+
+  /* 错误行汇总（供预览红字清单与测试复用） */
+  function errorLines(list) {
+    return (list || []).filter(function (r) { return r.errors && r.errors.length; })
+      .map(function (r) { return { row: r.row, name: r.name, reasons: r.errors.slice() }; });
+  }
+
   /* 原始行对象 → 规范化学员记录（含校验信息） */
   function normalizeRecord(raw) {
     raw = raw || {};
+    var startText = clean(raw['起始日期']);
+    var endText = clean(raw['结束日期']);
     var rec = {
       row: raw.__row || 0,
-      idNo: clean(raw['身份证号']),
+      idNo: clean(raw['身份证号']).toUpperCase(),
       name: clean(raw['姓名']),
       gender: clean(raw['性别']),
       age: clean(raw['年龄']),
       province: clean(raw['省份']),
       cityCounty: clean(raw['市/县']),
       streetTown: clean(raw['街道/乡镇']),
-      start: parseDate(raw['起始日期']),
-      end: parseDate(raw['结束日期']),
+      start: parseDate(startText),
+      end: parseDate(endText),
       school: clean(raw['培训学校']),
       project: clean(raw['项目']),
       issue: parseDate(raw['发证日期']),
@@ -166,6 +237,18 @@ window.App.certPrint = (function () {
     };
     if (!rec.name) rec.errors.push('姓名为空');
     if (!rec.issue) rec.errors.push('发证日期缺失或格式不正确');
+    if (rec.idNo) {
+      if (!/^\d{17}[\dX]$/.test(rec.idNo)) rec.errors.push('身份证号需为 18 位');
+      else if (!isValidIdNo(rec.idNo)) rec.errors.push('身份证号校验位不正确');
+    }
+    if (startText && !rec.start) rec.errors.push('起始日期格式不正确');
+    if (endText && !rec.end) rec.errors.push('结束日期格式不正确');
+    if (rec.start && rec.end && dateKey(rec.start) > dateKey(rec.end)) {
+      rec.errors.push('起始日期晚于结束日期');
+    }
+    if (rec.age && (!/^\d+$/.test(rec.age) || +rec.age < 1 || +rec.age > 120)) {
+      rec.errors.push('年龄需为 1-120 的整数');
+    }
     return rec;
   }
 
@@ -195,8 +278,10 @@ window.App.certPrint = (function () {
     var noteRows = [
       ['字段', '填写说明'],
       ['日期格式', '推荐 2026-10-14；也支持 2026/10/14、2026年10月14日、20261014'],
-      ['身份证号', '请先把该列设为「文本」再粘贴，避免长数字被 Excel 转成科学计数法'],
-      ['年龄', '填数字，例如 39'],
+      ['身份证号', '请先把该列设为「文本」再粘贴，避免长数字被 Excel 转成科学计数法；填写时须为 18 位且校验位正确'],
+      ['年龄', '填数字，例如 30（1-120 的整数）'],
+      ['日期校验', '起始日期不能晚于结束日期；起始 / 结束日期可留空，发证日期必填'],
+      ['打印校验', '导入后如有不合规行，会在预览区上方按行号列出原因，该行不参与打印'],
       ['省市县', '省份 = 省（市、自治区）；市/县 = 市县名；街道/乡镇 = 街道或乡镇名'],
       ['培训学校', '证书中「在 ____ 参加」处的学校 / 培训机构名称'],
       ['项目', '证书中「参加 ____ 工种（专业）培训」处的项目名称'],
@@ -372,7 +457,7 @@ window.App.certPrint = (function () {
     }
   }
 
-  function drawField(ctx, f, text, pxPerMm) {
+  function drawField(ctx, f, text, pxPerMm, off) {
     text = clean(text);
     if (!text) return;
     var ptPx = 0.352778 * pxPerMm;
@@ -385,13 +470,14 @@ window.App.certPrint = (function () {
       size *= 0.94;
       ctx.font = size.toFixed(1) + 'px ' + family;
     }
+    var pos = fieldDrawPos(f, off);
     // Word 中文字顶端对齐；canvas 用 alphabetic 基线，按 ascent 下移
-    var baseline = f.y * pxPerMm + f.pt * ptPx * 0.86;
-    ctx.fillText(text, f.x * pxPerMm, baseline);
+    var baseline = pos.y * pxPerMm + f.pt * ptPx * 0.86;
+    ctx.fillText(text, pos.x * pxPerMm, baseline);
   }
 
   /* 生成单页画布（face: 'a' | 'b'） */
-  function makePageCanvas(face, rec, pxPerMm) {
+  function makePageCanvas(face, rec, pxPerMm, off) {
     var canvas = document.createElement('canvas');
     canvas.width = Math.round(PAGE_MM.w * pxPerMm);
     canvas.height = Math.round(PAGE_MM.h * pxPerMm);
@@ -402,8 +488,62 @@ window.App.certPrint = (function () {
     ctx.fillStyle = '#000000';
     ctx.textBaseline = 'alphabetic';
     (FACES[face] || []).forEach(function (f) {
-      drawField(ctx, f, textFor(rec, f.key), pxPerMm);
+      drawField(ctx, f, textFor(rec, f.key), pxPerMm, off);
     });
+    return canvas;
+  }
+
+  /* 校准页：A5 横向 10mm 网格（50mm 加粗）+ 中心十字 + 当前偏移，用于目测套位 */
+  function buildCalibrationCanvas(pxPerMm, off) {
+    off = off || { x: 0, y: 0 };
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.round(PAGE_MM.w * pxPerMm);
+    canvas.height = Math.round(PAGE_MM.h * pxPerMm);
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return canvas;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    var x, y;
+    for (x = 0; x <= PAGE_MM.w + 0.01; x += 10) {
+      ctx.strokeStyle = x % 50 === 0 ? '#8a93a6' : '#d5dae3';
+      ctx.lineWidth = Math.max(1, pxPerMm * (x % 50 === 0 ? 0.12 : 0.06));
+      ctx.beginPath();
+      ctx.moveTo(x * pxPerMm, 0);
+      ctx.lineTo(x * pxPerMm, canvas.height);
+      ctx.stroke();
+    }
+    for (y = 0; y <= PAGE_MM.h + 0.01; y += 10) {
+      ctx.strokeStyle = y % 50 === 0 ? '#8a93a6' : '#d5dae3';
+      ctx.lineWidth = Math.max(1, pxPerMm * (y % 50 === 0 ? 0.12 : 0.06));
+      ctx.beginPath();
+      ctx.moveTo(0, y * pxPerMm);
+      ctx.lineTo(canvas.width, y * pxPerMm);
+      ctx.stroke();
+    }
+
+    var cx = canvas.width / 2;
+    var cy = canvas.height / 2;
+    ctx.strokeStyle = '#ff5a5a';
+    ctx.lineWidth = Math.max(2, pxPerMm * 0.2);
+    ctx.beginPath();
+    ctx.moveTo(cx - pxPerMm * 6, cy);
+    ctx.lineTo(cx + pxPerMm * 6, cy);
+    ctx.moveTo(cx, cy - pxPerMm * 6);
+    ctx.lineTo(cx, cy + pxPerMm * 6);
+    ctx.stroke();
+
+    function mm(v) {
+      var n = clampOffset(v);
+      return (n >= 0 ? '+' : '') + n.toFixed(1);
+    }
+    ctx.fillStyle = '#111111';
+    ctx.textBaseline = 'top';
+    ctx.font = pxPerMm * 2.6 + 'px ' + FONT_FAMILY;
+    ctx.fillText('套位校准页 · A5 横向 210×148mm', 8 * pxPerMm, 6 * pxPerMm);
+    ctx.font = pxPerMm * 2.2 + 'px ' + FONT_FAMILY;
+    ctx.fillText('当前偏移：X ' + mm(off.x) + 'mm / Y ' + mm(off.y) + 'mm', 8 * pxPerMm, 11 * pxPerMm);
+    ctx.fillText('网格每格 10mm（50mm 加粗）；与预印纸留白比对后调整偏移再正式打印', 8 * pxPerMm, 16 * pxPerMm);
     return canvas;
   }
 
@@ -415,7 +555,7 @@ window.App.certPrint = (function () {
   }
 
   function thumbUrl(face, rec) {
-    var canvas = makePageCanvas(face, rec, THUMB_PX_PER_MM);
+    var canvas = makePageCanvas(face, rec, THUMB_PX_PER_MM, offset);
     var url = '';
     try { url = canvas.toDataURL('image/jpeg', 0.9); } catch (e) { url = ''; }
     canvas.width = 0;
@@ -424,7 +564,7 @@ window.App.certPrint = (function () {
   }
 
   function pageDataUrl(face, rec) {
-    var canvas = makePageCanvas(face, rec, PX_PER_MM);
+    var canvas = makePageCanvas(face, rec, PX_PER_MM, offset);
     var url = canvas.toDataURL('image/png');
     canvas.width = 0;
     canvas.height = 0;
@@ -441,14 +581,34 @@ window.App.certPrint = (function () {
     var ok = validRecords().length;
     var bad = records.length - ok;
     var txt = records.length
-      ? '已导入 ' + records.length + ' 名学员，可打印 ' + ok + ' 名' + (bad ? '，' + bad + ' 行信息不完整（不参与打印）' : '')
+      ? '已导入 ' + records.length + ' 名学员，可打印 ' + ok + ' 名' + (bad ? '，' + bad + ' 行信息有误（不参与打印）' : '')
       : '未导入学员信息';
     $('cert-count').textContent = txt;
     $('cert-print-btn').disabled = printing || ok === 0 || !bridgeOk();
   }
 
+  /* 预览区上方的红色错误清单：按 Excel 行号列出原因 */
+  function renderErrors() {
+    var box = $('cert-errors');
+    if (!box) return;
+    box.textContent = '';
+    var bad = errorLines(records);
+    if (!bad.length) { box.hidden = true; return; }
+    box.hidden = false;
+    var title = document.createElement('div');
+    title.className = 'cert-errors-title';
+    title.textContent = '以下 ' + bad.length + ' 行信息有误，不参与打印（请修正后重新导入）：';
+    box.appendChild(title);
+    bad.forEach(function (e) {
+      var line = document.createElement('div');
+      line.textContent = '第 ' + e.row + ' 行' + (e.name ? '（' + e.name + '）' : '') + '：' + e.reasons.join('；');
+      box.appendChild(line);
+    });
+  }
+
   function renderPreview() {
     releaseThumbs();
+    renderErrors();
     var grid = $('cert-grid');
     grid.textContent = '';
     if (!records.length) {
@@ -463,7 +623,7 @@ window.App.certPrint = (function () {
     if (!ok.length) {
       grid.hidden = true;
       $('cert-empty').hidden = false;
-      $('cert-empty').textContent = '导入的学员信息不完整（至少需要姓名和正确的发证日期）';
+      $('cert-empty').textContent = '没有可打印的学员：请按上方红字列出的行号修正信息后重新导入';
       return;
     }
     ok.forEach(function (rec, i) {
@@ -510,11 +670,13 @@ window.App.certPrint = (function () {
     renderPreview();
     updateCount();
     var ok = validRecords().length;
+    var bad = records.length - ok;
     $('cert-status').textContent = records.length
-      ? '已读取「' + sourceName + '」：可打印 ' + ok + ' 名' + (records.length > ok ? '，' + (records.length - ok) + ' 行缺少姓名或发证日期' : '')
+      ? '已读取「' + sourceName + '」：可打印 ' + ok + ' 名' + (bad ? '，' + bad + ' 行信息有误，详见预览区上方红字' : '')
       : '';
     if (!records.length) toast('模板中没有读到学员数据（请保留首行表头并填写数据行）', true);
-    else if (!ok) toast('学员信息不完整：请检查姓名与发证日期', true);
+    else if (!ok) toast('没有可打印的学员：请按预览区列出的行号修正后重新导入', true);
+    else if (bad) toast('可打印 ' + ok + ' 名，另有 ' + bad + ' 行信息有误（已按行号列出原因）', true);
     else toast('已导入 ' + ok + ' 名学员');
   }
 
@@ -554,6 +716,75 @@ window.App.certPrint = (function () {
     return !!(printApi && printApi.printImage && printApi.listPrinters);
   }
 
+  /* ---------- 套位偏移 UI ---------- */
+
+  function syncOffsetInputs() {
+    var xEl = $('cert-offset-x');
+    var yEl = $('cert-offset-y');
+    if (xEl) xEl.value = clampOffset(offset.x).toFixed(1);
+    if (yEl) yEl.value = clampOffset(offset.y).toFixed(1);
+  }
+
+  /* 切换打印机时加载该打印机记忆的偏移 */
+  function loadOffsetForPrinter() {
+    var sel = $('cert-printer');
+    offset = readOffset(sel ? sel.value : '');
+    syncOffsetInputs();
+  }
+
+  function applyOffsetFromInputs() {
+    offset = {
+      x: clampOffset($('cert-offset-x').value),
+      y: clampOffset($('cert-offset-y').value)
+    };
+    syncOffsetInputs();
+    var sel = $('cert-printer');
+    if (sel) saveOffset(sel.value, offset);
+    if (records.length) renderPreview();
+  }
+
+  function resetOffset() {
+    offset = { x: 0, y: 0 };
+    syncOffsetInputs();
+    var sel = $('cert-printer');
+    if (sel) saveOffset(sel.value, offset);
+    if (records.length) renderPreview();
+    toast('已重置当前打印机的套位偏移');
+  }
+
+  async function printCalibration() {
+    if (!bridgeOk()) { toast('请使用桌面版打印', true); return; }
+    var sel = $('cert-printer');
+    var printer = sel ? sel.value : '';
+    if (!printer) { toast('请选择打印机', true); return; }
+    var status = $('cert-status');
+    status.textContent = '正在生成校准页…';
+    try {
+      var canvas = buildCalibrationCanvas(PX_PER_MM, offset);
+      var url = canvas.toDataURL('image/png');
+      canvas.width = 0;
+      canvas.height = 0;
+      var res = await printApi.printImage({
+        dataUrls: [url],
+        printerName: printer,
+        pageSize: 'A5',
+        landscape: true,
+        marginType: 'none',
+        copies: 1
+      });
+      if (res && res.ok) {
+        status.textContent = '已发送校准页（1 张），请与预印纸留白比对';
+        toast('已发送校准页');
+      } else {
+        status.textContent = '校准页打印失败：' + ((res && res.error) || '未知错误');
+        toast('校准页打印失败：' + ((res && res.error) || '未知错误'), true);
+      }
+    } catch (e) {
+      status.textContent = '校准页打印失败：' + ((e && e.message) || e);
+      toast('校准页打印失败：' + ((e && e.message) || e), true);
+    }
+  }
+
   async function refreshPrinters() {
     var ok = bridgeOk();
     $('cert-unsupported').hidden = ok;
@@ -567,6 +798,8 @@ window.App.certPrint = (function () {
     } catch (e) {
       $('cert-status').textContent = '读取打印机失败：' + ((e && e.message) || e);
     }
+    loadOffsetForPrinter();
+    if (records.length) renderPreview();
     updateCount();
   }
 
@@ -578,7 +811,9 @@ window.App.certPrint = (function () {
     var printer = $('cert-printer').value;
     if (!printer) { toast('请选择打印机', true); return; }
     var pages = ok.length * 2;
-    var yes = await window.App.ui.confirm('将打印 ' + ok.length + ' 名学员，共 ' + pages + ' 张 A5 横向纸（每人 2 张），确定吗？');
+    var bad = records.length - ok.length;
+    var yes = await window.App.ui.confirm('将打印 ' + ok.length + ' 名学员，共 ' + pages + ' 张 A5 横向纸（每人 2 张）' +
+      (bad ? '；另有 ' + bad + ' 行信息有误不参与打印' : '') + '，确定吗？');
     if (!yes) return;
 
     printing = true;
@@ -641,6 +876,15 @@ window.App.certPrint = (function () {
     });
     $('cert-clear').addEventListener('click', clearAll);
     $('cert-print-btn').addEventListener('click', runPrint);
+    $('cert-offset-x').addEventListener('change', applyOffsetFromInputs);
+    $('cert-offset-y').addEventListener('change', applyOffsetFromInputs);
+    $('cert-offset-reset').addEventListener('click', resetOffset);
+    $('cert-calibrate').addEventListener('click', printCalibration);
+    $('cert-printer').addEventListener('change', function () {
+      loadOffsetForPrinter();
+      if (records.length) renderPreview();
+    });
+    loadOffsetForPrinter();
     $('cert-back').addEventListener('click', function () { window.App.batch.showOnly(null); });
     $('cert-unsupported').hidden = bridgeOk();
     if (!bridgeOk()) $('cert-printer').disabled = true;
@@ -667,7 +911,13 @@ window.App.certPrint = (function () {
       parseSharedStrings: parseSharedStrings,
       parseSheetRows: parseSheetRows,
       parseXlsxBuffer: parseXlsxBuffer,
-      textFor: textFor
+      textFor: textFor,
+      isValidIdNo: isValidIdNo,
+      dateKey: dateKey,
+      clampOffset: clampOffset,
+      offsetKey: offsetKey,
+      fieldDrawPos: fieldDrawPos,
+      errorLines: errorLines
     }
   };
 })();
