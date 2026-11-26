@@ -24,6 +24,13 @@ assert(U.envKind({ PORTABLE_EXECUTABLE_DIR: 'D:\\app' }, false) === 'portable', 
 assert(U.envKind({}, true) === 'packaged', 'envKind 无便携变量且已打包 → packaged');
 assert(U.envKind({}, false) === 'dev', 'envKind 无便携变量未打包 → dev');
 
+/* ---------- updateChannel（双通道：Win7 兼容包 vs 主版本） ---------- */
+assert(U.updateChannel('22.3.27') === 'win7', 'updateChannel Electron 22 → win7 通道');
+assert(U.updateChannel('22.0.0') === 'win7', 'updateChannel Electron 22.0.0 → win7 通道');
+assert(U.updateChannel('45.1.0') === 'latest', 'updateChannel Electron 45 → latest 通道');
+assert(U.updateChannel('23.0.0') === 'latest', 'updateChannel Electron 23（Win7 已不支持）→ latest 通道');
+assert(U.updateChannel('') === 'latest' && U.updateChannel(undefined) === 'latest', 'updateChannel 非法/缺失版本回退 latest');
+
 /* ---------- classifyError ---------- */
 assert(U.classifyError(new Error('getaddrinfo ENOTFOUND github.com')).indexOf('网络不可用') === 0, 'classifyError DNS 失败 → 网络文案');
 assert(U.classifyError(new Error('net::ERR_CONNECTION_TIMED_OUT')).indexOf('网络不可用') === 0, 'classifyError 连接超时 → 网络文案');

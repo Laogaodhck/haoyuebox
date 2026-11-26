@@ -21,7 +21,7 @@ jobs:
   windows:
     name: 构建 Windows 安装包
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -109,6 +109,24 @@ jobs:
         shell: bash
         run: node tools/verify-packaged.cjs
 
+      # Win7 兼容包：同一套源码 + Electron 22（最后一个支持 Win7/8/8.1 的版本）。
+      # 产物独立目录、独立更新通道 win7，避免与主版本互相覆盖/串更新
+      - name: 打包 Win7 兼容包（Electron 22）
+        shell: bash
+        run: |
+          if npm run dist:win7 > dist-win7.log 2>&1; then
+            tail -n 6 dist-win7.log
+          else
+            { echo '### Win7 兼容包打包失败（dist-win7.log 结尾）'; echo '```'; tail -n 40 dist-win7.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Win7 兼容包 E2E 冒烟（在 Win11/CI 上验证 Electron 22 可启动）
+        shell: bash
+        env:
+          HAOYUE_PACKAGED_EXE: release-build-win7/win-unpacked/浩玥工具箱.exe
+        run: node tools/verify-packaged.cjs
+
       # 应用内更新器（electron-updater）从 Release 资产读取 latest.yml 并按其中的
       # 文件名下载——artifactName 已 ASCII 化，构建产物名与资产名天然一致；
       # blockmap 支持差分下载（仅下载增量），latest.yml 是更新检测的元数据
@@ -129,6 +147,10 @@ jobs:
           cp "release-build/haoyue-idphoto-Setup-$VER.exe.blockmap" upload/
           cp "release-build/haoyue-idphoto-$VER-portable.exe" upload/
           cp "release-build/latest.yml" upload/
+          cp "release-build-win7/haoyue-idphoto-Setup-$VER-win7.exe" upload/
+          cp "release-build-win7/haoyue-idphoto-Setup-$VER-win7.exe.blockmap" upload/
+          cp "release-build-win7/haoyue-idphoto-$VER-portable-win7.exe" upload/
+          cp "release-build-win7/win7.yml" upload/
           gh release upload "$REL_TAG" upload/* --clobber
 
       # 手动触发且未指定补发 tag 时，不建 Release，只留产物供试装
@@ -137,5 +159,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: haoyue-idphoto-windows
-          path: release-build/*.exe
+          path: |
+            release-build/*.exe
+            release-build-win7/*.exe
           if-no-files-found: error

@@ -34,8 +34,14 @@
 
 从 [Releases](https://github.com/Laogaodhck/haoyuebox/releases) 下载安装：
 
-- `haoyue-idphoto-Setup-<版本>.exe`：NSIS 安装版，可选安装目录、创建桌面快捷方式
-- `haoyue-idphoto-<版本>-portable.exe`：免安装单文件便携版
+- `haoyue-idphoto-Setup-<版本>.exe`：NSIS 安装版，可选安装目录、创建桌面快捷方式（Windows 10/11 64 位）
+- `haoyue-idphoto-<版本>-portable.exe`：免安装单文件便携版（Windows 10/11 64 位）
+- `haoyue-idphoto-Setup-<版本>-win7.exe`：Windows 7 / 8 / 8.1 兼容安装版（Electron 22，独立更新通道）
+- `haoyue-idphoto-<版本>-portable-win7.exe`：Windows 7 / 8 / 8.1 兼容便携版
+
+**系统要求**：主版本需 Windows 10/11 64 位；Win7 兼容包支持 Windows 7 SP1 / 8.1 64 位（建议先安装
+KB4474419 SHA-2 与 KB2999226 UCRT 更新）。Win7 兼容包基于已停止维护的 Electron 22，仅建议用于无法升级系统的机器，
+请保持离线使用；其更新走独立 `win7` 通道，不会被更新到不支持 Win7 的主版本。
 
 **应用内更新**：设置 → 关于 → 「检查更新」，手动触发（联网仅发生在点击后）。安装版可检查 → 下载（进度条）→ 安装并重启；
 便携版与浏览器版降级为「打开发布页」手动下载。安装包未签名，Windows SmartScreen 提示时选「更多信息 → 仍要运行」。
@@ -90,6 +96,12 @@ start.bat          # 或 npm run serve（需本机 Node.js）
 npm install
 npm start        # 启动 Electron 窗口（内置随机端口静态服务）
 npm run dist     # 打包 Windows 安装版 + 便携版 → release-build/
+npm run dist:win7 # Win7 兼容包（Electron 22.3.27，独立更新通道 win7）→ release-build-win7/
+npm run dist:all  # 主版本 + Win7 兼容包
+
+> Win7 兼容包与主版本使用同一套源码：`dist:win7` 通过 `--config.electronVersion=22.3.27` 固定内核，
+> 输出到独立目录并使用 `win7` 更新通道；应用内更新器按 `process.versions.electron` 主版本自动选择通道
+>（≤22 → `win7.yml`，≥23 → `latest.yml`）。
 npm test         # 32 套件：纯算法 / 静态服务 / jsdom 冒烟 / OCR 引擎安装与识别（无需浏览器）
 npm run verify   # Playwright 端到端（需 Chromium；部分项需 fixtures/photo.jpg）
 npm run lint     # ESLint

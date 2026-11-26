@@ -2,6 +2,7 @@
 node_modules/
 release/
 release-build/
+release-build-win7/
 *.tgz
 
 # 本地验证产生的截图、控制台日志与页面快照

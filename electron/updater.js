@@ -15,6 +15,16 @@ const RELEASES_URL = 'https://github.com/Laogaodhck/haoyuebox/releases/latest';
 
 /* —— 纯函数（tools/test-appupdater.cjs 覆盖）—— */
 
+/* 更新通道：Win7 兼容包（Electron ≤ 22）走独立 win7 通道，
+ * 避免被主版本（Electron 45，要求 Win10+）的 latest.yml 拉到无法启动的更新。
+ * Electron 23 起不再支持 Win7/8/8.1，22 是最后一个兼容版本。 */
+function updateChannel(electronVersion) {
+  const major = parseInt(String(electronVersion || '').split('.')[0], 10);
+  return major > 0 && major <= 22 ? 'win7' : 'latest';
+}
+
+const CHANNEL = updateChannel(process.versions.electron);
+
 /* 运行形态：便携版 / 打包安装版 / 开发模式 */
 function envKind(env, isPackaged) {
   if (env && env.PORTABLE_EXECUTABLE_DIR) return 'portable';
@@ -160,7 +170,7 @@ function registerAppUpdateIpc(ipcMain, app, diag, getWin) {
   const { NsisUpdater } = require('electron-updater');
   const kind = envKind(process.env, app.isPackaged);
 
-  const updater = new NsisUpdater(FEED);
+  const updater = new NsisUpdater({ ...FEED, channel: CHANNEL });
   updater.autoDownload = false;         // 发现新版本后由用户确认再下载
   updater.autoInstallOnAppQuit = false; // 下载完成也不自动安装，用户点「安装并重启」
   updater.logger = {
@@ -197,6 +207,7 @@ function registerAppUpdateIpc(ipcMain, app, diag, getWin) {
 module.exports = {
   FEED: FEED,
   RELEASES_URL: RELEASES_URL,
+  updateChannel: updateChannel,
   envKind: envKind,
   classifyError: classifyError,
   shouldPushProgress: shouldPushProgress,

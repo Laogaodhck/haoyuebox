@@ -57,6 +57,30 @@ if (!exe) {
     const appVersion = await app.evaluate(({ app }) => app.getVersion());
     assert(appVersion === PKG_VERSION, '打包产物 app.getVersion()=' + appVersion + ' 与 package.json 一致');
 
+    /* ---------- 更新通道与内核主版本匹配（双构建防串更） ---------- */
+    const electronVersion = await app.evaluate(() => process.versions.electron);
+    const expectedChan = parseInt(electronVersion.split('.')[0], 10) <= 22 ? 'win7' : 'latest';
+    const updateCfg = path.join(path.dirname(exe), 'resources', 'app-update.yml');
+    let cfgChannel = '未生成';
+    if (fs.existsSync(updateCfg)) {
+      const m = /^channel:\s*(\S+)/m.exec(fs.readFileSync(updateCfg, 'utf8'));
+      cfgChannel = m ? m[1] : 'latest'; /* electron-builder 默认通道不写 channel 行 */
+    }
+    assert(cfgChannel === expectedChan,
+      'app-update.yml 更新通道与内核匹配（Electron ' + electronVersion + ' → ' + cfgChannel + '）');
+
+    /* ---------- 渲染层：Electron 22 兼容包必需能力（Chromium 108） ---------- */
+    const caps = await win.evaluate(() => {
+      const out = {};
+      try { new DecompressionStream('deflate-raw'); out.deflateRaw = true; } catch (e) { out.deflateRaw = false; }
+      out.randomUUID = typeof crypto.randomUUID === 'function';
+      out.clone = typeof structuredClone === 'function';
+      out.offscreen = typeof OffscreenCanvas === 'function';
+      return out;
+    });
+    assert(caps.deflateRaw && caps.randomUUID && caps.clone && caps.offscreen,
+      '渲染层关键能力可用（deflate-raw / randomUUID / structuredClone / OffscreenCanvas）');
+
     /* ---------- 首页渲染 ---------- */
     assert(/浩玥工具箱/.test(await win.title()), '窗口标题包含「浩玥工具箱」');
     const homeVersion = await win.$eval('.home-version', (el) => el.textContent);

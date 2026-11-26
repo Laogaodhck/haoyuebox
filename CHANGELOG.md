@@ -2,6 +2,29 @@
 
 本项目所有显著变更记录于此。版本号遵循语义化版本（主版本.次版本.修订号）。
 
+## [1.10.0] - 2026-11-26
+
+### 新增
+- Windows 7 / 8 / 8.1 兼容包：新增 `npm run dist:win7`，固定 Electron 22.3.27（最后一个支持 Win7 的版本），产出 `*-win7.exe` 安装版与便携版，输出到独立目录 `release-build-win7/`
+- 双更新通道：应用内更新器按 `process.versions.electron` 自动选择通道（≤22 → `win7.yml`，≥23 → `latest.yml`），Win7 用户不会被更新到要求 Win10+ 的主版本
+- 发布流水线同时构建、冒烟并上传主版本与 Win7 兼容包
+
+### 变更
+- 发布工作流超时 30 → 45 分钟（双构建）
+
+### 兼容性
+- 主版本仍为 Electron 45（Windows 10/11 64 位），功能与行为不变
+- Win7 兼容包基于 Electron 22 / Chromium 108 / Node 16（已停止维护），需 Windows 7 SP1 及 SHA-2 / UCRT 系统更新；建议离线使用
+- Win7 兼容包的 OCR 外部引擎（Umi-OCR）兼容性未保证，内置 Tesseract 回退可用
+
+### 测试
+- `tools/test-appupdater.cjs` 新增更新通道断言（22 → win7、23/45 → latest、非法版本回退 latest）
+- `tools/check-refs.cjs` 新增 `dist:win7` 构建参数断言（内核 22、独立输出目录、独立通道、产物名隔离）
+- 发布流水线对 Win7 兼容包执行同一套 `verify-packaged` E2E
+
+### 文档
+- README 增补 Win7 兼容包下载、系统要求与双构建说明；架构文档同步 1.10.0
+
 ## [1.9.0] - 2026-11-26
 
 ### 新增
