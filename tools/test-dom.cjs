@@ -143,6 +143,8 @@ withServer(PORT, async (port) => {
    'cert-export', 'cert-import', 'cert-file', 'cert-count', 'cert-unsupported', 'cert-printer',
    'cert-offset-x', 'cert-offset-y', 'cert-offset-reset', 'cert-calibrate', 'cert-errors',
    'cert-clear', 'cert-print-btn', 'cert-status', 'cert-back', 'cert-grid', 'cert-empty',
+   'cert-preview', 'cert-preview-name', 'cert-preview-meta', 'cert-preview-prev',
+   'cert-preview-next', 'cert-preview-close', 'cert-preview-a', 'cert-preview-b', 'cert-preview-bg',
    'print-open-docs', 'print-open-convert', 'print-open-pdf', 'print-open-ocr', 'print-open-watermark',
    'do-pick', 'do-file', 'do-count', 'do-empty', 'do-clear', 'do-lang', 'do-run', 'do-cancel', 'do-status',
    'do-back', 'do-text', 'do-meta', 'do-copy', 'do-txt', 'do-docx', 'do-empty-hint',

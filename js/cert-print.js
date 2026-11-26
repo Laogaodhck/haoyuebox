@@ -62,10 +62,10 @@ window.App.certPrint = (function () {
    * docx 仅用于确认字段与示例值（其文本框位置与实物有偏差，不直接采用）。 */
   /* 第1页：封面右侧（x > 105mm） */
   var FIELDS_A = [
-    { key: 'idNo', x: 148.0, y: 117.4, pt: 11, maxW: 52, latin: true },
-    { key: 'issueY', x: 149.0, y: 131.9, pt: 12, maxW: 22 },
-    { key: 'issueM', x: 177.5, y: 131.9, pt: 12, maxW: 6 },
-    { key: 'issueD', x: 189.0, y: 131.9, pt: 12, maxW: 6 }
+    { key: 'idNo', x: 148.0, y: 116.5, pt: 14, maxW: 52, latin: true },
+    { key: 'issueY', x: 149.0, y: 131.3, pt: 14, maxW: 22 },
+    { key: 'issueM', x: 177.5, y: 131.3, pt: 14, maxW: 6 },
+    { key: 'issueD', x: 189.0, y: 131.3, pt: 14, maxW: 6 }
   ];
   /* 第2页（左半版）与第3页（右半版），同在一张 A5 横向纸上
    * 地址按实物第2页第一处「____ 市 ____ 街道」填写（市/县、街道/乡镇） */
@@ -84,15 +84,21 @@ window.App.certPrint = (function () {
     { key: 'endD', x: 69.0, y: 54.8, pt: 12, maxW: 6 },
     { key: 'school', x: 10.0, y: 65.7, pt: 12, maxW: 32 },
     { key: 'project', x: 56.0, y: 65.7, pt: 12, maxW: 46 },
-    { key: 'issueY', x: 40.0, y: 133.0, pt: 12, maxW: 20 },
-    { key: 'issueM', x: 68.0, y: 133.0, pt: 12, maxW: 12 },
-    { key: 'issueD', x: 86.0, y: 133.0, pt: 12, maxW: 6 },
+    { key: 'issueY', x: 40.0, y: 132.4, pt: 14, maxW: 20 },
+    { key: 'issueM', x: 68.0, y: 132.4, pt: 14, maxW: 12 },
+    { key: 'issueD', x: 86.0, y: 132.4, pt: 14, maxW: 6 },
     { key: 'subj1', x: 120.5, y: 30.8, pt: 12, maxW: 45 },
     { key: 'score1', x: 172.0, y: 30.8, pt: 12, maxW: 24 },
     { key: 'subj2', x: 120.5, y: 39.8, pt: 12, maxW: 45 },
     { key: 'score2', x: 172.0, y: 39.8, pt: 12, maxW: 24 }
   ];
   var FACES = { a: FIELDS_A, b: FIELDS_B };
+
+  /* 预览底图（仅预览用，不参与打印）：210×148mm @6px/mm 的证书扫描件 */
+  var PREVIEW_PX_PER_MM = 6;
+  var BG_SRC = { a: 'assets/cert/page-a.jpg', b: 'assets/cert/page-b.jpg' };
+  var bgImages = { a: null, b: null };
+  var bgPromise = null;
 
   /* 套位偏移：mm，叠加到全部字段坐标；按打印机分别记忆 */
   var OFFSET_LIMIT = 10;
@@ -101,7 +107,10 @@ window.App.certPrint = (function () {
   var records = [];      // 已导入学员 [{name,idNo,...,start:{y,m,d},end,issue, errors, row}]
   var thumbUrls = [];    // 预览图 objectURL（重渲染前释放）
   var offset = { x: 0, y: 0 };
+  var previewIndex = 0;
+  var previewShowBg = true;
   var printing = false;
+  var printJob = null;   // 逐张打印进度 { key, index, total, records }
 
   /* ================= 纯逻辑（可单测） ================= */
 
@@ -476,8 +485,8 @@ window.App.certPrint = (function () {
     ctx.fillText(text, pos.x * pxPerMm, baseline);
   }
 
-  /* 生成单页画布（face: 'a' | 'b'） */
-  function makePageCanvas(face, rec, pxPerMm, off) {
+  /* 生成单页画布（face: 'a' | 'b'）；withBg 为 false 时输出纯白打印页 */
+  function makePageCanvas(face, rec, pxPerMm, off, withBg) {
     var canvas = document.createElement('canvas');
     canvas.width = Math.round(PAGE_MM.w * pxPerMm);
     canvas.height = Math.round(PAGE_MM.h * pxPerMm);
@@ -485,6 +494,9 @@ window.App.certPrint = (function () {
     if (!ctx) return canvas;
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (withBg !== false && bgImages[face]) {
+      try { ctx.drawImage(bgImages[face], 0, 0, canvas.width, canvas.height); } catch (e) { /* 底图缺失时退回白底 */ }
+    }
     ctx.fillStyle = '#000000';
     ctx.textBaseline = 'alphabetic';
     (FACES[face] || []).forEach(function (f) {
@@ -555,7 +567,7 @@ window.App.certPrint = (function () {
   }
 
   function thumbUrl(face, rec) {
-    var canvas = makePageCanvas(face, rec, THUMB_PX_PER_MM, offset);
+    var canvas = makePageCanvas(face, rec, THUMB_PX_PER_MM, offset, true);
     var url = '';
     try { url = canvas.toDataURL('image/jpeg', 0.9); } catch (e) { url = ''; }
     canvas.width = 0;
@@ -564,11 +576,79 @@ window.App.certPrint = (function () {
   }
 
   function pageDataUrl(face, rec) {
-    var canvas = makePageCanvas(face, rec, PX_PER_MM, offset);
+    var canvas = makePageCanvas(face, rec, PX_PER_MM, offset, false);
     var url = canvas.toDataURL('image/png');
     canvas.width = 0;
     canvas.height = 0;
     return url;
+  }
+
+  /* 证书底图只加载一次；加载完成后重绘预览，避免先出现白底 */
+  function loadBackgrounds() {
+    if (bgPromise) return bgPromise;
+    bgPromise = Promise.all(['a', 'b'].map(function (face) {
+      return new Promise(function (resolve) {
+        var img = new Image();
+        img.onload = function () { bgImages[face] = img; resolve(); };
+        img.onerror = function () { bgImages[face] = null; resolve(); };
+        img.src = BG_SRC[face];
+      });
+    })).then(function () {
+      if (records.length) renderPreview();
+    });
+    return bgPromise;
+  }
+
+  /* ---------- 大图预览（叠加底图 + 当前偏移） ---------- */
+
+  function drawLargePage(face, rec) {
+    var target = $('cert-preview-' + face);
+    if (!target) return;
+    var source = makePageCanvas(face, rec, PREVIEW_PX_PER_MM, offset, previewShowBg);
+    target.width = source.width;
+    target.height = source.height;
+    var ctx = target.getContext('2d');
+    if (ctx) ctx.drawImage(source, 0, 0);
+    source.width = 0;
+    source.height = 0;
+  }
+
+  function renderPreviewModal() {
+    var box = $('cert-preview');
+    if (!box || box.hidden) return;
+    var ok = validRecords();
+    if (!ok.length) { closePreview(); return; }
+    previewIndex = Math.max(0, Math.min(ok.length - 1, previewIndex));
+    var rec = ok[previewIndex];
+    $('cert-preview-name').textContent = rec.name || '未命名';
+    $('cert-preview-meta').textContent = '第 ' + (previewIndex + 1) + ' / ' + ok.length +
+      ' 位 · 表格第 ' + rec.row + ' 行 · 身份证 ' + (rec.idNo || '—');
+    drawLargePage('a', rec);
+    drawLargePage('b', rec);
+    $('cert-preview-prev').disabled = previewIndex <= 0;
+    $('cert-preview-next').disabled = previewIndex >= ok.length - 1;
+  }
+
+  function openPreview(index) {
+    var ok = validRecords();
+    if (!ok.length) return;
+    previewIndex = Math.max(0, Math.min(ok.length - 1, index));
+    $('cert-preview').hidden = false;
+    document.body.classList.add('cert-preview-open');
+    renderPreviewModal();
+    $('cert-preview-close').focus();
+  }
+
+  function closePreview() {
+    var box = $('cert-preview');
+    if (box) box.hidden = true;
+    document.body.classList.remove('cert-preview-open');
+  }
+
+  function stepPreview(delta) {
+    if ($('cert-preview').hidden) return;
+    previewIndex += delta;
+    renderPreviewModal();
   }
 
   /* ================= UI ================= */
@@ -584,7 +664,43 @@ window.App.certPrint = (function () {
       ? '已导入 ' + records.length + ' 名学员，可打印 ' + ok + ' 名' + (bad ? '，' + bad + ' 行信息有误（不参与打印）' : '')
       : '未导入学员信息';
     $('cert-count').textContent = txt;
-    $('cert-print-btn').disabled = printing || ok === 0 || !bridgeOk();
+    syncPrintButton();
+  }
+
+  function nextPrintButtonText() {
+    if (!printJob) return '打印';
+    return '打印第 ' + (printJob.index + 1) + ' 张 / 共 ' + printJob.total + ' 张';
+  }
+
+  function printButtonText() {
+    if (printing) return '正在打印…';
+    return nextPrintButtonText();
+  }
+
+  function syncPrintButton() {
+    var btn = $('cert-print-btn');
+    if (!btn) return;
+    btn.textContent = printButtonText();
+    btn.disabled = printing || validRecords().length === 0 || !bridgeOk();
+  }
+
+  /* 记录 / 打印机 / 偏移变化后，重新从头开始逐张打印 */
+  function resetPrintJob() {
+    if (printing) return;
+    var had = !!printJob;
+    printJob = null;
+    syncPrintButton();
+    if (had) {
+      var status = $('cert-status');
+      if (status) status.textContent = '打印设置或学员信息已变更，下一次点击「打印」将从第 1 张重新开始';
+    }
+  }
+
+  function printJobKey(ok, printer) {
+    return printer + '|' + offset.x + '|' + offset.y + '|' + ok.map(function (r) {
+      return r.row + ':' + (r.name || '') + ':' + (r.idNo || '') + ':' +
+        (r.issue ? r.issue.y + '-' + r.issue.m + '-' + r.issue.d : '');
+    }).join(';');
   }
 
   /* 预览区上方的红色错误清单：按 Excel 行号列出原因 */
@@ -629,6 +745,14 @@ window.App.certPrint = (function () {
     ok.forEach(function (rec, i) {
       var card = document.createElement('div');
       card.className = 'cert-card';
+      card.tabIndex = 0;
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-label', '查看 ' + (rec.name || '未命名') + ' 的证书大图预览');
+      card.title = '点击查看大图预览';
+      card.addEventListener('click', function () { openPreview(i); });
+      card.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPreview(i); }
+      });
 
       var head = document.createElement('div');
       head.className = 'cert-card-head';
@@ -661,12 +785,19 @@ window.App.certPrint = (function () {
         pages.appendChild(fig);
       });
       card.appendChild(pages);
+
+      var hint = document.createElement('div');
+      hint.className = 'cert-card-hint';
+      hint.textContent = '点击查看大图预览';
+      card.appendChild(hint);
       grid.appendChild(card);
     });
+    renderPreviewModal();
   }
 
   function setRecords(list, sourceName) {
     records = list || [];
+    resetPrintJob();
     renderPreview();
     updateCount();
     var ok = validRecords().length;
@@ -730,6 +861,7 @@ window.App.certPrint = (function () {
     var sel = $('cert-printer');
     offset = readOffset(sel ? sel.value : '');
     syncOffsetInputs();
+    resetPrintJob();
   }
 
   function applyOffsetFromInputs() {
@@ -740,6 +872,7 @@ window.App.certPrint = (function () {
     syncOffsetInputs();
     var sel = $('cert-printer');
     if (sel) saveOffset(sel.value, offset);
+    resetPrintJob();
     if (records.length) renderPreview();
   }
 
@@ -748,12 +881,14 @@ window.App.certPrint = (function () {
     syncOffsetInputs();
     var sel = $('cert-printer');
     if (sel) saveOffset(sel.value, offset);
+    resetPrintJob();
     if (records.length) renderPreview();
     toast('已重置当前打印机的套位偏移');
   }
 
   async function printCalibration() {
     if (!bridgeOk()) { toast('请使用桌面版打印', true); return; }
+    resetPrintJob();
     var sel = $('cert-printer');
     var printer = sel ? sel.value : '';
     if (!printer) { toast('请选择打印机', true); return; }
@@ -810,26 +945,33 @@ window.App.certPrint = (function () {
     if (!bridgeOk()) { toast('请使用桌面版打印', true); return; }
     var printer = $('cert-printer').value;
     if (!printer) { toast('请选择打印机', true); return; }
-    var pages = ok.length * 2;
-    var bad = records.length - ok.length;
-    var yes = await window.App.ui.confirm('将打印 ' + ok.length + ' 名学员，共 ' + pages + ' 张 A5 横向纸（每人 2 张）' +
-      (bad ? '；另有 ' + bad + ' 行信息有误不参与打印' : '') + '，确定吗？');
-    if (!yes) return;
+
+    var key = printJobKey(ok, printer);
+    if (!printJob || printJob.key !== key) {
+      var pages = ok.length * 2;
+      var bad = records.length - ok.length;
+      var yes = await window.App.ui.confirm('将按顺序逐张打印 ' + ok.length + ' 名学员，共 ' + pages +
+        ' 张 A5 横向纸（每人 2 张）。每发送一张后需再点击「打印第 N 张」继续，便于更换纸张。' +
+        (bad ? '另有 ' + bad + ' 行信息有误不参与打印。' : '') + '确定开始吗？');
+      if (!yes) return;
+      printJob = { key: key, index: 0, total: pages, records: ok };
+    }
+
+    var job = printJob;
+    var idx = job.index;
+    var rec = job.records[Math.floor(idx / 2)];
+    var face = idx % 2 === 0 ? 'a' : 'b';
+    var faceLabel = face === 'a' ? '封面 + 第1页' : '第2、3页';
+    var status = $('cert-status');
 
     printing = true;
     updateCount();
-    var status = $('cert-status');
-    status.textContent = '正在生成页面…';
-    var urls = [];
+    status.textContent = '正在生成第 ' + (idx + 1) + ' 张（' + (rec.name || '未命名') + ' · ' + faceLabel + '）…';
     try {
-      ok.forEach(function (rec, i) {
-        urls.push(pageDataUrl('a', rec));
-        urls.push(pageDataUrl('b', rec));
-        if (i % 5 === 0) status.textContent = '正在生成页面…（' + (i + 1) + '/' + ok.length + '）';
-      });
-      status.textContent = '正在发送打印任务…（' + pages + ' 页）';
+      var url = pageDataUrl(face, rec);
+      status.textContent = '正在发送第 ' + (idx + 1) + ' 张…';
       var res = await printApi.printImage({
-        dataUrls: urls,
+        dataUrls: [url],
         printerName: printer,
         pageSize: 'A5',
         landscape: true,
@@ -837,14 +979,23 @@ window.App.certPrint = (function () {
         copies: 1
       });
       if (res && res.ok) {
-        status.textContent = '已发送打印任务（' + ok.length + ' 名学员 / ' + pages + ' 页）';
-        toast('已发送到打印机');
+        if (printJob !== job) return;   // 打印期间被清空/重置
+        job.index++;
+        if (job.index >= job.total) {
+          status.textContent = '已全部发送 ' + job.total + ' 张（' + ok.length + ' 名学员），本次打印结束';
+          toast('全部 ' + job.total + ' 张已发送打印');
+          printJob = null;
+        } else {
+          status.textContent = '第 ' + (idx + 1) + ' 张已发送（' + (rec.name || '未命名') + ' · ' + faceLabel +
+            '）；放好下一张纸后点击「' + nextPrintButtonText() + '」继续';
+          toast('第 ' + (idx + 1) + '/' + job.total + ' 张已发送');
+        }
       } else {
-        status.textContent = '打印失败：' + ((res && res.error) || '未知错误');
+        status.textContent = '第 ' + (idx + 1) + ' 张打印失败：' + ((res && res.error) || '未知错误') + '，可再次点击「打印」重试';
         toast('打印失败：' + ((res && res.error) || '未知错误'), true);
       }
     } catch (e) {
-      status.textContent = '打印失败：' + ((e && e.message) || e);
+      status.textContent = '第 ' + (idx + 1) + ' 张打印失败：' + ((e && e.message) || e) + '，可再次点击「打印」重试';
       toast('打印失败：' + ((e && e.message) || e), true);
     } finally {
       printing = false;
@@ -854,6 +1005,8 @@ window.App.certPrint = (function () {
 
   function clearAll() {
     records = [];
+    printJob = null;
+    closePreview();
     releaseThumbs();
     $('cert-grid').textContent = '';
     $('cert-file').value = '';
@@ -864,6 +1017,7 @@ window.App.certPrint = (function () {
 
   function enter() {
     refreshPrinters();
+    loadBackgrounds();
   }
 
   function init() {
@@ -885,9 +1039,31 @@ window.App.certPrint = (function () {
       if (records.length) renderPreview();
     });
     loadOffsetForPrinter();
-    $('cert-back').addEventListener('click', function () { window.App.batch.showOnly(null); });
+    $('cert-back').addEventListener('click', function () {
+      closePreview();
+      window.App.batch.showOnly(null);
+    });
     $('cert-unsupported').hidden = bridgeOk();
     if (!bridgeOk()) $('cert-printer').disabled = true;
+
+    /* 大图预览：关闭 / 上下一位 / 点击遮罩关闭 / 键盘导航 */
+    $('cert-preview-close').addEventListener('click', closePreview);
+    $('cert-preview-prev').addEventListener('click', function () { stepPreview(-1); });
+    $('cert-preview-next').addEventListener('click', function () { stepPreview(1); });
+    $('cert-preview-bg').addEventListener('click', function () {
+      previewShowBg = !previewShowBg;
+      this.textContent = previewShowBg ? '隐藏底图' : '显示底图';
+      renderPreviewModal();
+    });
+    $('cert-preview').addEventListener('click', function (e) {
+      if (e.target === this) closePreview();
+    });
+    document.addEventListener('keydown', function (e) {
+      if ($('cert-preview').hidden) return;
+      if (e.key === 'Escape') { e.preventDefault(); closePreview(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); stepPreview(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); stepPreview(1); }
+    });
   }
 
   return {
