@@ -46,13 +46,6 @@ assert(/directories\.output=release-build-win7/.test(win7Script), 'dist:win7 输
 assert(/publish\.channel=win7/.test(win7Script), 'dist:win7 使用独立更新通道 win7');
 assert(/win7/i.test(win7Script), 'dist:win7 产物名带 win7 标识，避免与主版本同名');
 
-/* 结业证预览底图（代码中按路径动态加载，静态扫描不到，单独校验存在与大小） */
-['assets/cert/page-a.jpg', 'assets/cert/page-b.jpg'].forEach(function (rel) {
-  var p = path.join(ROOT, rel);
-  assert(fs.existsSync(p) && fs.statSync(p).size > 20 * 1024,
-    '结业证预览底图存在且体积合理：' + rel);
-});
-
 const vendor = refsFrom('js/segmenter.js', /['"](vendor\/[^'"]+)['"]/g);
 assert(vendor.length >= 3, '分割器解析到 ' + vendor.length + ' 个 vendor 路径');
 for (const ref of new Set(vendor)) {

@@ -51,7 +51,7 @@
   <aside class="home-declare">
     <img class="home-logo" src="assets/icon.png" alt="浩玥工具箱">
     <h2 class="home-name">浩玥工具箱</h2>
-    <div class="home-version">桌面离线版 v1.11.3</div>
+    <div class="home-version">桌面离线版 v1.11.4</div>
     <div class="home-divider"></div>
     <h3 class="home-h3">软件声明</h3>
     <ul class="home-declare-list">
@@ -728,14 +728,6 @@
       </span>
       <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
     </button>
-    <button class="home-card" id="batch-open-cert" type="button">
-      <span class="hc-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>
-      <span class="hc-body">
-        <span class="hc-title">结业证打印 <span class="hc-badge">可用</span></span>
-        <span class="hc-desc">导出 Excel 信息模板 · 填写后导入 · 每人生成 2 张 175×125mm 横向（16K 对折，第1页 / 第2、3页）逐张确认打印</span>
-      </span>
-      <span class="hc-arrow"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
-    </button>
   </div>
 
   <!-- 重命名面板 -->
@@ -953,88 +945,6 @@
         <canvas id="wm-canvas" hidden></canvas>
         <div id="wm-info" class="hint-text"></div>
       </div>
-    </div>
-  </section>
-
-  <!-- ========== 子功能：结业证打印（批量工具） ========== -->
-  <section id="cert-print" class="subpage" hidden>
-    <aside class="panel">
-      <h3>学员信息</h3>
-      <div class="btn-col">
-        <button id="cert-export" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 导出 Excel 模板…</button>
-        <button id="cert-import" class="primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> 导入填写好的模板…</button>
-      </div>
-      <input type="file" id="cert-file" accept=".xlsx" hidden>
-      <div id="cert-count" class="hint-text">未导入学员信息</div>
-      <div id="cert-unsupported" class="hint-text st-bad" hidden>打印功能需要在桌面版（安装版 / 便携版）中使用，浏览器打开不支持</div>
-
-      <h3>打印设置</h3>
-      <div class="field">
-        <label>打印机</label>
-        <select id="cert-printer" class="select"></select>
-      </div>
-      <div class="field">
-        <label>纸张</label>
-        <input type="text" class="num-input" value="175×125mm 横向（16K 对折）" disabled>
-      </div>
-      <div class="cert-offset">
-        <div class="field">
-          <label>横向偏移 X（mm）</label>
-          <input type="number" id="cert-offset-x" class="num-input" step="0.1" min="-10" max="10" value="0.0">
-        </div>
-        <div class="field">
-          <label>纵向偏移 Y（mm）</label>
-          <input type="number" id="cert-offset-y" class="num-input" step="0.1" min="-10" max="10" value="0.0">
-        </div>
-      </div>
-      <div class="btn-row">
-        <button id="cert-offset-reset" class="ghost" type="button">重置偏移</button>
-        <button id="cert-calibrate" class="ghost" type="button">试打校准页</button>
-      </div>
-      <div class="hint-text">偏移按打印机分别记忆（步进 0.1mm，范围 ±10mm），正值向右 / 向下。换打印机或换预印纸批次后，先试打校准页确认网格与留白对齐。</div>
-      <div class="hint-text">每人 2 张：第 1 张为「封面 + 第1页」，第 2 张为「第2、3页」。请使用预印证书纸，按单面进纸。</div>
-
-      <div class="btn-row bottom">
-        <button id="cert-clear" class="ghost">清空</button>
-        <button id="cert-print-btn" class="primary" disabled>打印</button>
-      </div>
-      <div id="cert-status" class="hint-text"></div>
-      <button id="cert-back" class="ghost batch-back"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>返回批量工具</button>
-    </aside>
-
-    <div class="stage">
-      <div class="canvas-wrap batch-table-wrap">
-        <div class="preview-title"><span>打印预览（每人 2 张 175×125mm 横向）</span></div>
-        <div class="hint-text">模板字段：身份证号、姓名、性别、年龄、省份、市/县、街道/乡镇、起始日期、结束日期、培训学校、项目、发证日期、科目1/成绩1、科目2/成绩2。日期支持 2026-10-14、2026/10/14、2026年10月14日、20261014。身份证号须为 18 位且校验位正确，起始日期不能晚于结束日期，年龄为 1-120 的整数。导入后点击学员卡片可查看叠加证书底图的大图预览。</div>
-        <div id="cert-errors" class="cert-errors" hidden></div>
-        <div id="cert-grid" class="cert-grid" hidden></div>
-        <div id="cert-empty" class="stage-tip">先导出模板并填写学员信息，再导入打印</div>
-      </div>
-    </div>
-
-    <!-- 结业证大图预览：证书底图 + 导入数据 + 当前套位偏移 -->
-    <div id="cert-preview" class="cert-preview" hidden>
-      <div class="cert-preview-bar">
-        <button id="cert-preview-prev" class="ghost" type="button">‹ 上一位</button>
-        <div class="cert-preview-head">
-          <b id="cert-preview-name">—</b>
-          <span id="cert-preview-meta"></span>
-        </div>
-        <button id="cert-preview-next" class="ghost" type="button">下一位 ›</button>
-        <button id="cert-preview-bg" class="ghost" type="button">隐藏底图</button>
-        <button id="cert-preview-close" class="primary" type="button">关闭</button>
-      </div>
-      <div class="cert-preview-body">
-        <figure class="cert-preview-sheet">
-          <figcaption>第 1 张 · 封面 + 第1页</figcaption>
-          <canvas id="cert-preview-a"></canvas>
-        </figure>
-        <figure class="cert-preview-sheet">
-          <figcaption>第 2 张 · 第2、3页</figcaption>
-          <canvas id="cert-preview-b"></canvas>
-        </figure>
-      </div>
-      <div class="cert-preview-tip">底图仅用于核对套位与字段位置，实际打印使用空白预印纸，不会打印底图；当前偏移已叠加在字段上。底图为实物照片，受拍摄角度影响可能有轻微透视偏差，可切换为白底查看字段位置。</div>
     </div>
   </section>
 
@@ -2025,7 +1935,6 @@
 <script src="js/docs-reader.js"></script>
 <script src="vendor/ocr/tesseract.min.js"></script>
 <script src="js/xlsx-lite.js"></script>
-<script src="js/cert-print.js"></script>
 <script src="js/ocr-enhance.js"></script>
 <script src="js/ocr-umi.js"></script>
 <script src="js/docs-ocr.js"></script>
